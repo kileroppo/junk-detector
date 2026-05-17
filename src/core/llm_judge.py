@@ -145,8 +145,9 @@ async def judge(content: str, config: ScoringConfig) -> ScoreResult:
             result = _build_score_result(data, model)
 
             # Attach cost if available
-            if hasattr(response, "_hidden_params") and response._hidden_params:
-                cost = response._hidden_params.get("response_cost", 0.0)
+            hidden = getattr(response, "_hidden_params", None)
+            if hidden and isinstance(hidden, dict):
+                cost = hidden.get("response_cost", 0.0)
                 if cost:
                     result.cost = cost
 

@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
 
-# Auto-load .env from project root
-load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+# Auto-load .env (searches upward from cwd)
+load_dotenv()
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
