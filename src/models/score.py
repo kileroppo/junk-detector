@@ -87,10 +87,11 @@ class ScoringConfig(BaseModel):
 
     # Model configuration
     primary_model: str = Field(default="deepseek/deepseek-chat", description="主要评分模型")
-    fallback_model: str = Field(default="gpt-4o-mini", description="复评模型")
+    fallback_model: str = Field(default="deepseek/deepseek-chat", description="复评模型")
     confidence_threshold: float = Field(
         default=0.7, ge=0, le=1, description="低于此阈值触发复评"
     )
+    api_base: Optional[str] = Field(default=None, description="API base URL (e.g. for Ollama)")
 
     # Label thresholds
     label_thresholds: dict[str, float] = Field(
@@ -102,4 +103,23 @@ class ScoringConfig(BaseModel):
             "高质量原创": 80.0,  # originality > 80
             "信息密度高": 80.0,  # info_density > 80
         }
+    )
+
+    # Embedding configuration
+    embedding_model: str = Field(
+        default="ollama/nomic-embed-text", description="Embedding model for similarity detection"
+    )
+    embedding_api_base: Optional[str] = Field(
+        default=None, description="API base for embedding model"
+    )
+
+    # Summarization configuration
+    summarize_enabled: bool = Field(
+        default=True, description="Whether to summarize long articles before scoring"
+    )
+    summarize_max_chars: int = Field(
+        default=5000, description="Articles longer than this get summarized first"
+    )
+    summarize_model: Optional[str] = Field(
+        default=None, description="Model for summarization (None = use primary_model)"
     )

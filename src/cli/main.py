@@ -135,6 +135,7 @@ def score(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="URL to fetch and score"),
     file: Optional[str] = typer.Option(None, "--file", "-f", help="File path to read and score"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model preset: ollama, deepseek, openai, anthropic"),
 ) -> None:
     """Score content quality across 9 dimensions."""
 
@@ -158,9 +159,11 @@ def score(
 
     # Score the content
     try:
+        from src.core.config import load_config
         from src.core.scorer import score as do_score
 
-        result: ScoreResult = asyncio.run(do_score(content.text))
+        config = load_config(override_model=model)
+        result: ScoreResult = asyncio.run(do_score(content.text, config=config))
     except Exception as exc:
         console.print(f"❌ 评分失败: {exc}", style="bold red")
         raise typer.Exit(code=1)

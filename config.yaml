@@ -1,0 +1,61 @@
+# Junk Detector Configuration
+
+# Model presets - choose one as active
+models:
+  # Local Ollama (free, private, requires ollama running locally)
+  ollama:
+    primary: "ollama/qwen2.5:14b"
+    fallback: "ollama/qwen2.5:7b"
+    api_base: "http://localhost:11434"  # default Ollama endpoint
+
+  # DeepSeek (cheap, good Chinese support)
+  deepseek:
+    primary: "deepseek/deepseek-chat"
+    fallback: "deepseek/deepseek-chat"
+
+  # OpenAI
+  openai:
+    primary: "gpt-4o-mini"
+    fallback: "gpt-4o"
+
+  # Anthropic
+  anthropic:
+    primary: "claude-sonnet-4-20250514"
+    fallback: "claude-sonnet-4-20250514"
+
+# Which model preset to use (one of: ollama, deepseek, openai, anthropic)
+active_model: "deepseek"
+
+# Scoring configuration
+scoring:
+  confidence_threshold: 0.7
+
+  weights:
+    originality: 1.0
+    info_density: 1.0
+    reasoning_quality: 1.0
+    readability: 0.8
+    timeliness: 0.6
+    ai_generated_prob: -0.8
+    emotional_manipulation: -1.0
+    advertorial_prob: -1.0
+    scam_prob: -1.2
+
+  label_thresholds:
+    可能AI生成: 70.0
+    情绪操纵: 65.0
+    疑似软文: 70.0
+    疑似骗局: 60.0
+    高质量原创: 80.0
+    信息密度高: 80.0
+
+# Embedding model for similarity detection (Task #2 will use this)
+embedding:
+  model: "ollama/nomic-embed-text"  # or "text-embedding-3-small" for OpenAI
+  api_base: "http://localhost:11434"
+
+# Summarization for long articles (Task #3 will use this)
+summarization:
+  enabled: true
+  max_chars_before_summarize: 5000  # articles longer than this get summarized first
+  model: null  # null = use same as active_model primary

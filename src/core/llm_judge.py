@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -130,12 +131,22 @@ async def judge(content: str, config: ScoringConfig) -> ScoreResult:
 
     for attempt in range(max_attempts):
         try:
-            response = await litellm.acompletion(
-                model=model,
-                messages=messages,
-                temperature=0.3,
-                max_tokens=1024,
-            )
+            kwargs = {
+                "model": model,
+                "messages": messages,
+                "temperature": 0.3,
+                "max_tokens": 1024,
+            }
+            # If using Ollama, pass api_base
+            if model.startswith("ollama/"):
+                kwargs["api_base"] = os.environ.get(
+                    "OLLAMA_API_BASE", "http://localhost:11434"
+                )
+            # Also use api_base from config if set
+            elif hasattr(config, "api_base") and config.api_base:
+                kwargs["api_base"] = config.api_base
+
+            response = await litellm.acompletion(**kwargs)
 
             raw_text = response.choices[0].message.content
             if not raw_text:

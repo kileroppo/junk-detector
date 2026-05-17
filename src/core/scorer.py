@@ -93,7 +93,8 @@ async def score(content_text: str, config: ScoringConfig | None = None) -> Score
         Complete ScoreResult with dimensions, labels, and metadata.
     """
     if config is None:
-        config = ScoringConfig()
+        from src.core.config import load_config
+        config = load_config()
 
     # 1. Apply rules first
     rule_result = apply_rules(content_text)
