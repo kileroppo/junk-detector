@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import signal
+import socket
 import sys
 from pathlib import Path
 from typing import Optional
@@ -288,15 +289,51 @@ def history(
     console.print()
 
 
+def _is_port_available(host: str, port: int) -> bool:
+    """Return True if the TCP port can be bound on this machine."""
+    # Match uvicorn's default: bind all interfaces when host is 0.0.0.0.
+    bind_host = "" if host in ("0.0.0.0", "::") else host
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind((bind_host, port))
+        return True
+    except OSError:
+        return False
+
+
+def _resolve_port(host: str, port: int, max_attempts: int = 100) -> int:
+    """Use *port* if free, otherwise scan the next available ports."""
+    for offset in range(max_attempts):
+        candidate = port + offset
+        if candidate > 65535:
+            break
+        if _is_port_available(host, candidate):
+            if offset > 0:
+                console.print(
+                    f"[yellow]Port {port} is in use, starting on {candidate} instead[/yellow]"
+                )
+            return candidate
+    console.print(
+        f"[red]No free port in range {port}–{min(port + max_attempts - 1, 65535)}[/red]"
+    )
+    raise typer.Exit(code=1)
+
+
 @app.command()
 def serve(
     host: str = typer.Option("0.0.0.0", "--host", help="Host to bind"),
-    port: int = typer.Option(8000, "--port", "-p", help="Port to bind"),
+    port: int = typer.Option(8000, "--port", "-p", help="Preferred port to bind"),
+    strict_port: bool = typer.Option(
+        False,
+        "--strict-port",
+        help="Fail if the preferred port is occupied instead of trying the next one",
+    ),
 ) -> None:
     """Start the API server."""
     import uvicorn
 
-    uvicorn.run("src.api.app:app", host=host, port=port, reload=True)
+    bind_port = port if strict_port else _resolve_port(host, port)
+    uvicorn.run("src.api.app:app", host=host, port=bind_port, reload=True)
 
 
 # ---------------------------------------------------------------------------

@@ -67,18 +67,16 @@ async def dashboard(request: Request):
 
     stats = _compute_stats(records)
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
-        {"request": request, "stats": stats},
+        {"stats": stats},
     )
 
 
 @router.get("/score-form", response_class=HTMLResponse)
 async def score_form(request: Request):
     """Score submission form page."""
-    return templates.TemplateResponse(
-        "score_form.html",
-        {"request": request},
-    )
+    return templates.TemplateResponse(request, "score_form.html")
 
 
 @router.post("/score-submit", response_class=HTMLResponse)
@@ -144,15 +142,17 @@ async def score_submit(
         if is_htmx:
             # Return inline result fragment
             return templates.TemplateResponse(
+                request,
                 "result.html",
-                {"request": request, "result": result_data},
+                {"result": result_data},
             )
         else:
             # For non-HTMX, try to find the saved record ID and redirect
             # Fall back to rendering result directly
             return templates.TemplateResponse(
+                request,
                 "result.html",
-                {"request": request, "result": result_data},
+                {"result": result_data},
             )
 
     except Exception as e:
@@ -190,8 +190,9 @@ async def result_detail(request: Request, record_id: int):
     }
 
     return templates.TemplateResponse(
+        request,
         "result.html",
-        {"request": request, "result": result_data},
+        {"result": result_data},
     )
 
 
@@ -233,9 +234,9 @@ async def history_page(
     }
 
     return templates.TemplateResponse(
+        request,
         "history.html",
         {
-            "request": request,
             "results": results,
             "filters": filter_context,
             "page": page,
@@ -246,10 +247,7 @@ async def history_page(
 @router.get("/monitor-status", response_class=HTMLResponse)
 async def monitor_status(request: Request):
     """Monitor status page (Thunder + Dispatcher stats)."""
-    return templates.TemplateResponse(
-        "monitor.html",
-        {"request": request},
-    )
+    return templates.TemplateResponse(request, "monitor.html")
 
 
 # ---------------------------------------------------------------------------
@@ -266,8 +264,9 @@ async def partials_recent_scores(request: Request):
         scores = []
 
     return templates.TemplateResponse(
+        request,
         "partials/recent_scores.html",
-        {"request": request, "scores": scores},
+        {"scores": scores},
     )
 
 
@@ -306,9 +305,9 @@ async def partials_monitor_stats(request: Request):
         pass
 
     return templates.TemplateResponse(
+        request,
         "partials/monitor_stats.html",
         {
-            "request": request,
             "thunder": thunder_stats,
             "dispatcher": dispatcher_stats,
             "is_running": is_running,

@@ -6,3 +6,10 @@ build/
 .venv/
 *.db
 .env
+
+.idea/
+.vscode/
+.DS_Store
+
+./ai-system
+
