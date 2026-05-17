@@ -126,3 +126,54 @@ platforms:
   default:
     weight_overrides: {}
     extra_rules: []
+
+
+
+# Thunder — real-time content stream monitoring
+# Inspired by x-algorithm's Thunder service
+thunder:
+  enabled: true
+  
+  # Content sources to monitor
+  sources:
+    - name: "hacker-news"
+      type: rss
+      url: "https://hnrss.org/newest"
+      poll_interval_seconds: 300    # every 5 minutes
+      priority: 5
+      enabled: true
+    
+    - name: "36kr"  
+      type: rss
+      url: "https://36kr.com/feed"
+      poll_interval_seconds: 600    # every 10 minutes
+      priority: 5
+      enabled: true
+    
+    - name: "ruanyifeng-weekly"
+      type: rss
+      url: "https://www.ruanyifeng.com/blog/atom.xml"
+      poll_interval_seconds: 3600   # every hour
+      priority: 3
+      enabled: true
+
+  # Webhook endpoint (receives POST requests with content URLs)
+  webhook:
+    enabled: true
+    path: "/webhook/content"   # POST here to submit content for scoring
+
+# Dispatcher — task scheduling and execution
+# Inspired by x-algorithm's Dispatcher + Engine pattern  
+dispatcher:
+  max_in_flight: 3              # max concurrent LLM scoring tasks
+  retry:
+    max_attempts: 3
+    base_delay_seconds: 2.0
+    max_delay_seconds: 60.0
+    exponential_base: 2.0
+  
+  # Rate limiting
+  max_tasks_per_minute: 20      # prevent runaway costs
+  
+  # Graceful shutdown timeout
+  shutdown_timeout_seconds: 30

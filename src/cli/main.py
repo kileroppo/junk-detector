@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import signal
+import sys
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -22,6 +25,13 @@ app = typer.Typer(
     name="junk-detector",
     help="AI content quality scorer — detect junk content with LLM-as-Judge + rules.",
 )
+
+# Monitor command group
+monitor_app = typer.Typer(
+    name="monitor",
+    help="Real-time content stream monitoring (Thunder + Dispatcher).",
+)
+app.add_typer(monitor_app, name="monitor")
 
 console = Console()
 
@@ -287,6 +297,253 @@ def serve(
     import uvicorn
 
     uvicorn.run("src.api.app:app", host=host, port=port, reload=True)
+
+
+# ---------------------------------------------------------------------------
+# Monitor Commands
+# ---------------------------------------------------------------------------
+
+
+def _print_monitor_banner(stats: dict) -> None:
+    """Print a startup banner showing monitoring status."""
+    thunder = stats.get("thunder", {})
+    dispatcher = stats.get("dispatcher", {})
+
+    console.print()
+    console.print("=" * 60, style="bold cyan")
+    console.print("  [bold cyan]Thunder Monitor[/bold cyan] — Real-time Content Scoring")
+    console.print("=" * 60, style="bold cyan")
+    console.print()
+    console.print(f"  Sources active:     {thunder.get('sources_count', 0)}")
+    console.print(f"  Max concurrency:    {dispatcher.get('max_in_flight', 0)}")
+    console.print(f"  Queue size:         {dispatcher.get('queue_size', 0)}")
+    console.print()
+    console.print("  Press [bold]Ctrl+C[/bold] to stop gracefully.")
+    console.print("━" * 60)
+    console.print()
+
+
+def _print_status_update(stats: dict) -> None:
+    """Print a periodic status update."""
+    thunder = stats.get("thunder", {})
+    dispatcher = stats.get("dispatcher", {})
+
+    console.print(
+        f"  [dim][status][/dim] "
+        f"Sources: {thunder.get('sources_count', 0)} | "
+        f"Discovered: {thunder.get('items_discovered', 0)} | "
+        f"Scored: {dispatcher.get('total_scored', 0)} | "
+        f"Failed: {dispatcher.get('total_failed', 0)} | "
+        f"In-flight: {dispatcher.get('in_flight', 0)} | "
+        f"Queue: {dispatcher.get('queue_size', 0)}"
+    )
+
+
+async def _run_monitor(config_path: str) -> None:
+    """Async entrypoint for the monitor service."""
+    from src.monitor.service import MonitorService
+
+    try:
+        service = MonitorService.from_config_file(config_path)
+    except FileNotFoundError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        return
+    except Exception as e:
+        console.print(f"[bold red]Failed to initialize monitor:[/bold red] {e}")
+        return
+
+    # Set up graceful shutdown
+    stop_event = asyncio.Event()
+
+    def _signal_handler() -> None:
+        console.print("\n  [yellow]Shutting down gracefully...[/yellow]")
+        stop_event.set()
+
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, _signal_handler)
+        except NotImplementedError:
+            # Windows doesn't support add_signal_handler
+            pass
+
+    # Start the service
+    await service.start()
+    _print_monitor_banner(service.stats)
+
+    # Print status every 30 seconds until stopped
+    status_interval = 30  # seconds
+    elapsed = 0.0
+    try:
+        while not stop_event.is_set():
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=1.0)
+                break
+            except asyncio.TimeoutError:
+                elapsed += 1.0
+                if elapsed >= status_interval:
+                    _print_status_update(service.stats)
+                    elapsed = 0.0
+    except asyncio.CancelledError:
+        pass
+
+    # Graceful shutdown
+    await service.stop()
+    console.print()
+    console.print("  [green]Monitor stopped.[/green] Final stats:")
+    _print_status_update(service.stats)
+    console.print()
+
+
+@monitor_app.command("start")
+def monitor_start(
+    config: str = typer.Option(
+        "config.yaml", "--config", "-c", help="Path to config file"
+    ),
+) -> None:
+    """Start the real-time content monitor (runs until Ctrl+C)."""
+    try:
+        asyncio.run(_run_monitor(config))
+    except KeyboardInterrupt:
+        console.print("\n  [yellow]Interrupted.[/yellow]")
+
+
+@monitor_app.command("add-source")
+def monitor_add_source(
+    name: str = typer.Option(..., "--name", help="Source name (e.g. 'tech-blog')"),
+    url: str = typer.Option(..., "--url", help="Source URL (RSS feed or webhook endpoint)"),
+    source_type: str = typer.Option("rss", "--type", "-t", help="Source type: rss or webhook"),
+    interval: int = typer.Option(300, "--interval", "-i", help="Poll interval in seconds"),
+    priority: int = typer.Option(5, "--priority", "-p", help="Priority 1-10 (1=highest)"),
+    config: str = typer.Option(
+        "config.yaml", "--config", "-c", help="Path to config file"
+    ),
+) -> None:
+    """Add a content source to the monitor configuration."""
+    import yaml
+
+    config_path = Path(config)
+    if not config_path.exists():
+        console.print(f"[bold red]Error:[/bold red] Config file not found: {config}")
+        raise typer.Exit(code=1)
+
+    # Validate source type
+    if source_type not in ("rss", "webhook"):
+        console.print(f"[bold red]Error:[/bold red] Type must be 'rss' or 'webhook', got '{source_type}'")
+        raise typer.Exit(code=1)
+
+    # Validate priority
+    if not (1 <= priority <= 10):
+        console.print("[bold red]Error:[/bold red] Priority must be between 1 and 10")
+        raise typer.Exit(code=1)
+
+    # Read existing config
+    with open(config_path) as f:
+        cfg = yaml.safe_load(f) or {}
+
+    # Ensure thunder.sources exists
+    if "thunder" not in cfg:
+        cfg["thunder"] = {"enabled": True, "sources": []}
+    if "sources" not in cfg["thunder"]:
+        cfg["thunder"]["sources"] = []
+
+    # Check for duplicate name
+    existing_names = [s["name"] for s in cfg["thunder"]["sources"]]
+    if name in existing_names:
+        console.print(f"[bold red]Error:[/bold red] Source '{name}' already exists in config")
+        raise typer.Exit(code=1)
+
+    # Add new source
+    new_source = {
+        "name": name,
+        "type": source_type,
+        "url": url,
+        "poll_interval_seconds": interval,
+        "priority": priority,
+        "enabled": True,
+    }
+    cfg["thunder"]["sources"].append(new_source)
+
+    # Write back
+    with open(config_path, "w") as f:
+        yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+    console.print(f"[green]Added source '{name}' ({source_type}) — {url}[/green]")
+    console.print(f"  Poll interval: {interval}s | Priority: {priority}")
+
+
+@monitor_app.command("stats")
+def monitor_stats(
+    config: str = typer.Option(
+        "config.yaml", "--config", "-c", help="Path to config file"
+    ),
+) -> None:
+    """Show monitoring configuration and source info."""
+    import yaml
+
+    config_path = Path(config)
+    if not config_path.exists():
+        console.print(f"[bold red]Error:[/bold red] Config file not found: {config}")
+        raise typer.Exit(code=1)
+
+    with open(config_path) as f:
+        cfg = yaml.safe_load(f) or {}
+
+    thunder_cfg = cfg.get("thunder", {})
+    dispatcher_cfg = cfg.get("dispatcher", {})
+    sources = thunder_cfg.get("sources", [])
+
+    console.print()
+    console.print("[bold]Monitor Configuration[/bold]")
+    console.print("━" * 50)
+    console.print()
+
+    # Thunder status
+    enabled = thunder_cfg.get("enabled", False)
+    status_str = "[green]enabled[/green]" if enabled else "[red]disabled[/red]"
+    console.print(f"  Thunder: {status_str}")
+    console.print(f"  Max concurrency: {dispatcher_cfg.get('max_in_flight', 3)}")
+    console.print(
+        f"  Retry policy: {dispatcher_cfg.get('retry', {}).get('max_attempts', 3)} attempts, "
+        f"base delay {dispatcher_cfg.get('retry', {}).get('base_delay_seconds', 2.0)}s"
+    )
+    console.print()
+
+    # Sources table
+    if not sources:
+        console.print("  [dim]No sources configured.[/dim]")
+    else:
+        table = Table(title="Configured Sources", show_lines=False)
+        table.add_column("Name", style="cyan")
+        table.add_column("Type", style="blue")
+        table.add_column("URL", max_width=40, overflow="ellipsis")
+        table.add_column("Interval", justify="right")
+        table.add_column("Priority", justify="center")
+        table.add_column("Status")
+
+        for src in sources:
+            status = "[green]on[/green]" if src.get("enabled", True) else "[red]off[/red]"
+            interval_str = f"{src.get('poll_interval_seconds', 300)}s"
+            table.add_row(
+                src.get("name", "?"),
+                src.get("type", "?"),
+                src.get("url", "?"),
+                interval_str,
+                str(src.get("priority", 5)),
+                status,
+            )
+
+        console.print(table)
+
+    # Webhook info
+    webhook_cfg = thunder_cfg.get("webhook", {})
+    if webhook_cfg.get("enabled", False):
+        console.print()
+        console.print(
+            f"  Webhook endpoint: [cyan]{webhook_cfg.get('path', '/webhook/content')}[/cyan]"
+        )
+
+    console.print()
 
 
 if __name__ == "__main__":
