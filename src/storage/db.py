@@ -1,0 +1,211 @@
+"""SQLite storage layer for junk-detector scoring history."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from datetime import datetime
+
+from src.models.score import Content, ScoreResult
+
+_CREATE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    input_type TEXT NOT NULL,
+    source_url TEXT,
+    title TEXT,
+    content_hash TEXT UNIQUE NOT NULL,
+    scored_at TEXT NOT NULL,
+    overall_score REAL NOT NULL,
+    dimensions_json TEXT NOT NULL,
+    labels_json TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    model_used TEXT,
+    cost REAL DEFAULT 0,
+    rule_hits_json TEXT,
+    confidence REAL DEFAULT 1.0
+);
+"""
+
+_initialized_dbs: set[str] = set()
+
+
+def _get_connection(db_path: str) -> sqlite3.Connection:
+    """Create a thread-safe SQLite connection with row factory."""
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _ensure_initialized(db_path: str) -> None:
+    """Lazy initialization: create table if not already done for this db_path."""
+    if db_path not in _initialized_dbs:
+        init_db(db_path)
+
+
+def init_db(db_path: str = "junk_detector.db") -> None:
+    """Create the scores table if it does not exist.
+
+    Args:
+        db_path: Path to the SQLite database file.
+    """
+    conn = _get_connection(db_path)
+    try:
+        conn.execute(_CREATE_TABLE_SQL)
+        conn.commit()
+        _initialized_dbs.add(db_path)
+    finally:
+        conn.close()
+
+
+def save(
+    result: ScoreResult, content: Content, db_path: str = "junk_detector.db"
+) -> None:
+    """Save a scoring result to the database.
+
+    If a record with the same content_hash already exists, update it (upsert).
+
+    Args:
+        result: The ScoreResult from scoring.
+        content: The Content that was scored.
+        db_path: Path to the SQLite database file.
+    """
+    _ensure_initialized(db_path)
+
+    dimensions_json = json.dumps(
+        result.dimensions.model_dump(), ensure_ascii=False
+    )
+    labels_json = json.dumps(result.labels, ensure_ascii=False)
+    rule_hits_json = json.dumps(result.rule_hits, ensure_ascii=False)
+    scored_at = result.scored_at.isoformat()
+
+    conn = _get_connection(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO scores (
+                input_type, source_url, title, content_hash, scored_at,
+                overall_score, dimensions_json, labels_json, summary,
+                model_used, cost, rule_hits_json, confidence
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(content_hash) DO UPDATE SET
+                input_type = excluded.input_type,
+                source_url = excluded.source_url,
+                title = excluded.title,
+                scored_at = excluded.scored_at,
+                overall_score = excluded.overall_score,
+                dimensions_json = excluded.dimensions_json,
+                labels_json = excluded.labels_json,
+                summary = excluded.summary,
+                model_used = excluded.model_used,
+                cost = excluded.cost,
+                rule_hits_json = excluded.rule_hits_json,
+                confidence = excluded.confidence
+            """,
+            (
+                content.input_type.value,
+                content.source_url,
+                content.title,
+                content.content_hash,
+                scored_at,
+                result.overall_score,
+                dimensions_json,
+                labels_json,
+                result.summary,
+                result.model_used,
+                result.cost,
+                rule_hits_json,
+                result.confidence,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def query(
+    filters: dict | None = None,
+    limit: int = 20,
+    db_path: str = "junk_detector.db",
+) -> list[dict]:
+    """Query scoring history with optional filters.
+
+    Supported filter keys:
+        - min_score (float): overall_score >= value
+        - max_score (float): overall_score <= value
+        - label (str): labels_json LIKE '%label%'
+        - date_from (str): scored_at >= value (ISO format)
+        - date_to (str): scored_at <= value (ISO format)
+
+    Args:
+        filters: Optional dictionary of filter conditions.
+        limit: Maximum number of results to return.
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        List of score records as dictionaries.
+    """
+    _ensure_initialized(db_path)
+
+    sql = "SELECT * FROM scores WHERE 1=1"
+    params: list = []
+
+    if filters:
+        if "min_score" in filters:
+            sql += " AND overall_score >= ?"
+            params.append(filters["min_score"])
+
+        if "max_score" in filters:
+            sql += " AND overall_score <= ?"
+            params.append(filters["max_score"])
+
+        if "label" in filters:
+            sql += " AND labels_json LIKE ?"
+            params.append(f"%{filters['label']}%")
+
+        if "date_from" in filters:
+            sql += " AND scored_at >= ?"
+            params.append(filters["date_from"])
+
+        if "date_to" in filters:
+            sql += " AND scored_at <= ?"
+            params.append(filters["date_to"])
+
+    sql += " ORDER BY scored_at DESC LIMIT ?"
+    params.append(limit)
+
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(sql, params)
+        rows = cursor.fetchall()
+        return [_row_to_dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def get_history(
+    limit: int = 20, db_path: str = "junk_detector.db"
+) -> list[dict]:
+    """Shortcut to get recent scoring history.
+
+    Args:
+        limit: Maximum number of results to return.
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        List of recent score records as dictionaries.
+    """
+    return query(filters=None, limit=limit, db_path=db_path)
+
+
+def _row_to_dict(row: sqlite3.Row) -> dict:
+    """Convert a sqlite3.Row to a dictionary, deserializing JSON fields."""
+    d = dict(row)
+    # Deserialize JSON fields
+    if d.get("dimensions_json"):
+        d["dimensions"] = json.loads(d["dimensions_json"])
+    if d.get("labels_json"):
+        d["labels"] = json.loads(d["labels_json"])
+    if d.get("rule_hits_json"):
+        d["rule_hits"] = json.loads(d["rule_hits_json"])
+    return d
