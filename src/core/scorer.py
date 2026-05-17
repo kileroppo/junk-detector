@@ -1,13 +1,18 @@
 """Main scoring orchestrator for junk-detector.
 
 Coordinates the scoring pipeline: rules → LLM judge → compute overall → generate labels.
+Implements tiered model strategy: rules → cheap model → expensive model for low-confidence.
 """
 
 from __future__ import annotations
 
+import logging
+
 from src.core.llm_judge import judge
 from src.core.rules import apply_rules
 from src.models.score import DimensionScores, ScoreResult, ScoringConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _calculate_overall(dimensions: DimensionScores, config: ScoringConfig) -> float:
@@ -72,11 +77,13 @@ async def score(content_text: str, config: ScoringConfig | None = None) -> Score
 
     Pipeline:
         1. Apply deterministic rules
-        2. Call LLM judge for full dimension scoring
-        3. Apply high-confidence rule overrides on top of LLM results
-        4. Record rule hits
-        5. Recalculate overall_score with configured weights
-        6. Generate labels from thresholds
+        2. Check if rules cover ALL dimensions with high confidence → skip LLM
+        3. Call LLM judge (primary model)
+        4. If confidence < threshold → re-score with fallback model
+        5. Apply high-confidence rule overrides on top of LLM results
+        6. Record rule hits and model tier used
+        7. Recalculate overall_score with configured weights
+        8. Generate labels from thresholds
 
     Args:
         content_text: The text content to score.
@@ -91,23 +98,74 @@ async def score(content_text: str, config: ScoringConfig | None = None) -> Score
     # 1. Apply rules first
     rule_result = apply_rules(content_text)
 
-    # 2. Call LLM judge
-    result = await judge(content_text, config)
+    # 2. Check if rules alone can produce a full score (all 9 dimensions covered with high confidence)
+    all_dimensions = [
+        "originality", "info_density", "reasoning_quality", "readability", "timeliness",
+        "ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob",
+    ]
+    rules_covered = {
+        dim for dim, conf in rule_result.confidence.items() if conf >= 0.9
+    }
 
-    # 3. Apply rule overrides (high confidence rules override LLM dimensions)
-    for dim, score_val in rule_result.dimension_overrides.items():
-        conf = rule_result.confidence.get(dim, 0)
-        if conf >= 0.9:
-            setattr(result.dimensions, dim, score_val)
-            result.dimension_sources[dim] = "rule"
+    if rules_covered >= set(all_dimensions):
+        # Rules cover everything — skip LLM entirely (cost = 0)
+        logger.info("All dimensions covered by rules, skipping LLM call")
+        from src.models.score import DimensionScores as DS
 
-    # 4. Record rule hits
+        dims_dict = {dim: rule_result.dimension_overrides[dim] for dim in all_dimensions}
+        dimensions = DS(**dims_dict)
+        result = ScoreResult(
+            overall_score=0,
+            dimensions=dimensions,
+            labels=[],
+            summary="规则层直接判定",
+            confidence=min(rule_result.confidence.values()),
+            model_used="rules_only",
+            cost=0.0,
+            rule_hits=rule_result.matched_rules,
+            dimension_sources={dim: "rule" for dim in all_dimensions},
+        )
+    else:
+        # 3. Call LLM judge with primary model
+        result = await judge(content_text, config)
+        logger.info(
+            "Primary model (%s) returned confidence=%.2f",
+            config.primary_model, result.confidence,
+        )
+
+        # 4. If confidence below threshold → re-score with fallback model
+        if result.confidence < config.confidence_threshold:
+            logger.info(
+                "Confidence %.2f < threshold %.2f, escalating to fallback model (%s)",
+                result.confidence, config.confidence_threshold, config.fallback_model,
+            )
+            fallback_config = config.model_copy()
+            fallback_config.primary_model = config.fallback_model
+            fallback_result = await judge(content_text, fallback_config)
+
+            # Use fallback result if it has higher confidence
+            if fallback_result.confidence > result.confidence:
+                result = fallback_result
+                result.cost += result.cost  # accumulate cost from both calls
+                logger.info(
+                    "Fallback model confidence=%.2f, using fallback result",
+                    fallback_result.confidence,
+                )
+
+        # 5. Apply rule overrides (high confidence rules override LLM dimensions)
+        for dim, score_val in rule_result.dimension_overrides.items():
+            conf = rule_result.confidence.get(dim, 0)
+            if conf >= 0.9:
+                setattr(result.dimensions, dim, score_val)
+                result.dimension_sources[dim] = "rule"
+
+    # 6. Record rule hits
     result.rule_hits = rule_result.matched_rules
 
-    # 5. Recalculate overall_score with weights
+    # 7. Recalculate overall_score with weights
     result.overall_score = _calculate_overall(result.dimensions, config)
 
-    # 6. Generate labels from thresholds
+    # 8. Generate labels from thresholds
     result.labels = _generate_labels(result.dimensions, config)
 
     return result
