@@ -188,6 +188,30 @@ async def postprocess_stage(ctx: PipelineContext) -> PipelineContext:
             ctx.result.dimensions, ctx.config
         )
 
+    # --- Source reputation blacklist/whitelist adjustment ---
+    from src.core.source_reputation import get_source_adjustment
+
+    domain = ctx.metadata.get("source_domain")
+    adjustment, reason = get_source_adjustment(
+        domain, db_path=_get_db_path(ctx)
+    )
+    if adjustment != 0:
+        new_score = ctx.result.overall_score + adjustment
+        ctx.result.overall_score = max(0, min(100, new_score))
+        ctx.metadata["source_adjustment"] = adjustment
+        ctx.metadata["source_adjustment_reason"] = reason
+
+        # Add label
+        if adjustment < 0:
+            label = "黑名单来源"
+        else:
+            label = "可信来源"
+        if label not in ctx.result.labels:
+            ctx.result.labels.append(label)
+
+        # Append reason to summary
+        ctx.result.summary += f" [{reason}]"
+
     # --- Persist results ---
     try:
         await _save_result(ctx)

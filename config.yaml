@@ -59,3 +59,70 @@ summarization:
   enabled: true
   max_chars_before_summarize: 5000  # articles longer than this get summarized first
   model: null  # null = use same as active_model primary
+
+
+# Source reputation system
+sources:
+  # Blacklisted domains — always penalize heavily
+  blacklist:
+    - "spam-domain.com"
+    - "fake-news-site.cn"
+  
+  # Whitelisted domains — trusted sources, slight positive bias
+  whitelist:
+    - "nature.com"
+    - "arxiv.org"
+    - "github.com"
+    - "zhihu.com"
+  
+  # Penalty/boost amounts (applied to overall_score)
+  blacklist_penalty: 30    # subtract from overall score
+  whitelist_boost: 5       # add to overall score
+  
+  # Auto-blacklist: if a source has N+ articles all scoring below threshold, auto-add to blacklist
+  auto_blacklist:
+    enabled: true
+    min_articles: 5       # need at least 5 scored articles from this domain
+    max_avg_score: 30     # if avg score is below this, auto-blacklist
+
+
+# Platform-specific scoring profiles
+# Inspired by x-algorithm's OON Scorer (different scoring for different content sources)
+platforms:
+  wechat:  # 公众号
+    domains: ["mp.weixin.qq.com"]
+    weight_overrides:
+      advertorial_prob: -1.5    # higher penalty for soft ads (common in WeChat)
+      emotional_manipulation: -1.2  # clickbait titles are epidemic
+    extra_rules:
+      - "关注公众号"    # self-promotion signal
+      - "点击原文"
+      - "长按识别"
+
+  xiaohongshu:  # 小红书
+    domains: ["xiaohongshu.com", "xhslink.com"]
+    weight_overrides:
+      advertorial_prob: -1.5    # very high soft-ad rate
+      info_density: 0.6         # lower expectation (platform is casual)
+    extra_rules:
+      - "姐妹们"
+      - "无广"           # paradoxically often indicates ad
+      - "自用推荐"
+
+  zhihu:  # 知乎
+    domains: ["zhihu.com", "zhuanlan.zhihu.com"]
+    weight_overrides:
+      reasoning_quality: 1.3    # higher weight — Zhihu should have good reasoning
+    extra_rules: []
+
+  blog:  # 技术博客
+    domains: ["juejin.cn", "segmentfault.com", "cnblogs.com", "csdn.net"]
+    weight_overrides:
+      info_density: 1.3         # tech blogs should be info-dense
+      timeliness: 0.8           # tech content ages faster
+    extra_rules:
+      - "转载请注明"    # repost indicator
+
+  default:
+    weight_overrides: {}
+    extra_rules: []
