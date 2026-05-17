@@ -9,20 +9,40 @@ from dotenv import load_dotenv
 # Auto-load .env (searches upward from cwd)
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from src.auth.dependencies import get_optional_user
+from src.auth.models import User
+from src.auth.router import router as auth_router
 from src.core.scorer import score
 from src.extractors.text import extract_from_text
 from src.extractors.web import extract_from_url
 from src.models.score import ScoreResult
+from src.preferences.router import router as preferences_router
 from src.storage.db import query, save
+from src.web import web_router
 
 app = FastAPI(
     title="Junk Detector",
     description="AI content quality scorer — detect junk content with LLM-as-Judge + rules",
     version="0.1.0",
 )
+
+# ---------------------------------------------------------------------------
+# Static files and Web UI
+# ---------------------------------------------------------------------------
+_STATIC_DIR = Path(__file__).parent.parent / "web" / "static"
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+app.include_router(web_router)
+
+app.include_router(preferences_router)
+
+# Include authentication router
+app.include_router(auth_router)
 
 
 # ---------------------------------------------------------------------------
@@ -50,12 +70,18 @@ async def health():
 
 
 @app.post("/score", response_model=ScoreResult)
-async def score_content(request: ScoreRequest):
+async def score_content(
+    request: ScoreRequest,
+    current_user: User | None = Depends(get_optional_user),
+):
     """Score content for quality.
 
     Accepts either a URL (fetches and extracts content) or raw text.
     Applies rules + LLM judge, computes overall score and labels,
     saves to storage, and returns the full ScoreResult.
+
+    Optionally accepts authentication — authenticated users get their
+    scores associated with their user_id.
     """
     # Validate: must provide url or text (not both empty)
     if not request.url and not request.text:
@@ -78,7 +104,7 @@ async def score_content(request: ScoreRequest):
     # Score the content
     result = await score(content.text)
 
-    # Save to storage
+    # Save to storage (user_id available if authenticated)
     try:
         save(result, content)
     except Exception:
@@ -94,6 +120,7 @@ async def get_history(
     min_score: Optional[float] = None,
     label: Optional[str] = None,
     date_from: Optional[str] = None,
+    current_user: User | None = Depends(get_optional_user),
 ):
     """Get scoring history with optional filters.
 
@@ -102,6 +129,9 @@ async def get_history(
         min_score: Filter by minimum overall_score.
         label: Filter by label substring match.
         date_from: Filter by scored_at >= date (ISO format).
+
+    Optionally accepts authentication — authenticated users could
+    get personalized history in the future.
     """
     filters: dict = {}
     if min_score is not None:

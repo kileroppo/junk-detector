@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}监控状态 — Junk Detector{% endblock %}
+{% block nav_monitor %}text-indigo-400 bg-gray-700{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold">监控状态</h1>
+        <div class="flex gap-2">
+            <button hx-post="/api/monitor/start" hx-swap="none"
+                    class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                ▶️ 启动
+            </button>
+            <button hx-post="/api/monitor/stop" hx-swap="none"
+                    class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                ⏹️ 停止
+            </button>
+        </div>
+    </div>
+
+    <!-- Monitor Stats (auto-refreshes) -->
+    <div id="monitor-stats-container"
+         hx-get="/partials/monitor-stats"
+         hx-trigger="load, every 5s"
+         hx-swap="innerHTML">
+        <!-- Loaded via HTMX -->
+        <div class="p-8 text-center text-gray-500">
+            <span class="spinner"></span>
+            <p class="mt-2">加载监控数据...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

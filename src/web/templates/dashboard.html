@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 — Junk Detector{% endblock %}
+{% block nav_dashboard %}text-indigo-400 bg-gray-700{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold">仪表盘</h1>
+        <span class="text-sm text-gray-400">自动刷新中...</span>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Total Scored -->
+        <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 card-hover">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">总评分数</p>
+                    <p class="text-3xl font-bold mt-1">{{ stats.total }}</p>
+                </div>
+                <div class="text-3xl">📊</div>
+            </div>
+        </div>
+
+        <!-- Average Score -->
+        <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 card-hover">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">平均分数</p>
+                    <p class="text-3xl font-bold mt-1 {% if stats.avg_score > 70 %}score-high{% elif stats.avg_score > 40 %}score-mid{% else %}score-low{% endif %}">
+                        {{ "%.1f"|format(stats.avg_score) }}
+                    </p>
+                </div>
+                <div class="text-3xl">📈</div>
+            </div>
+        </div>
+
+        <!-- Junk Detected -->
+        <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 card-hover">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">低质量内容</p>
+                    <p class="text-3xl font-bold mt-1 score-low">{{ stats.junk_count }}</p>
+                </div>
+                <div class="text-3xl">🗑️</div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">分数 &lt; 40</p>
+        </div>
+
+        <!-- High Quality -->
+        <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 card-hover">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-400">高质量内容</p>
+                    <p class="text-3xl font-bold mt-1 score-high">{{ stats.high_quality_count }}</p>
+                </div>
+                <div class="text-3xl">✨</div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">分数 &gt; 75</p>
+        </div>
+    </div>
+
+    <!-- Quick Score Form -->
+    <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+        <h2 class="text-lg font-semibold mb-3">快速评分</h2>
+        <form action="/score-submit" method="post" class="flex flex-col sm:flex-row gap-3">
+            <input type="text" name="text" placeholder="输入文本或 URL 进行评分..."
+                   class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-400">
+            <button type="submit"
+                    class="bg-indigo-600 hover:bg-indigo-700 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+                评分
+            </button>
+        </form>
+    </div>
+
+    <!-- Recent Scores Table -->
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold">最近评分</h2>
+            <span class="text-xs text-gray-500">每10秒自动刷新</span>
+        </div>
+        <div id="recent-scores-container"
+             hx-get="/partials/recent-scores"
+             hx-trigger="load, every 10s"
+             hx-swap="innerHTML">
+            <!-- Loaded via HTMX -->
+            <div class="p-8 text-center text-gray-500">
+                <span class="spinner"></span>
+                <p class="mt-2">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

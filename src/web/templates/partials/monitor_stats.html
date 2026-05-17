@@ -1,0 +1,58 @@
+<!-- HTMX partial: monitor stats -->
+<div class="space-y-6">
+    <!-- Thunder Source Stats -->
+    <div>
+        <h2 class="text-lg font-semibold mb-3">📡 Thunder 信源监控</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                <p class="text-sm text-gray-400">信源数量</p>
+                <p class="text-2xl font-bold mt-1">{{ thunder.sources_count }}</p>
+            </div>
+            <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                <p class="text-sm text-gray-400">已发现条目</p>
+                <p class="text-2xl font-bold mt-1 text-blue-400">{{ thunder.items_discovered }}</p>
+            </div>
+            <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                <p class="text-sm text-gray-400">去重 URL 池</p>
+                <p class="text-2xl font-bold mt-1">{{ thunder.seen_urls_count }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dispatcher Stats -->
+    <div>
+        <h2 class="text-lg font-semibold mb-3">⚡ Dispatcher 调度器</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                <p class="text-sm text-gray-400">进行中</p>
+                <p class="text-2xl font-bold mt-1 text-yellow-400">{{ dispatcher.in_flight }}</p>
+                <p class="text-xs text-gray-500 mt-1">上限: {{ dispatcher.max_in_flight }}</p>
+            </div>
+            <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                <p class="text-sm text-gray-400">队列大小</p>
+                <p class="text-2xl font-bold mt-1">{{ dispatcher.queue_size }}</p>
+            </div>
+            <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                <p class="text-sm text-gray-400">已评分</p>
+                <p class="text-2xl font-bold mt-1 text-green-400">{{ dispatcher.total_scored }}</p>
+            </div>
+            <div class="bg-gray-800 rounded-xl p-4 border border-gray-700">
+                <p class="text-sm text-gray-400">失败/重试</p>
+                <p class="text-2xl font-bold mt-1 text-red-400">{{ dispatcher.total_failed }}</p>
+                <p class="text-xs text-gray-500 mt-1">重试: {{ dispatcher.total_retried }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Indicator -->
+    <div class="bg-gray-800 rounded-xl p-4 border border-gray-700 flex items-center gap-3">
+        {% if is_running %}
+        <span class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span>
+        <span class="text-sm text-green-400 font-medium">监控运行中</span>
+        {% else %}
+        <span class="w-3 h-3 rounded-full bg-gray-500"></span>
+        <span class="text-sm text-gray-400 font-medium">监控已停止</span>
+        {% endif %}
+        <span class="text-xs text-gray-500 ml-auto">每5秒自动刷新</span>
+    </div>
+</div>
