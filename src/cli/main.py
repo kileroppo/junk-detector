@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Optional
+
+from dotenv import load_dotenv
+
+# Auto-load .env from project root
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 import typer
 from rich.console import Console
