@@ -6,11 +6,13 @@ import json
 import logging
 import os
 import re
+import warnings
 from datetime import datetime
 from pathlib import Path
 
 import litellm
 
+from src.core.prompt_loader import get_prompt_template
 from src.models.score import DimensionScores, ScoreResult, ScoringConfig
 
 logger = logging.getLogger(__name__)
@@ -20,7 +22,17 @@ _PROMPT_PATH = Path(__file__).resolve().parent.parent.parent / "prompts" / "scor
 
 
 def _load_prompt_template() -> str:
-    """Load the scoring prompt template from disk."""
+    """Load the scoring prompt template from disk.
+
+    .. deprecated::
+        Use :func:`src.core.prompt_loader.get_prompt_template` instead.
+        This function is kept for backward compatibility only.
+    """
+    warnings.warn(
+        "_load_prompt_template() is deprecated; use get_prompt_template() from src.core.prompt_loader instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return _PROMPT_PATH.read_text(encoding="utf-8")
 
 
@@ -110,18 +122,19 @@ def _default_score_result(model: str) -> ScoreResult:
     )
 
 
-async def judge(content: str, config: ScoringConfig) -> ScoreResult:
+async def judge(content: str, config: ScoringConfig, language: str = "zh") -> ScoreResult:
     """Score content using an LLM judge.
 
     Args:
         content: The text content to evaluate.
         config: Scoring configuration (contains model name, etc.).
+        language: Language code for prompt template ("zh" or "en"). Defaults to "zh".
 
     Returns:
         ScoreResult with dimension scores, labels, and summary.
     """
     model = config.primary_model
-    template = _load_prompt_template()
+    template = get_prompt_template(language)
     prompt = template.replace("{content}", content)
 
     messages = [{"role": "user", "content": prompt}]

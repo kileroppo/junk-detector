@@ -177,3 +177,12 @@ dispatcher:
   
   # Graceful shutdown timeout
   shutdown_timeout_seconds: 30
+
+
+# API rate limiting
+rate_limiting:
+  authenticated_rpm: 30       # requests/minute for authenticated users
+  anonymous_rpm: 10           # requests/minute for anonymous (by IP)
+  global_rpm: 100             # total requests/minute across all users
+  score_endpoint_rpm: 10      # stricter limit for /score (LLM cost control)
+  burst_allowance: 5          # extra burst allowed above limit

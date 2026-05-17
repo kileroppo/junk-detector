@@ -15,6 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from src.api.rate_limit import RateLimitConfig, RateLimitMiddleware
 from src.auth.dependencies import get_optional_user
 from src.auth.models import User
 from src.auth.router import router as auth_router
@@ -31,6 +32,9 @@ app = FastAPI(
     description="AI content quality scorer — detect junk content with LLM-as-Judge + rules",
     version="0.1.0",
 )
+
+# Add rate limiting middleware
+app.add_middleware(RateLimitMiddleware, config=RateLimitConfig())
 
 # ---------------------------------------------------------------------------
 # Static files and Web UI

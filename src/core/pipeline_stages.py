@@ -152,7 +152,10 @@ async def score_stage(ctx: PipelineContext) -> PipelineContext:
     if text_to_score is None:
         text_to_score = ctx.raw_input
 
-    ctx.result = await score(text_to_score, config=ctx.config)
+    # Determine language from context metadata (set by preferences during enrich stage)
+    language = ctx.metadata.get("language", "zh")
+
+    ctx.result = await score(text_to_score, config=ctx.config, language=language)
     return ctx
 
 

@@ -77,7 +77,7 @@ def _generate_labels(dimensions: DimensionScores, config: ScoringConfig) -> list
     return labels
 
 
-async def score(content_text: str, config: ScoringConfig | None = None, source_url: str | None = None) -> ScoreResult:
+async def score(content_text: str, config: ScoringConfig | None = None, source_url: str | None = None, language: str = "zh") -> ScoreResult:
     """Main scoring orchestrator.
 
     Pipeline:
@@ -95,6 +95,7 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
         content_text: The text content to score.
         config: Optional scoring configuration. Uses defaults if None.
         source_url: Optional source URL for platform-specific scoring adjustments.
+        language: Language code for prompt template ("zh" or "en"). Defaults to "zh".
 
     Returns:
         Complete ScoreResult with dimensions, labels, and metadata.
@@ -190,7 +191,7 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
         )
     else:
         # 3. Call LLM judge with primary model
-        result = await judge(content_text, config)
+        result = await judge(content_text, config, language=language)
         logger.info(
             "Primary model (%s) returned confidence=%.2f",
             config.primary_model, result.confidence,
@@ -204,7 +205,7 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
             )
             fallback_config = config.model_copy()
             fallback_config.primary_model = config.fallback_model
-            fallback_result = await judge(content_text, fallback_config)
+            fallback_result = await judge(content_text, fallback_config, language=language)
 
             # Use fallback result if it has higher confidence
             if fallback_result.confidence > result.confidence:
