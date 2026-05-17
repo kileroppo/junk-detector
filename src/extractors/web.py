@@ -60,8 +60,10 @@ def _strip_noise(soup: BeautifulSoup) -> None:
     for element in soup.find_all(True):
         if not isinstance(element, Tag):
             continue
-        classes = " ".join(element.get("class", []))  # type: ignore[arg-type]
-        el_id = element.get("id", "") or ""
+        if not element.attrs:
+            continue
+        classes = " ".join(element.get("class") or [])
+        el_id = element.get("id") or ""
         combined = f"{classes} {el_id}".lower()
         if any(noise in combined for noise in NOISE_CLASSES):
             element.decompose()
