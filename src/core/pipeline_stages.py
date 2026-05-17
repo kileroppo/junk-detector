@@ -18,7 +18,7 @@ async def extract_stage(ctx: PipelineContext) -> PipelineContext:
     """Extract content from input (URL, text, or file).
 
     Uses the appropriate extractor based on ctx.input_type:
-    - "url": fetches and parses web page
+    - "url": fetches and parses web page (uses smart_extract for SPA support if available)
     - "text": wraps raw text into Content model
     - "file": reads file from disk
 
@@ -27,8 +27,18 @@ async def extract_stage(ctx: PipelineContext) -> PipelineContext:
     from src.extractors.web import extract_from_url
     from src.extractors.text import extract_from_text, extract_from_file
 
+    # Try to import smart_extract for SPA support
+    try:
+        from src.extractors.playwright_web import smart_extract
+        _has_smart_extract = True
+    except ImportError:
+        _has_smart_extract = False
+
     if ctx.input_type == "url":
-        ctx.content = await extract_from_url(ctx.raw_input)
+        if _has_smart_extract:
+            ctx.content = await smart_extract(ctx.raw_input)
+        else:
+            ctx.content = await extract_from_url(ctx.raw_input)
     elif ctx.input_type == "file":
         ctx.content = extract_from_file(ctx.raw_input)
     else:
