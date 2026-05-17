@@ -76,6 +76,7 @@ async def score(content_text: str, config: ScoringConfig | None = None) -> Score
     """Main scoring orchestrator.
 
     Pipeline:
+        0. Pre-filter: reject obviously violating content (zero cost)
         1. Apply deterministic rules
         2. Check if rules cover ALL dimensions with high confidence → skip LLM
         3. Call LLM judge (primary model)
@@ -95,6 +96,35 @@ async def score(content_text: str, config: ScoringConfig | None = None) -> Score
     if config is None:
         from src.core.config import load_config
         config = load_config()
+
+    # 0. Pre-filter: reject obviously violating content before spending tokens
+    from src.core.content_filter import check_content
+    filter_result = check_content(content_text)
+    if not filter_result.passed:
+        logger.info(
+            "Content rejected by pre-filter: %s — %s",
+            filter_result.violation_type, filter_result.violation_details,
+        )
+        return ScoreResult(
+            overall_score=0.0,
+            dimensions=DimensionScores(
+                originality=0,
+                info_density=0,
+                reasoning_quality=0,
+                readability=0,
+                timeliness=0,
+                ai_generated_prob=0,
+                emotional_manipulation=100,
+                advertorial_prob=0,
+                scam_prob=100,
+            ),
+            labels=[f"违规内容: {filter_result.violation_type}"],
+            summary=f"内容被自动过滤: {filter_result.violation_details}",
+            confidence=1.0,
+            model_used="content_filter",
+            cost=0.0,
+            rule_hits=filter_result.matched_patterns,
+        )
 
     # 1. Apply rules first
     rule_result = apply_rules(content_text)
