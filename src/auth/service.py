@@ -8,7 +8,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
+import jwt as pyjwt
 from passlib.context import CryptContext
 
 from src.auth.models import Token, User, UserCreate, UserLogin
@@ -162,7 +162,7 @@ class AuthService:
                 "username": row["username"],
                 "exp": expires_at,
             }
-            access_token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+            access_token = pyjwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
             logger.info("User logged in: %s", creds.username)
             return Token(
@@ -187,11 +187,11 @@ class AuthService:
             ValueError: If token is invalid or expired.
         """
         try:
-            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             user_id = int(payload["sub"])
             username = payload["username"]
             return {"user_id": user_id, "username": username}
-        except (JWTError, KeyError, ValueError) as e:
+        except (pyjwt.PyJWTError, KeyError, ValueError) as e:
             raise ValueError(f"Invalid token: {e}")
 
     @classmethod
