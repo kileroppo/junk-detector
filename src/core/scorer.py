@@ -9,6 +9,11 @@ from __future__ import annotations
 import logging
 
 from src.core.llm_judge import judge
+from src.core.platform_profiles import (
+    apply_platform_weights,
+    check_platform_extra_rules,
+    detect_platform,
+)
 from src.core.rules import apply_rules
 from src.models.score import DimensionScores, ScoreResult, ScoringConfig
 
@@ -72,11 +77,12 @@ def _generate_labels(dimensions: DimensionScores, config: ScoringConfig) -> list
     return labels
 
 
-async def score(content_text: str, config: ScoringConfig | None = None) -> ScoreResult:
+async def score(content_text: str, config: ScoringConfig | None = None, source_url: str | None = None) -> ScoreResult:
     """Main scoring orchestrator.
 
     Pipeline:
-        1. Apply deterministic rules
+        0. Detect platform from source_url and apply weight overrides
+        1. Apply deterministic rules (including platform-specific extra rules)
         2. Check if rules cover ALL dimensions with high confidence → skip LLM
         3. Call LLM judge (primary model)
         4. If confidence < threshold → re-score with fallback model
@@ -88,6 +94,7 @@ async def score(content_text: str, config: ScoringConfig | None = None) -> Score
     Args:
         content_text: The text content to score.
         config: Optional scoring configuration. Uses defaults if None.
+        source_url: Optional source URL for platform-specific scoring adjustments.
 
     Returns:
         Complete ScoreResult with dimensions, labels, and metadata.
@@ -96,8 +103,34 @@ async def score(content_text: str, config: ScoringConfig | None = None) -> Score
         from src.core.config import load_config
         config = load_config()
 
+    # 0. Apply platform-specific weight overrides
+    platform = "default"
+    if source_url:
+        platform = detect_platform(source_url)
+        if platform != "default":
+            logger.info("Detected platform: %s (from %s)", platform, source_url)
+            config = config.model_copy()
+            config.weights = apply_platform_weights(config.weights, platform)
+
     # 1. Apply rules first
     rule_result = apply_rules(content_text)
+
+    # 1.5. Check platform-specific extra rules and boost signals if matched
+    platform_rule_hits = check_platform_extra_rules(content_text, platform)
+    if platform_rule_hits:
+        logger.info("Platform extra rules matched: %s", platform_rule_hits)
+        rule_result.matched_rules.extend(
+            [f"platform_{platform}:{kw}" for kw in platform_rule_hits]
+        )
+        # Boost advertorial_prob if platform extra rules fire (self-promotion signals)
+        current_advertorial = rule_result.dimension_overrides.get("advertorial_prob", 0)
+        boost = min(len(platform_rule_hits) * 15, 40)  # +15 per keyword, max +40
+        new_advertorial = min(current_advertorial + boost, 100.0)
+        if new_advertorial > current_advertorial:
+            rule_result.dimension_overrides["advertorial_prob"] = new_advertorial
+            # Set confidence if not already set or lower
+            existing_conf = rule_result.confidence.get("advertorial_prob", 0)
+            rule_result.confidence["advertorial_prob"] = max(existing_conf, 0.7)
 
     # 2. Check if rules alone can produce a full score (all 9 dimensions covered with high confidence)
     all_dimensions = [
