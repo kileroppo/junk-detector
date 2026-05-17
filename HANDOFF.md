@@ -1,72 +1,89 @@
 # Handoff — Junk Detector
 
-## What was built
+## What was built (this session)
 
-`junk-detector` — an AI content quality scorer that evaluates articles across 9 dimensions using LLM-as-Judge + deterministic rules. Personal CLI tool now, SaaS-ready architecture.
+| PR/Commit | Content |
+|-----------|---------|
+| [#5](https://github.com/kileroppo/junk-detector/pull/5) | Thunder real-time stream monitoring + Dispatcher task scheduling |
+| [#7](https://github.com/kileroppo/junk-detector/pull/7) | Web UI (Jinja2+HTMX+Tailwind) + Playwright SPA extraction + User auth (JWT+API Key) + User preferences |
+| [#8](https://github.com/kileroppo/junk-detector/pull/8) | API rate limiting (sliding window) + English prompt support |
+| `ef184f6` | Fix: replaced `python-jose` with `PyJWT` for Python 3.12 compatibility |
+| `d2e34d5` | Comprehensive README with all features and usage examples |
 
-**Repo:** https://github.com/kileroppo/junk-detector
+All merged to `main` and pushed.
 
 ## Current state
 
-Fully functional MVP + advanced features. All code on `main`, pushed to GitHub.
+**Functionally complete** — all features work. One environment issue on user's machine:
 
-### Working features
+- **Bug**: User's `.venv` pip is incorrectly linked to Miniforge3 global env, causing `pip install` to install packages to the wrong location. **Resolution**: user needs to recreate `.venv` (`rm -rf .venv && python3.12 -m venv .venv && source .venv/bin/activate && pip install -e .`).
 
-- CLI: `junk-detector score --text/--url/--file`, `history`, `serve`
-- API: `POST /score`, `GET /history`, `GET /health`
-- 9-dimension scoring with weighted overall score
-- 4 AI providers supported: Ollama (local), DeepSeek, OpenAI, Anthropic — switchable via `config.yaml` or `--model` flag
-- Deterministic rules engine (scam/emotional/advertorial/AI-generated detection)
-- Content violation pre-filter (gambling/porn/violence/drugs/phishing — zero cost)
-- Source reputation system (blacklist/whitelist + auto-blacklist)
+### Working features (all on main)
+
+- CLI: `score --text/--url/--file`, `history`, `serve`, `monitor start/stats/add-source`
+- API: `POST /score`, `GET /history`, `GET /health`, auth endpoints, preferences endpoints
+- Web UI: `/dashboard`, `/score-form`, `/history-page`, `/monitor-status`
+- 9-dimension scoring with 4 AI providers (Ollama/DeepSeek/OpenAI/Anthropic)
+- Deterministic rules engine + content violation pre-filter
+- Source reputation (blacklist/whitelist/auto-blacklist)
 - Platform-specific weight profiles (WeChat/小红书/知乎/blog)
-- Content embedding + similarity detection (洗稿/plagiarism)
-- Long article summarization before scoring (saves 60-70% tokens)
-- Composable 5-stage pipeline (extract → enrich → preprocess → score → postprocess)
-- SQLite history with query/filter support
+- Content embedding + similarity detection
+- Long article summarization
+- 5-stage composable pipeline (extract → enrich → preprocess → score → postprocess)
+- Thunder: RSS/Webhook real-time monitoring with deduplication
+- Dispatcher: priority queue + max_in_flight concurrency + exponential backoff retry
+- Playwright SPA extraction (optional `[browser]` dependency)
+- User auth: JWT (24h) + API Key + bcrypt
+- User preferences: per-user weights/thresholds/model/sources
+- API rate limiting: sliding window, per-user + global
+- Multi-language prompts: zh/en with auto-switch by user preference
+- SQLite storage for scores + users + preferences
 
-### Key artifacts (don't duplicate these)
+## Known issues
 
-- PRD: `/projects/sandbox/junk-detector-PRD.md`
-- Issues breakdown: `junk-detector/ISSUES.md`
-- Config: `junk-detector/config.yaml`
-- README: `junk-detector/README.md`
+1. **User's local `.venv` broken** — pip installs to Miniforge3 instead of venv (needs venv recreate)
+2. **No multi-tenant data isolation** — `scores` table doesn't have `user_id` column yet
+3. **Web UI monitor page** — shows placeholder stats when monitor service isn't running as part of the API server
+4. **`passlib` bcrypt warning** — `bcrypt.__about__` attribute error on newer bcrypt versions (cosmetic, doesn't break functionality)
 
-## Known limitations
+## Key artifacts (don't duplicate)
 
-- SPA sites (掘金 juejin.cn) can't be scraped (need Playwright for JS rendering)
-- Embedding requires Ollama running locally or OpenAI API key
-- No frontend UI yet
-- No user auth (SaaS will need this)
-- Chinese-only prompt (English articles get scored but prompts are Chinese)
+- README with full usage: `README.md`
+- Config reference: `config.yaml`
+- Issues breakdown: `ISSUES.md`
+- Chinese prompt: `prompts/score_content.txt`
+- English prompt: `prompts/score_content_en.txt`
 
 ## What to do next (by priority)
 
-1. **Run `setup-matt-pocock-skills`** — configure issue tracker (GitHub), triage labels, domain docs for the project
-2. **Create `CONTEXT.md`** — formalize domain language (use `grill-with-docs` skill)
-3. **Pick next feature from remaining x-algorithm patterns:**
-   - Real-time content stream monitoring (Thunder/Kafka pattern)
-   - User preference personalization (Query Hydrator user context)
-   - Web UI (simple dashboard showing history + scores)
-   - Playwright integration for SPA sites
-4. **SaaS preparation:** user auth, multi-tenant, API rate limiting
+1. **Fix multi-tenant** — add `user_id` to scores table, filter history by authenticated user
+2. **Docker deployment** — Dockerfile + docker-compose for easy deployment
+3. **Webhook endpoint integration** — wire the webhook source into the FastAPI app so `POST /webhook/content` actually works end-to-end
+4. **More RSS sources** — add curated Chinese tech/news feeds as defaults
+5. **Notification system** — send alerts (email/企业微信/Slack) when monitored content scores below threshold
 
 ## Suggested skills for next session
 
 | Scenario | Skill |
 |----------|-------|
-| Formalizing domain terms | `grill-with-docs` |
-| Planning next feature | `grill-me` or `to-prd` |
-| Breaking work into tickets | `to-issues` |
-| Setting up project tooling | `setup-matt-pocock-skills` |
-| Adding new feature with tests | `tdd` |
-| Debugging a bug | `diagnose` |
-| Architecture improvements | `improve-codebase-architecture` |
+| Fixing multi-tenant isolation | `tdd` |
+| Docker deployment setup | `prototype` |
+| Planning notification system | `to-prd` → `to-issues` |
+| Architecture review | `improve-codebase-architecture` |
+| Debugging venv/dependency issues | `diagnose` |
+| Broad codebase understanding | `zoom-out` |
 
 ## Environment notes
 
-- Python 3.11+ required
+- Python 3.11+ required (user has 3.12)
 - `.env` file with `DEEPSEEK_API_KEY` for default operation
-- `config.yaml` controls model selection, weights, platforms, sources
+- `config.yaml` controls model selection, weights, platforms, sources, rate limits
 - `pip install -e .` for development install
-- Skills installed at `/projects/.kiro/skills/` (14 total)
+- `pip install -e ".[browser]"` + `playwright install chromium` for SPA support
+- JWT dependency is now `PyJWT` (not `python-jose`) — import as `import jwt as pyjwt`
+- Skills at `.kiro/skills/`
+
+## Repo
+
+**GitHub:** https://github.com/kileroppo/junk-detector
+**Branch:** `main` (all work merged)
