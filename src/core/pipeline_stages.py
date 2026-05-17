@@ -232,6 +232,21 @@ async def postprocess_stage(ctx: PipelineContext) -> PipelineContext:
         logger.warning(f"Failed to save result to storage: {e}")
         ctx.errors.append(f"postprocess/save: {e}")
 
+    # Run side effects (fire-and-forget, never blocks)
+    try:
+        from src.core.side_effects.base import SideEffectRunner
+        from src.core.side_effects.notification import NotificationSideEffect
+        from src.core.side_effects.stats_collector import StatsCollectorSideEffect
+
+        # Build runner with default effects
+        runner = SideEffectRunner([
+            NotificationSideEffect(threshold=30.0),
+            StatsCollectorSideEffect(),
+        ])
+        await runner.run_all(ctx)
+    except Exception as e:
+        logger.warning(f"Side effects failed (non-blocking): {e}")
+
     return ctx
 
 
