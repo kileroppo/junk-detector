@@ -94,6 +94,16 @@ async def score_content(
             detail="Either 'url' or 'text' must be provided",
         )
 
+    # Dedup check — skip if recently scored
+    from src.core.dedup import should_score as should_score_content
+    content_key = request.url or request.text or ""
+    if not should_score_content(content_key):
+        # Return cached-like response or 429
+        raise HTTPException(
+            status_code=429,
+            detail="This content was recently scored. Please wait 60 seconds before re-scoring.",
+        )
+
     # Extract content
     try:
         if request.url:
