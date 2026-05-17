@@ -23,8 +23,13 @@ CREATE TABLE IF NOT EXISTS scores (
     model_used TEXT,
     cost REAL DEFAULT 0,
     rule_hits_json TEXT,
-    confidence REAL DEFAULT 1.0
+    confidence REAL DEFAULT 1.0,
+    embedding_json TEXT
 );
+"""
+
+_ADD_EMBEDDING_COLUMN_SQL = """
+ALTER TABLE scores ADD COLUMN embedding_json TEXT;
 """
 
 _initialized_dbs: set[str] = set()
@@ -46,6 +51,8 @@ def _ensure_initialized(db_path: str) -> None:
 def init_db(db_path: str = "junk_detector.db") -> None:
     """Create the scores table if it does not exist.
 
+    Also handles schema migration: adds embedding_json column to existing tables.
+
     Args:
         db_path: Path to the SQLite database file.
     """
@@ -53,13 +60,24 @@ def init_db(db_path: str = "junk_detector.db") -> None:
     try:
         conn.execute(_CREATE_TABLE_SQL)
         conn.commit()
+
+        # Migration: add embedding_json column if it doesn't exist (for existing DBs)
+        cursor = conn.execute("PRAGMA table_info(scores)")
+        columns = [row["name"] for row in cursor.fetchall()]
+        if "embedding_json" not in columns:
+            conn.execute(_ADD_EMBEDDING_COLUMN_SQL)
+            conn.commit()
+
         _initialized_dbs.add(db_path)
     finally:
         conn.close()
 
 
 def save(
-    result: ScoreResult, content: Content, db_path: str = "junk_detector.db"
+    result: ScoreResult,
+    content: Content,
+    db_path: str = "junk_detector.db",
+    embedding: list[float] | None = None,
 ) -> None:
     """Save a scoring result to the database.
 
@@ -69,6 +87,7 @@ def save(
         result: The ScoreResult from scoring.
         content: The Content that was scored.
         db_path: Path to the SQLite database file.
+        embedding: Optional embedding vector to store alongside the score.
     """
     _ensure_initialized(db_path)
 
@@ -78,6 +97,7 @@ def save(
     labels_json = json.dumps(result.labels, ensure_ascii=False)
     rule_hits_json = json.dumps(result.rule_hits, ensure_ascii=False)
     scored_at = result.scored_at.isoformat()
+    embedding_json = json.dumps(embedding) if embedding else None
 
     conn = _get_connection(db_path)
     try:
@@ -86,8 +106,8 @@ def save(
             INSERT INTO scores (
                 input_type, source_url, title, content_hash, scored_at,
                 overall_score, dimensions_json, labels_json, summary,
-                model_used, cost, rule_hits_json, confidence
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                model_used, cost, rule_hits_json, confidence, embedding_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(content_hash) DO UPDATE SET
                 input_type = excluded.input_type,
                 source_url = excluded.source_url,
@@ -100,7 +120,8 @@ def save(
                 model_used = excluded.model_used,
                 cost = excluded.cost,
                 rule_hits_json = excluded.rule_hits_json,
-                confidence = excluded.confidence
+                confidence = excluded.confidence,
+                embedding_json = excluded.embedding_json
             """,
             (
                 content.input_type.value,
@@ -116,6 +137,7 @@ def save(
                 result.cost,
                 rule_hits_json,
                 result.confidence,
+                embedding_json,
             ),
         )
         conn.commit()
@@ -209,3 +231,51 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     if d.get("rule_hits_json"):
         d["rule_hits"] = json.loads(d["rule_hits_json"])
     return d
+
+
+
+def get_all_embeddings(db_path: str = "junk_detector.db") -> list[dict]:
+    """Retrieve all rows that have a stored embedding vector.
+
+    Used by the similarity detection system to brute-force compare
+    a new article's embedding against all previously scored articles.
+
+    Args:
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        List of dicts, each containing:
+        - content_hash: Unique hash of the article
+        - title: Article title
+        - source_url: Article source URL
+        - embedding: Deserialized embedding vector (list of floats)
+    """
+    _ensure_initialized(db_path)
+
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            """
+            SELECT content_hash, title, source_url, embedding_json
+            FROM scores
+            WHERE embedding_json IS NOT NULL
+            """
+        )
+        rows = cursor.fetchall()
+        results = []
+        for row in rows:
+            try:
+                embedding = json.loads(row["embedding_json"])
+            except (json.JSONDecodeError, TypeError):
+                continue
+            results.append(
+                {
+                    "content_hash": row["content_hash"],
+                    "title": row["title"],
+                    "source_url": row["source_url"],
+                    "embedding": embedding,
+                }
+            )
+        return results
+    finally:
+        conn.close()
