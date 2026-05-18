@@ -87,6 +87,20 @@ async def enrich_stage(ctx: PipelineContext) -> PipelineContext:
             logger.warning(f"Hydrator '{hydrator_name}' failed: {e}")
             ctx.errors.append(f"enrich/{hydrator_name}: {e}")
 
+    # Check for similar content via fingerprint (fast, zero-cost)
+    try:
+        from src.core.content_fingerprint import find_similar
+        if ctx.content and ctx.content.text:
+            similar = find_similar(ctx.content.text, threshold=5)
+            if similar:
+                ctx.metadata["fingerprint_matches"] = [
+                    {"title": m.title, "similarity": m.similarity, "distance": m.hamming_distance}
+                    for m in similar[:5]  # top 5 matches
+                ]
+                logger.info(f"Fingerprint: found {len(similar)} similar article(s)")
+    except Exception as e:
+        logger.debug(f"Fingerprint check failed: {e}")
+
     return ctx
 
 
@@ -231,6 +245,19 @@ async def postprocess_stage(ctx: PipelineContext) -> PipelineContext:
     except Exception as e:
         logger.warning(f"Failed to save result to storage: {e}")
         ctx.errors.append(f"postprocess/save: {e}")
+
+    # Save content fingerprint for future similarity detection
+    try:
+        from src.core.content_fingerprint import save_fingerprint
+        if ctx.content and ctx.content.text:
+            save_fingerprint(
+                text=ctx.content.text,
+                content_hash=ctx.content.content_hash,
+                title=ctx.content.title,
+                source_url=ctx.content.source_url,
+            )
+    except Exception as e:
+        logger.debug(f"Fingerprint save failed (non-blocking): {e}")
 
     # Run side effects (fire-and-forget, never blocks)
     try:
