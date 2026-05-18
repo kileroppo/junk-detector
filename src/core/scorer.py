@@ -133,6 +133,23 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
             rule_hits=filter_result.matched_patterns,
         )
 
+    # FastClassifier pre-screen — skip LLM for high-confidence predictions
+    try:
+        from src.core.fast_classifier import classify_fast
+        classifier_result = classify_fast(content_text)
+        if classifier_result.should_skip_llm:
+            logger.info(
+                "FastClassifier: skipping LLM (category=%s, "
+                "confidence=%.2f, score=%s)",
+                classifier_result.category,
+                classifier_result.confidence,
+                classifier_result.predicted_score,
+            )
+            # TODO: convert classifier_result to full ScoreResult in future
+            # For now, just log and continue to LLM (until we have enough training data)
+    except Exception as e:
+        logger.debug(f"FastClassifier unavailable: {e}")
+
     # 0. Apply platform-specific weight overrides
     platform = "default"
     if source_url:
