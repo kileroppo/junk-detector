@@ -10,6 +10,7 @@ a dict of metadata to merge into ctx.metadata.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any
@@ -65,7 +66,7 @@ async def hydrate_source_reputation(
     # Query all scores from this domain
     try:
         # Get a generous limit of historical scores for this domain
-        all_scores = db_query(filters=None, limit=1000, db_path=db_path)
+        all_scores = await asyncio.to_thread(db_query, None, 1000, db_path)
 
         # Filter to same domain
         domain_scores = []

@@ -156,7 +156,7 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
         platform = detect_platform(source_url)
         if platform != "default":
             logger.info("Detected platform: %s (from %s)", platform, source_url)
-            config = config.model_copy()
+            config = config.model_copy(deep=True)
             config.weights = apply_platform_weights(config.weights, platform)
 
     # 1. Apply rules first
@@ -220,14 +220,15 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
                 "Confidence %.2f < threshold %.2f, escalating to fallback model (%s)",
                 result.confidence, config.confidence_threshold, config.fallback_model,
             )
-            fallback_config = config.model_copy()
+            fallback_config = config.model_copy(deep=True)
             fallback_config.primary_model = config.fallback_model
             fallback_result = await judge(content_text, fallback_config, language=language)
 
             # Use fallback result if it has higher confidence
             if fallback_result.confidence > result.confidence:
+                primary_cost = result.cost
                 result = fallback_result
-                result.cost += result.cost  # accumulate cost from both calls
+                result.cost = primary_cost + fallback_result.cost
                 logger.info(
                     "Fallback model confidence=%.2f, using fallback result",
                     fallback_result.confidence,

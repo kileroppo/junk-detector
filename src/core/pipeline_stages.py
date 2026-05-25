@@ -7,6 +7,7 @@ without breaking the pipeline.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from src.core.pipeline import PipelineContext
@@ -246,7 +247,8 @@ async def postprocess_stage(ctx: PipelineContext) -> PipelineContext:
     try:
         from src.core.content_fingerprint import save_fingerprint
         if ctx.content and ctx.content.text:
-            save_fingerprint(
+            await asyncio.to_thread(
+                save_fingerprint,
                 text=ctx.content.text,
                 content_hash=ctx.content.content_hash,
                 title=ctx.content.title,
@@ -323,7 +325,7 @@ async def _save_result(ctx: PipelineContext) -> None:
         return
 
     db_path = _get_db_path(ctx)
-    db_save(ctx.result, ctx.content, db_path=db_path)
+    await asyncio.to_thread(db_save, ctx.result, ctx.content, db_path)
 
     # Also compute and store embedding for future similarity searches
     try:

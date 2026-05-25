@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -27,10 +29,36 @@ from src.preferences.router import router as preferences_router
 from src.storage.db import query, save
 from src.web import web_router
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup validation: ensure LLM API keys are configured."""
+    from src.core.config import get_model_config
+
+    has_key = any(
+        os.environ.get(k)
+        for k in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+    )
+    if not has_key:
+        model_cfg = get_model_config()
+        primary_model = model_cfg.get("primary", "")
+        if not primary_model.startswith("ollama"):
+            raise RuntimeError(
+                "No LLM API key configured. Set one of: "
+                "DEEPSEEK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
+            )
+    yield
+
+
 app = FastAPI(
     title="Junk Detector",
     description="AI content quality scorer — detect junk content with LLM-as-Judge + rules",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Add rate limiting middleware
@@ -58,7 +86,7 @@ class ScoreRequest(BaseModel):
     """Request body for the /score endpoint."""
 
     url: Optional[str] = Field(default=None, description="URL to fetch and score")
-    text: Optional[str] = Field(default=None, description="Raw text to score")
+    text: Optional[str] = Field(default=None, max_length=50000, description="Raw text to score")
     title: Optional[str] = Field(default=None, description="Optional title for text input")
 
 
@@ -98,11 +126,28 @@ async def score_content(
     from src.core.dedup import should_score as should_score_content
     content_key = request.url or request.text or ""
     if not should_score_content(content_key):
-        # Return cached-like response or 429
-        raise HTTPException(
-            status_code=429,
-            detail="This content was recently scored. Please wait 60 seconds before re-scoring.",
-        )
+        # Try to return cached result from DB
+        import hashlib
+        from src.storage.db import query_by_content_hash
+        hash_input = content_key
+        if hash_input.startswith(("http://", "https://")):
+            content_hash = hashlib.sha256(hash_input.encode()).hexdigest()
+        else:
+            content_hash = hashlib.sha256(hash_input.encode()).hexdigest()
+        cached = query_by_content_hash(content_hash)
+        if cached:
+            from src.models.score import DimensionScores
+            return ScoreResult(
+                overall_score=cached["overall_score"],
+                dimensions=DimensionScores(**cached["dimensions"]),
+                labels=cached.get("labels", []),
+                summary=cached.get("summary", ""),
+                confidence=cached.get("confidence", 1.0),
+                model_used=cached.get("model_used", ""),
+                cost=0.0,
+                scored_at=cached.get("scored_at", ""),
+                rule_hits=cached.get("rule_hits", []),
+            )
 
     # Extract content
     try:
@@ -116,7 +161,20 @@ async def score_content(
         raise HTTPException(status_code=504, detail=str(e))
 
     # Score the content
-    result = await score(content.text)
+    # Apply user preferences if authenticated
+    user_config = None
+    language = "zh"
+    if current_user is not None:
+        from src.preferences.service import PreferencesService
+        user_config = PreferencesService.build_scoring_config(current_user.id)
+        # Get language preference from user's preferences
+        user_prefs = PreferencesService.get_preferences(current_user.id)
+        language = user_prefs.language or "zh"
+
+    if user_config is not None:
+        result = await score(content.text, config=user_config, source_url=request.url, language=language)
+    else:
+        result = await score(content.text, source_url=request.url)
 
     # Save to storage (user_id available if authenticated)
     try:

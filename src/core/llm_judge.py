@@ -149,6 +149,7 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
                 "messages": messages,
                 "temperature": 0.3,
                 "max_tokens": 1024,
+                "timeout": 30.0,
             }
             # If using Ollama, pass api_base
             if model.startswith("ollama/"):

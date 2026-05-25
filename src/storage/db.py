@@ -234,6 +234,33 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 
 
 
+def query_by_content_hash(
+    content_hash: str, db_path: str = "junk_detector.db"
+) -> dict | None:
+    """Query a single score record by its content_hash.
+
+    Args:
+        content_hash: The SHA256 hash of the content text.
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        A score record as a dictionary, or None if not found.
+    """
+    _ensure_initialized(db_path)
+
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "SELECT * FROM scores WHERE content_hash = ?", (content_hash,)
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return _row_to_dict(row)
+    finally:
+        conn.close()
+
+
 def get_all_embeddings(db_path: str = "junk_detector.db") -> list[dict]:
     """Retrieve all rows that have a stored embedding vector.
 
