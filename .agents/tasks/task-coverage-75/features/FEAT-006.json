@@ -1,0 +1,21 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "Add tests for preferences/service, extractors/text, platform_profiles, and monitor/service to push total coverage above 75%. These are the remaining uncovered modules needed to cross the threshold.",
+  "status": "in_progress",
+  "steps": [
+    "Create tests/test_preferences_service.py: test PreferencesService.get_preferences returns default for missing user, test save_preferences upserts correctly, test update_preferences merges partial update, test delete_preferences removes record, test build_scoring_config merges user prefs with system defaults (mock _load_config_yaml). Use tmp_db_path fixture.",
+    "Create tests/test_extractors_text.py: test extract_from_text with valid text returns Content with correct fields, test extract_from_text with empty text raises ValueError, test extract_from_file with valid file (use tmp_path), test extract_from_file with nonexistent path raises FileNotFoundError, test extract_from_file with empty file raises ValueError.",
+    "Create tests/test_platform_profiles.py: test detect_platform with known URLs (mp.weixin.qq.com -> 'wechat', zhihu.com -> 'zhihu', etc), test detect_platform with unknown URL returns 'default', test detect_platform with None returns 'default', test apply_platform_weights merges overrides correctly, test check_platform_extra_rules finds keywords in content. Mock _load_platform_configs to return test data.",
+    "Create tests/test_monitor_service.py: test MonitorService.__init__ parses config correctly, test _build_sources creates RSSSource and WebhookSource from config, test from_config_file raises FileNotFoundError for missing file, test stats property returns correct structure, test _score_item with mocked pipeline (mock build_default_pipeline to return a pipeline that sets result on context). Keep tests focused on unit logic, not actual async orchestration."
+  ],
+  "acceptance_criteria": [
+    "All new test files pass",
+    "Total project coverage reaches 75% or higher when running pytest tests/ --cov=src"
+  ],
+  "verification": [
+    "pytest tests/ --cov=src --cov-report=term-missing -q 2>&1 | grep TOTAL"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
