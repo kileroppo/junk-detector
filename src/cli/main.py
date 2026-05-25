@@ -11,6 +11,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+# Suppress LiteLLM startup noise before any litellm imports
+os.environ.setdefault("LITELLM_LOG", "ERROR")
+
 from dotenv import load_dotenv
 
 # Auto-load .env from project root (searches upward from cwd)
@@ -221,7 +224,6 @@ def score(
             from src.core.fast_scorer import score_fast
 
             config = load_config(override_model=model)
-            _validate_api_key(config.primary_model)
 
             fast_result: FastScoreResult = asyncio.run(
                 score_fast(content.text, config=config, max_retries=retry)
@@ -362,7 +364,6 @@ def quick(
         from src.core.fast_scorer import score_fast
 
         config = load_config(override_model=model)
-        _validate_api_key(config.primary_model)
 
         fast_result: FastScoreResult = asyncio.run(
             score_fast(content.text, config=config, max_retries=retry)

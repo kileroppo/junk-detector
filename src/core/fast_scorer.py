@@ -13,7 +13,10 @@ import httpx
 import litellm
 
 from src.core.prompt_loader import get_system_prompt
+from src.core.rules import RuleResult, apply_rules
 from src.models.score import FastScoreResult, ScoringConfig
+
+litellm.suppress_debug_info = True
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +122,71 @@ def _validate_fast_result(result: FastScoreResult) -> FastScoreResult:
     return result
 
 
+def _rules_only_fast_result(rule_result: RuleResult, content_text: str) -> Optional[FastScoreResult]:
+    """Convert a high-confidence RuleResult into a FastScoreResult without LLM.
+
+    Returns a FastScoreResult if the rules engine is confident enough to skip LLM,
+    or None if LLM is still needed.
+
+    Thresholds (less strict than scorer.py's should_skip_llm):
+    - scam_prob >= 90 with confidence >= 0.9
+    - emotional_manipulation >= 80 with confidence >= 0.85
+    - advertorial_prob >= 75 with confidence >= 0.8
+    - 2+ non-combo rules matched
+    """
+    overrides = rule_result.dimension_overrides
+    confidences = rule_result.confidence
+
+    # Check individual high-confidence thresholds
+    high_confidence = False
+
+    scam_prob = overrides.get("scam_prob", 0)
+    scam_conf = confidences.get("scam_prob", 0)
+    if scam_prob >= 90 and scam_conf >= 0.9:
+        high_confidence = True
+
+    emotional = overrides.get("emotional_manipulation", 0)
+    emotional_conf = confidences.get("emotional_manipulation", 0)
+    if emotional >= 80 and emotional_conf >= 0.85:
+        high_confidence = True
+
+    advertorial = overrides.get("advertorial_prob", 0)
+    advertorial_conf = confidences.get("advertorial_prob", 0)
+    if advertorial >= 75 and advertorial_conf >= 0.8:
+        high_confidence = True
+
+    # Check 2+ non-combo rules
+    non_combo_rules = [r for r in rule_result.matched_rules if not r.startswith("combo_")]
+    if len(non_combo_rules) >= 2:
+        high_confidence = True
+
+    if not high_confidence:
+        return None
+
+    # Build FastScoreResult from rule overrides
+    scam_prob_val = overrides.get("scam_prob", 0.0)
+    advertorial_val = overrides.get("advertorial_prob", 0.0)
+    emotional_val = overrides.get("emotional_manipulation", 0.0)
+
+    # quick_verdict is inversely related to the worst risk dimension
+    quick_verdict = 100 - max(scam_prob_val, emotional_val, advertorial_val)
+
+    # Confidence is the minimum of all matched dimension confidences
+    conf_values = [c for c in confidences.values() if c > 0]
+    overall_confidence = min(conf_values) if conf_values else 0.8
+
+    return FastScoreResult(
+        quick_verdict=quick_verdict,
+        scam_prob=scam_prob_val,
+        advertorial_prob=advertorial_val,
+        emotional_manipulation=emotional_val,
+        originality=50.0,  # Unknown without LLM
+        summary="\u89c4\u5219\u5f15\u64ce\u9ad8\u7f6e\u4fe1\u5ea6\u5224\u5b9a",
+        confidence=overall_confidence,
+        model_used="rules_only",
+    )
+
+
 async def score_fast(
     content_text: str,
     config: Optional[ScoringConfig] = None,
@@ -141,6 +209,13 @@ async def score_fast(
         config = ScoringConfig()
 
     model = config.primary_model
+
+    # Rules pre-check: try to resolve without LLM for obvious content
+    rule_result = apply_rules(content_text)
+    rules_fast = _rules_only_fast_result(rule_result, content_text)
+    if rules_fast is not None:
+        return rules_fast
+
     system_prompt = get_system_prompt("fast")
     user_content = f"<content_to_evaluate>\n{content_text}\n</content_to_evaluate>"
 
