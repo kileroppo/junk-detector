@@ -5,6 +5,7 @@ All LLM and storage calls are mocked to avoid external dependencies.
 """
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -32,6 +33,19 @@ class TestHealthEndpoint:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
+
+    @patch("litellm.acompletion", new_callable=AsyncMock)
+    def test_deep_health_check_does_not_leak_errors(self, mock_acompletion, client):
+        """Deep health check returns generic message, not exception details."""
+        mock_acompletion.side_effect = Exception(
+            "Invalid API key: sk-secret-key-here, base_url: https://internal.api.com"
+        )
+        response = client.get("/health?deep=true")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["llm_status"] == "unreachable"
+        assert "error" not in data
+        assert "sk-secret" not in json.dumps(data)
 
 
 class TestScoreEndpoint:
@@ -132,3 +146,56 @@ class TestHistoryEndpoint:
         response = client.get("/history?limit=5&min_score=60")
         assert response.status_code == 200
         mock_query.assert_called_once()
+
+
+class TestDedupBehavior:
+    """Tests verifying that the dedup layer does not block scoring."""
+
+    @patch("src.api.app.save")
+    @patch("src.api.app.score")
+    def test_second_request_still_scores(self, mock_score, mock_save, client):
+        """Even if dedup says 'recently scored', the endpoint still scores content.
+
+        The scorer's own 7-day cache handles actual deduplication.
+        """
+        mock_result = ScoreResult(
+            overall_score=60.0,
+            dimensions=DimensionScores(
+                originality=60, info_density=55, reasoning_quality=65,
+                readability=70, timeliness=50, ai_generated_prob=25,
+                emotional_manipulation=15, advertorial_prob=10, scam_prob=5,
+            ),
+            labels=[],
+            summary="Test",
+            confidence=0.8,
+            model_used="test-model",
+            cost=0.001,
+            scored_at=datetime(2024, 1, 1, 12, 0, 0),
+        )
+        mock_score.return_value = mock_result
+        mock_save.return_value = None
+
+        # First request
+        response1 = client.post("/score", json={"text": "Duplicate content test"})
+        assert response1.status_code == 200
+
+        # Second request with same content - should still score (not block)
+        response2 = client.post("/score", json={"text": "Duplicate content test"})
+        assert response2.status_code == 200
+        assert mock_score.call_count == 2
+
+
+class TestStartupValidation:
+    """Tests for the lifespan startup validation."""
+
+    def test_startup_fails_without_api_key(self, monkeypatch):
+        """App startup raises RuntimeError when no LLM API key is configured."""
+        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+        from src.api.app import app
+
+        with pytest.raises(RuntimeError, match="No LLM API key configured"):
+            with TestClient(app):
+                pass

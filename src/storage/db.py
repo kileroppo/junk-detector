@@ -328,7 +328,8 @@ def query_by_domain(domain: str, db_path: str = "junk_detector.db") -> list[floa
     """Query overall_score values for all records matching a domain.
 
     Uses SQL LIKE to filter by domain in source_url, avoiding
-    loading all rows into Python.
+    loading all rows into Python. Escapes SQL LIKE wildcards in the
+    domain string to prevent wildcard injection.
 
     Args:
         domain: The domain to search for (e.g. "example.com").
@@ -339,11 +340,14 @@ def query_by_domain(domain: str, db_path: str = "junk_detector.db") -> list[floa
     """
     _ensure_initialized(db_path)
 
+    # Escape SQL LIKE special characters in the domain
+    escaped_domain = domain.replace("%", "\\%").replace("_", "\\_")
+
     conn = _get_connection(db_path)
     try:
         cursor = conn.execute(
-            "SELECT overall_score FROM scores WHERE source_url LIKE ?",
-            (f"%{domain}%",),
+            "SELECT overall_score FROM scores WHERE source_url LIKE ? ESCAPE '\\'",
+            (f"%{escaped_domain}%",),
         )
         rows = cursor.fetchall()
         return [row["overall_score"] for row in rows]

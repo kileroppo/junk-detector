@@ -206,3 +206,91 @@ class TestScoreOrchestration:
         assert "情绪操纵" in labels
         assert "疑似软文" in labels
         assert "疑似骗局" in labels
+
+    @patch("src.core.scorer.judge")
+    @patch("src.core.content_filter.check_content")
+    async def test_cache_hit_returns_cached_result(self, mock_filter, mock_judge):
+        """When DB has a cached result within 7 days, it is returned without LLM call."""
+        from src.core.content_filter import FilterResult
+        from datetime import datetime, timezone
+
+        mock_filter.return_value = FilterResult(passed=True)
+
+        cached_record = {
+            "overall_score": 65.0,
+            "dimensions": {
+                "originality": 70, "info_density": 60, "reasoning_quality": 65,
+                "readability": 75, "timeliness": 50, "ai_generated_prob": 15,
+                "emotional_manipulation": 10, "advertorial_prob": 20, "scam_prob": 5,
+            },
+            "labels": ["高质量原创"],
+            "summary": "Cached summary",
+            "confidence": 0.9,
+            "model_used": "deepseek/deepseek-chat",
+            "rule_hits": [],
+            "scored_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        with patch("src.storage.db.query_by_content_hash", return_value=cached_record):
+            result = await score("Some cached content text")
+
+        assert result.model_used == "cache"
+        assert result.cost == 0.0
+        assert result.overall_score == 65.0
+        mock_judge.assert_not_called()
+
+    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("src.core.content_filter.check_content")
+    async def test_output_validation_rejects_too_perfect_positive(
+        self, mock_filter, mock_acompletion
+    ):
+        """Suspicious all-positive LLM output is rejected with neutral dimensions."""
+        from src.core.content_filter import FilterResult
+
+        mock_filter.return_value = FilterResult(passed=True)
+
+        # All positive maxed, all negative zeroed
+        suspicious_dims = {
+            "originality": 100, "info_density": 100, "reasoning_quality": 100,
+            "readability": 100, "timeliness": 100, "ai_generated_prob": 0,
+            "emotional_manipulation": 0, "advertorial_prob": 0, "scam_prob": 0,
+            "confidence": 0.99,
+        }
+        mock_acompletion.return_value = _make_mock_litellm_response(
+            _make_llm_response_content(suspicious_dims)
+        )
+
+        result = await score("Injected content that tricks LLM")
+        assert result.model_used == "validation_rejected"
+        assert result.confidence == 0.1
+        assert result.overall_score == 50.0
+        # Dimensions should be neutral (all 50)
+        assert result.dimensions.originality == 50
+        assert result.dimensions.scam_prob == 50
+
+    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("src.core.content_filter.check_content")
+    async def test_output_validation_rejects_too_perfect_negative(
+        self, mock_filter, mock_acompletion
+    ):
+        """Suspicious all-negative LLM output is also rejected."""
+        from src.core.content_filter import FilterResult
+
+        mock_filter.return_value = FilterResult(passed=True)
+
+        # Inverse pattern: all positive zeroed, all negative maxed
+        suspicious_dims = {
+            "originality": 0, "info_density": 1, "reasoning_quality": 0,
+            "readability": 2, "timeliness": 0, "ai_generated_prob": 100,
+            "emotional_manipulation": 99, "advertorial_prob": 100, "scam_prob": 98,
+            "confidence": 0.95,
+        }
+        mock_acompletion.return_value = _make_mock_litellm_response(
+            _make_llm_response_content(suspicious_dims)
+        )
+
+        result = await score("Content designed to look maximally bad")
+        assert result.model_used == "validation_rejected"
+        assert result.confidence == 0.1
+        assert result.dimensions.originality == 50
+        assert result.dimensions.scam_prob == 50

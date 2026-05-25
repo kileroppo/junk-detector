@@ -121,7 +121,8 @@ async def health(deep: bool = False):
         )
         return {"status": "ok", "llm_status": "connected"}
     except Exception as e:
-        return {"status": "degraded", "llm_status": "unreachable", "error": str(e)}
+        logger.error("Deep health check failed: %s", e)
+        return {"status": "degraded", "llm_status": "unreachable"}
 
 
 @app.post("/score", response_model=ScoreResult)
@@ -145,32 +146,12 @@ async def score_content(
             detail="Either 'url' or 'text' must be provided",
         )
 
-    # Dedup check — skip if recently scored
+    # Dedup check — the scorer's own 7-day cache handles deduplication.
+    # We still record in the TTL cache to track recent submissions,
+    # but we always proceed to scoring (the scorer returns cached results if available).
     from src.core.dedup import should_score as should_score_content
     content_key = request.url or request.text or ""
-    if not should_score_content(content_key):
-        # Try to return cached result from DB
-        import hashlib
-        from src.storage.db import query_by_content_hash
-        hash_input = content_key
-        if hash_input.startswith(("http://", "https://")):
-            content_hash = hashlib.sha256(hash_input.encode()).hexdigest()
-        else:
-            content_hash = hashlib.sha256(hash_input.encode()).hexdigest()
-        cached = query_by_content_hash(content_hash)
-        if cached:
-            from src.models.score import DimensionScores
-            return ScoreResult(
-                overall_score=cached["overall_score"],
-                dimensions=DimensionScores(**cached["dimensions"]),
-                labels=cached.get("labels", []),
-                summary=cached.get("summary", ""),
-                confidence=cached.get("confidence", 1.0),
-                model_used=cached.get("model_used", ""),
-                cost=0.0,
-                scored_at=cached.get("scored_at", ""),
-                rule_hits=cached.get("rule_hits", []),
-            )
+    should_score_content(content_key)  # record in TTL cache for stats
 
     # Extract content
     try:

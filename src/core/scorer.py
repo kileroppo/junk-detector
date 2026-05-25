@@ -276,6 +276,8 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
             suspicious = True
         elif all(d >= 98 for d in positive_dims) and all(d <= 2 for d in negative_dims):
             suspicious = True
+        elif all(d <= 2 for d in positive_dims) and all(d >= 98 for d in negative_dims):
+            suspicious = True
 
         if suspicious:
             logger.warning(
@@ -284,7 +286,17 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
             )
             result = ScoreResult(
                 overall_score=50.0,
-                dimensions=result.dimensions,
+                dimensions=DimensionScores(
+                    originality=50,
+                    info_density=50,
+                    reasoning_quality=50,
+                    readability=50,
+                    timeliness=50,
+                    ai_generated_prob=50,
+                    emotional_manipulation=50,
+                    advertorial_prob=50,
+                    scam_prob=50,
+                ),
                 labels=[],
                 summary="LLM输出异常，可能存在prompt注入",
                 confidence=0.1,
