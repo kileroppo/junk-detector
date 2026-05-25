@@ -8,6 +8,7 @@ dimension score overrides with associated confidence levels.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -21,12 +22,27 @@ class RuleResult(BaseModel):
     )
     dimension_overrides: dict[str, float] = Field(
         default_factory=dict,
-        description="Dimension name → score to override (e.g. {'scam_prob': 95})",
+        description="Dimension name -> score to override (e.g. {'scam_prob': 95})",
     )
     confidence: dict[str, float] = Field(
         default_factory=dict,
         description="Confidence per matched dimension (0-1)",
     )
+
+
+@dataclass
+class ComboRule:
+    """A combo rule that fires when multiple weak signals co-occur.
+
+    When all keywords in the set are present, apply score_boost and
+    confidence_boost to the specified dimension.
+    """
+
+    name: str
+    keywords: list[str] = field(default_factory=list)
+    dimension: str = ""
+    score_boost: float = 0.0
+    confidence_boost: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -128,12 +144,36 @@ _SCAM_KEYWORDS: list[str] = [
 ]
 
 
+def _build_keyword_pattern(keyword: str) -> re.Pattern[str]:
+    """Build a compiled regex pattern for a keyword.
+
+    Short keywords (< 4 chars) that are ASCII/alphanumeric get word boundary
+    matching to prevent false positives from substring matches within longer words.
+    We use ASCII-letter-only lookarounds so that "ICO" matches next to Chinese
+    characters but not inside "PICOT" or "Cisco".
+    Chinese keywords and longer keywords use simple containment matching.
+    """
+    escaped = re.escape(keyword)
+    # For short ASCII-only keywords, add ASCII-letter boundaries
+    if len(keyword) < 4 and keyword.isascii():
+        return re.compile(
+            r"(?<![A-Za-z])" + escaped + r"(?![A-Za-z])", re.IGNORECASE
+        )
+    return re.compile(escaped)
+
+
+# Pre-compile all scam keyword patterns at module load time
+_SCAM_PATTERNS: list[re.Pattern[str]] = [
+    _build_keyword_pattern(kw) for kw in _SCAM_KEYWORDS
+]
+
+
 def _check_scam_keywords(content: str) -> Optional[tuple[float, float]]:
     """Check for scam/韭菜收割 keyword density.
 
     Returns (score, confidence) or None if not triggered.
     """
-    hit_count = sum(1 for kw in _SCAM_KEYWORDS if kw in content)
+    hit_count = sum(1 for pattern in _SCAM_PATTERNS if pattern.search(content))
 
     if hit_count >= 3:
         return (95.0, 0.95)
@@ -402,6 +442,60 @@ def _check_ai_generated(content: str) -> Optional[tuple[float, float]]:
 
 
 # ---------------------------------------------------------------------------
+# Combo rules - multiple weak signals boosting confidence
+# ---------------------------------------------------------------------------
+
+_COMBO_RULES: list[ComboRule] = [
+    ComboRule(
+        name="engagement_bait",
+        keywords=["关注", "点赞", "转发"],
+        dimension="advertorial_prob",
+        score_boost=20,
+        confidence_boost=0.1,
+    ),
+    ComboRule(
+        name="crypto_scam_combo",
+        keywords=["币圈", "翻倍", "稳赚"],
+        dimension="scam_prob",
+        score_boost=15,
+        confidence_boost=0.1,
+    ),
+    ComboRule(
+        name="fomo_urgency",
+        keywords=["限时", "名额", "最后"],
+        dimension="emotional_manipulation",
+        score_boost=15,
+        confidence_boost=0.1,
+    ),
+]
+
+
+def _check_combo_rules(
+    content: str, result: RuleResult
+) -> None:
+    """Check combo rules and apply boosts to existing dimension scores.
+
+    Combo rules fire when ALL keywords in the combo set are present.
+    Boosts are additive to existing scores and capped at 100.
+    Confidence boosts are additive and capped at 1.0.
+    """
+    for combo in _COMBO_RULES:
+        if all(kw in content for kw in combo.keywords):
+            rule_name = f"combo_{combo.name}"
+            result.matched_rules.append(rule_name)
+
+            # Apply score boost (additive, capped at 100)
+            current_score = result.dimension_overrides.get(combo.dimension, 0.0)
+            new_score = min(current_score + combo.score_boost, 100.0)
+            result.dimension_overrides[combo.dimension] = new_score
+
+            # Apply confidence boost (additive, capped at 1.0)
+            current_conf = result.confidence.get(combo.dimension, 0.0)
+            new_conf = min(current_conf + combo.confidence_boost, 1.0)
+            result.confidence[combo.dimension] = new_conf
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -461,5 +555,8 @@ def apply_rules(content: str) -> RuleResult:
         result.matched_rules.append("ai_generated_signals")
         result.dimension_overrides["ai_generated_prob"] = score
         result.confidence["ai_generated_prob"] = conf
+
+    # --- Combo rules (must run after individual checks) ---
+    _check_combo_rules(content, result)
 
     return result
