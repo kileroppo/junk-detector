@@ -196,3 +196,83 @@ class TestWebhookSourceProperty:
         service = MonitorService(config)
 
         assert service.webhook_source is None
+
+
+class TestGenerateSummary:
+    """Tests for MonitorService.generate_summary."""
+
+    def test_generate_summary_empty(self):
+        """generate_summary returns zero state when no items scored."""
+        service = MonitorService(SAMPLE_CONFIG)
+        summary = service.generate_summary()
+
+        assert summary["total_scored"] == 0
+        assert summary["total_failed"] == 0
+        assert summary["average_score"] == 0.0
+        assert summary["high_risk_items"] == []
+        assert summary["top_labels"] == []
+
+    def test_generate_summary_with_items(self):
+        """generate_summary returns correct totals and averages."""
+        service = MonitorService(SAMPLE_CONFIG)
+        service._scored_items = [
+            {"title": "Article 1", "url": "http://a.com/1", "source": "rss", "score": 80, "labels": ["good"]},
+            {"title": "Article 2", "url": "http://a.com/2", "source": "rss", "score": 60, "labels": ["ok"]},
+            {"title": "Article 3", "url": "http://a.com/3", "source": "rss", "score": 40, "labels": ["good"]},
+        ]
+
+        summary = service.generate_summary()
+
+        assert summary["total_scored"] == 3
+        assert summary["average_score"] == 60.0
+
+    def test_generate_summary_high_risk_detection(self):
+        """Items with overall_score < 40 appear in high_risk_items."""
+        service = MonitorService(SAMPLE_CONFIG)
+        service._scored_items = [
+            {"title": "Good Article", "url": "http://a.com/1", "source": "rss", "score": 80, "labels": []},
+            {"title": "Risky Article", "url": "http://a.com/2", "source": "rss", "score": 30, "labels": ["spam"]},
+            {"title": "Very Risky", "url": "http://a.com/3", "source": "rss", "score": 10, "labels": ["scam"]},
+        ]
+
+        summary = service.generate_summary()
+
+        assert len(summary["high_risk_items"]) == 2
+        titles = [item["title"] for item in summary["high_risk_items"]]
+        assert "Risky Article" in titles
+        assert "Very Risky" in titles
+        assert "Good Article" not in titles
+
+    def test_generate_summary_top_labels(self):
+        """Labels are aggregated and sorted by frequency."""
+        service = MonitorService(SAMPLE_CONFIG)
+        service._scored_items = [
+            {"title": "A1", "url": "http://a.com/1", "source": "rss", "score": 70, "labels": ["spam", "clickbait"]},
+            {"title": "A2", "url": "http://a.com/2", "source": "rss", "score": 50, "labels": ["spam"]},
+            {"title": "A3", "url": "http://a.com/3", "source": "rss", "score": 60, "labels": ["clickbait", "ai"]},
+        ]
+
+        summary = service.generate_summary()
+
+        # spam appears 2x, clickbait 2x, ai 1x
+        assert "spam" in summary["top_labels"]
+        assert "clickbait" in summary["top_labels"]
+        assert "ai" in summary["top_labels"]
+        # spam and clickbait should appear before ai
+        ai_index = summary["top_labels"].index("ai")
+        assert summary["top_labels"].index("spam") < ai_index or summary["top_labels"].index("clickbait") < ai_index
+
+    def test_last_summary_property(self):
+        """After calling generate_summary(), last_summary returns the same data."""
+        service = MonitorService(SAMPLE_CONFIG)
+        service._scored_items = [
+            {"title": "A1", "url": "http://a.com/1", "source": "rss", "score": 70, "labels": ["good"]},
+        ]
+
+        assert service.last_summary is None
+
+        summary = service.generate_summary()
+
+        assert service.last_summary is not None
+        assert service.last_summary == summary
+        assert service.last_summary["total_scored"] == 1

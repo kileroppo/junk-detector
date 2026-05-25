@@ -416,6 +416,32 @@ def _print_status_update(stats: dict) -> None:
     )
 
 
+def _print_monitor_summary(summary: dict) -> None:
+    """Print the daily monitor summary using Rich."""
+    console.print()
+    console.print("━" * 60)
+    console.print("  [bold]Daily Summary[/bold]")
+    console.print("━" * 60)
+    console.print()
+    console.print(f"  Total scored:   {summary['total_scored']}")
+    console.print(f"  Total failed:   {summary['total_failed']}")
+    console.print(f"  Average score:  {summary['average_score']:.1f}")
+
+    top_labels = summary.get("top_labels", [])
+    if top_labels:
+        console.print(f"  Top labels:     {', '.join(top_labels)}")
+
+    high_risk = summary.get("high_risk_items", [])
+    if high_risk:
+        console.print()
+        console.print(f"  [bold red]High risk items ({len(high_risk)}):[/bold red]")
+        for item in high_risk[:10]:
+            title = item.get("title", "Unknown")
+            score_val = item.get("score", 0)
+            console.print(f"    - {title} (score: {score_val:.0f})")
+    console.print()
+
+
 async def _run_monitor(config_path: str) -> None:
     """Async entrypoint for the monitor service."""
     from src.monitor.service import MonitorService
@@ -469,6 +495,12 @@ async def _run_monitor(config_path: str) -> None:
     console.print()
     console.print("  [green]Monitor stopped.[/green] Final stats:")
     _print_status_update(service.stats)
+
+    # Print daily summary if available
+    summary = service.last_summary
+    if summary and summary.get("total_scored", 0) > 0:
+        _print_monitor_summary(summary)
+
     console.print()
 
 

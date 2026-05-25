@@ -82,6 +82,10 @@ class MonitorService:
         self._total_retried: int = 0
         self._in_flight: int = 0
 
+        # Scored items tracking for summary
+        self._scored_items: list[dict] = []
+        self._last_summary: dict | None = None
+
         # Webhook source reference (for API integration)
         self._webhook_source: WebhookSource | None = None
         for source in sources:
@@ -198,6 +202,9 @@ class MonitorService:
             except asyncio.CancelledError:
                 pass
 
+        # Generate summary before final stop
+        self.generate_summary()
+
         logger.info("MonitorService stopped")
 
     async def _drain_queue(self) -> None:
@@ -257,6 +264,19 @@ class MonitorService:
 
             if result.success:
                 self._total_scored += 1
+                # Track scored item for summary
+                item_data: dict = {
+                    "title": task.title or task.url,
+                    "url": task.url,
+                    "source": task.source_name,
+                }
+                if result.score_result:
+                    item_data["score"] = result.score_result.get("overall_score", 0)
+                    item_data["labels"] = result.score_result.get("labels", [])
+                else:
+                    item_data["score"] = 0
+                    item_data["labels"] = []
+                self._scored_items.append(item_data)
                 logger.info(
                     f"Scored '{task.title or task.url}' from {task.source_name} "
                     f"(attempt {result.attempts_used})"
@@ -355,6 +375,57 @@ class MonitorService:
                 finished_at=datetime.now(timezone.utc),
                 attempts_used=task.attempt + 1,
             )
+
+    def generate_summary(self) -> dict:
+        """Generate daily summary of scored items.
+
+        Returns:
+            Dictionary with:
+                total_scored: int
+                total_failed: int
+                average_score: float (0.0 if no items)
+                high_risk_items: list[dict] (items with overall_score < 40)
+                top_labels: list[str] (most common labels across all scored items)
+        """
+        from collections import Counter
+
+        total_scored = len(self._scored_items)
+        total_failed = self._total_failed
+
+        # Calculate average score
+        if total_scored > 0:
+            average_score = sum(item["score"] for item in self._scored_items) / total_scored
+        else:
+            average_score = 0.0
+
+        # Identify high risk items (score < 40)
+        high_risk_items = [
+            item for item in self._scored_items if item["score"] < 40
+        ]
+
+        # Aggregate labels by frequency
+        label_counter: Counter[str] = Counter()
+        for item in self._scored_items:
+            for label in item.get("labels", []):
+                label_counter[label] += 1
+
+        top_labels = [label for label, _ in label_counter.most_common(10)]
+
+        summary = {
+            "total_scored": total_scored,
+            "total_failed": total_failed,
+            "average_score": average_score,
+            "high_risk_items": high_risk_items,
+            "top_labels": top_labels,
+        }
+
+        self._last_summary = summary
+        return summary
+
+    @property
+    def last_summary(self) -> dict | None:
+        """Return the last generated summary, or None if not yet generated."""
+        return self._last_summary
 
     @property
     def stats(self) -> dict[str, Any]:
