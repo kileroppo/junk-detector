@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Add tests for source_reputation and hydrators modules - 140 lines at 0% coverage. Tests domain normalization, blacklist/whitelist logic, auto-blacklist check, score adjustments, and hydrator metadata enrichment.",
+  "status": "in_progress",
+  "steps": [
+    "Create tests/test_source_reputation.py",
+    "Test _normalize_domain: lowercases, strips www. prefix",
+    "Test load_source_lists: reads blacklist/whitelist from a temp config.yaml (create a fixture with tmp_path writing a config.yaml with sources section)",
+    "Test is_blacklisted / is_whitelisted with config fixture",
+    "Test check_auto_blacklist: mock query_by_domain to return low scores, verify returns True when avg <= max_avg_score and count >= min_articles, returns False otherwise, returns False when disabled in config",
+    "Test get_source_adjustment: returns negative penalty for blacklisted domain, returns positive boost for whitelisted domain, returns (0, '') for normal domain, returns (-20, '..') for auto-blacklisted domain",
+    "Create tests/test_hydrators.py",
+    "Test hydrate_source_reputation: mock query_by_domain, verify it extracts domain from ctx.content.source_url, computes average, returns dict with source_domain, source_reputation, source_article_count. Test with no source_url returns None values.",
+    "Test hydrate_article_stats: test with sample text containing URLs, paragraphs, markdown images. Verify char_count, paragraph_count, link_count, image_references, avg_sentence_length, has_links are computed correctly. Test with empty text returns zeros."
+  ],
+  "acceptance_criteria": [
+    "All tests in tests/test_source_reputation.py and tests/test_hydrators.py pass",
+    "src/core/source_reputation.py reaches 80%+ coverage",
+    "src/core/hydrators.py reaches 80%+ coverage"
+  ],
+  "verification": [
+    "pytest tests/test_source_reputation.py tests/test_hydrators.py -v --cov=src/core/source_reputation --cov=src/core/hydrators --cov-report=term-missing"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
