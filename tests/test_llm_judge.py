@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +11,6 @@ from src.core.llm_judge import (
     _build_score_result,
     _default_score_result,
     _extract_json,
-    _load_prompt_template,
     judge,
 )
 from src.models.score import ScoreResult, ScoringConfig
@@ -128,21 +126,6 @@ class TestPromptInjectionDefense:
         end_idx = user_message.index("</content_to_evaluate>")
         injection_idx = user_message.index(injection_text)
         assert start_idx < injection_idx < end_idx
-
-
-# --- _load_prompt_template tests ---
-
-
-def test_load_prompt_template_deprecated():
-    """_load_prompt_template emits DeprecationWarning and returns content."""
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        result = _load_prompt_template()
-        assert len(w) == 1
-        assert issubclass(w[0].category, DeprecationWarning)
-        assert "deprecated" in str(w[0].message).lower()
-    assert isinstance(result, str)
-    assert len(result) > 0
 
 
 # --- _extract_json tests ---
