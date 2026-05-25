@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "chore",
   "description": "Phase 1 (Delete Dead Code) + Environment Setup: Install dependencies, then delete all dead code as specified in PRD-REBIRTH.md Phase 1. This removes ~800 lines of unused code.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Install project dependencies: pip install -e '.[dev]' to ensure the project baseline is working.",
     "Delete the entire src/core/plans/ directory (5 files: __init__.py, base.py, llm_plan.py, rules_plan.py, similarity_plan.py). These are only self-referencing, never imported by the rest of the codebase.",
@@ -37,5 +37,5 @@
     "python -c 'from src.core.hydrators import hydrate_source_reputation, hydrate_article_stats'"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Python 3.11+ required; used pyenv local 3.11.15. No tests exist in tests/ (only __init__.py). All 56 Python modules import cleanly after dead code removal. Removed 1031 lines across 13 files."
 }
