@@ -14,7 +14,7 @@ from pathlib import Path
 import httpx
 import litellm
 
-from src.core.prompt_loader import get_prompt_template
+from src.core.prompt_loader import get_prompt_template, get_system_prompt
 from src.models.score import DimensionScores, ScoreResult, ScoringConfig
 
 logger = logging.getLogger(__name__)
@@ -136,10 +136,13 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
         ScoreResult with dimension scores, labels, and summary.
     """
     model = config.primary_model
-    template = get_prompt_template(language)
-    prompt = template.replace("{content}", content)
+    system_prompt = get_system_prompt(language)
+    user_content = f"<content_to_evaluate>\n{content}\n</content_to_evaluate>"
 
-    messages = [{"role": "user", "content": prompt}]
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content},
+    ]
 
     max_attempts = 2
     last_error: Exception | None = None

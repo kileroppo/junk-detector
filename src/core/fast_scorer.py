@@ -12,7 +12,7 @@ from typing import Optional
 import httpx
 import litellm
 
-from src.core.prompt_loader import get_prompt_template
+from src.core.prompt_loader import get_prompt_template, get_system_prompt
 from src.models.score import FastScoreResult, ScoringConfig
 
 logger = logging.getLogger(__name__)
@@ -88,10 +88,13 @@ async def score_fast(
         config = ScoringConfig()
 
     model = config.primary_model
-    template = get_prompt_template("fast")
-    prompt = template.replace("{content}", content_text)
+    system_prompt = get_system_prompt("fast")
+    user_content = f"<content_to_evaluate>\n{content_text}\n</content_to_evaluate>"
 
-    messages = [{"role": "user", "content": prompt}]
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content},
+    ]
 
     max_attempts = 2
     loop_count = max(max_attempts, max_retries + 1)
