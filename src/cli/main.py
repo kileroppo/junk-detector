@@ -402,7 +402,7 @@ def batch(
         return
 
     # Run batch scoring
-    results = asyncio.run(_batch_score(urls, fast=fast))
+    results = asyncio.run(_batch_score(urls, fast=fast, max_retries=retry))
 
     # Output
     if json_output:
@@ -411,9 +411,9 @@ def batch(
         _batch_table_output(results)
 
 
-async def _batch_score(urls: list[str], *, fast: bool = True) -> list[dict]:
+async def _batch_score(urls: list[str], *, fast: bool = True, max_retries: int = 1) -> list[dict]:
     """Score multiple URLs concurrently with max 3 in-flight."""
-    from src.extractors.web import extract_from_url
+    from src.extractors.web import extract_from_url, extract_from_url_simple
 
     semaphore = asyncio.Semaphore(3)
 
@@ -421,14 +421,17 @@ async def _batch_score(urls: list[str], *, fast: bool = True) -> list[dict]:
         async with semaphore:
             try:
                 content = await extract_from_url(url)
-            except Exception as exc:
-                return {"url": url, "score": None, "verdict": "ERROR", "labels": [], "summary": "", "error": str(exc)}
+            except Exception as primary_error:
+                try:
+                    content = await extract_from_url_simple(url)
+                except Exception:
+                    return {"url": url, "score": None, "verdict": "ERROR", "labels": [], "summary": "", "error": str(primary_error)}
 
             try:
                 if fast:
                     from src.core.fast_scorer import score_fast
 
-                    result = await score_fast(content.text)
+                    result = await score_fast(content.text, max_retries=max_retries)
                     return {
                         "url": url,
                         "score": result.quick_verdict,

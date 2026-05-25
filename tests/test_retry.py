@@ -280,3 +280,76 @@ async def test_judge_non_timeout_exception_breaks_immediately():
         # Should return default after breaking immediately (only 1 call)
         assert result.confidence == 0.1
         assert mock_llm.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Test: score_fast with max_retries=2 retries twice on timeout
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_score_fast_max_retries_2_retries_twice():
+    """score_fast with max_retries=2 should actually retry twice on timeout."""
+    from src.core.fast_scorer import score_fast
+
+    mock_response = MagicMock()
+    mock_response.choices = [
+        MagicMock(
+            message=MagicMock(
+                content='{"quick_verdict": 80, "scam_prob": 5, "advertorial_prob": 10, "emotional_manipulation": 10, "originality": 85, "summary": "Great", "confidence": 0.95}'
+            )
+        )
+    ]
+    mock_response._hidden_params = {}
+
+    # First two calls raise timeout, third succeeds
+    with patch("src.core.fast_scorer.litellm.acompletion") as mock_llm:
+        mock_llm.side_effect = [
+            httpx.TimeoutException("Timeout 1"),
+            httpx.TimeoutException("Timeout 2"),
+            mock_response,
+        ]
+
+        with patch("src.core.fast_scorer.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            config = ScoringConfig()
+            result = await score_fast("test content", config=config, max_retries=2)
+
+            assert result.quick_verdict == 80
+            assert result.originality == 85
+            assert mock_llm.call_count == 3
+            assert mock_sleep.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Test: batch command passes retry flag through to score_fast
+# ---------------------------------------------------------------------------
+
+
+def test_batch_passes_retry_to_score_fast(tmp_path):
+    """The batch command should pass the retry flag through to score_fast."""
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://example.com\n")
+
+    with patch("src.extractors.web.extract_from_url", new_callable=AsyncMock) as mock_extract:
+        mock_extract.return_value = Content(
+            input_type=InputType.URL,
+            text="Test content",
+            source_url="https://example.com",
+            title="Test",
+        )
+        with patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock) as mock_fast:
+            mock_fast.return_value = FastScoreResult(
+                quick_verdict=75.0,
+                scam_prob=10.0,
+                advertorial_prob=20.0,
+                emotional_manipulation=15.0,
+                originality=80.0,
+                summary="OK",
+                confidence=0.9,
+                model_used="test-model",
+            )
+            result = runner.invoke(app, ["batch", "--urls-file", str(urls_file), "--retry", "3"])
+            assert result.exit_code == 0, f"Output: {result.output}"
+            # Verify score_fast was called with max_retries=3
+            mock_fast.assert_called_once()
+            assert mock_fast.call_args.kwargs["max_retries"] == 3

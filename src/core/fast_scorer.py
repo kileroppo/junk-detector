@@ -94,9 +94,10 @@ async def score_fast(
     messages = [{"role": "user", "content": prompt}]
 
     max_attempts = 2
+    loop_count = max(max_attempts, max_retries + 1)
     last_error: Exception | None = None
 
-    for attempt in range(max_attempts):
+    for attempt in range(loop_count):
         try:
             kwargs = {
                 "model": model,
@@ -137,7 +138,7 @@ async def score_fast(
             logger.warning(
                 "Attempt %d/%d: Failed to parse fast score response: %s",
                 attempt + 1,
-                max_attempts,
+                loop_count,
                 e,
             )
             continue

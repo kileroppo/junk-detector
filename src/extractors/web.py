@@ -159,7 +159,7 @@ def _extract_text(content_element: Tag) -> str:
     return "\n".join(lines)
 
 
-async def extract_from_url_simple(url: str) -> Content:
+async def extract_from_url_simple(url: str, max_chars: int = 10000) -> Content:
     """Fallback extraction: fetch URL and strip all HTML tags.
 
     Uses a simple get_text() approach without article detection or noise removal.
@@ -167,6 +167,8 @@ async def extract_from_url_simple(url: str) -> Content:
 
     Args:
         url: The URL to fetch and extract content from.
+        max_chars: Maximum number of characters to return (default 10000).
+                   If the extracted text exceeds this, it is truncated.
 
     Returns:
         A Content model with raw stripped text.
@@ -206,6 +208,10 @@ async def extract_from_url_simple(url: str) -> Content:
         raise ValueError(f"Could not extract any text content from: {url}")
 
     text = text.strip()
+
+    # Truncate if exceeds max_chars to prevent token budget overruns
+    if len(text) > max_chars:
+        text = text[:max_chars]
 
     # Try to get title
     title_tag = soup.find("title")

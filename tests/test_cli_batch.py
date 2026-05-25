@@ -156,14 +156,16 @@ class TestBatchErrorHandling:
     """Test error handling in batch command."""
 
     @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    @patch("src.extractors.web.extract_from_url_simple", new_callable=AsyncMock)
     @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
-    def test_batch_one_url_fails_extraction(self, mock_extract, mock_score_fast):
-        """When one URL fails extraction, show ERROR and continue."""
+    def test_batch_one_url_fails_extraction(self, mock_extract, mock_simple, mock_score_fast):
+        """When one URL fails extraction (both primary and fallback), show ERROR and continue."""
         mock_extract.side_effect = [
             _mock_content(),
             Exception("Connection timeout"),
             _mock_content(),
         ]
+        mock_simple.side_effect = Exception("Simple also failed")
         mock_score_fast.return_value = _mock_fast_result(75.0)
 
         result = runner.invoke(
@@ -194,10 +196,12 @@ class TestBatchErrorHandling:
         assert "\u5171 2 \u7bc7" in result.output
 
     @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    @patch("src.extractors.web.extract_from_url_simple", new_callable=AsyncMock)
     @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
-    def test_batch_error_in_json_output(self, mock_extract, mock_score_fast):
+    def test_batch_error_in_json_output(self, mock_extract, mock_simple, mock_score_fast):
         """JSON output shows ERROR verdict for failed URLs."""
         mock_extract.side_effect = Exception("timeout")
+        mock_simple.side_effect = Exception("simple also timed out")
 
         result = runner.invoke(
             app, ["batch", "--stdin", "--json"],
@@ -336,6 +340,28 @@ class TestBatchInputValidation:
 
 class TestBatchFullScorer:
     """Test --fast=False uses full scorer."""
+
+    @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    @patch("src.extractors.web.extract_from_url_simple", new_callable=AsyncMock)
+    @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
+    def test_batch_fallback_to_simple_extraction(self, mock_extract, mock_simple, mock_score_fast):
+        """When primary extraction fails, batch should fall back to simple extraction."""
+        fallback_content = _mock_content("http://example.com/fallback")
+        mock_extract.side_effect = Exception("Primary extractor failed")
+        mock_simple.return_value = fallback_content
+        mock_score_fast.return_value = _mock_fast_result(70.0)
+
+        result = runner.invoke(
+            app, ["batch", "--stdin"],
+            input="http://example.com/fallback\n",
+        )
+
+        assert result.exit_code == 0, f"Output: {result.output}"
+        # The URL should be scored successfully via fallback
+        mock_simple.assert_called_once_with("http://example.com/fallback")
+        mock_score_fast.assert_called_once()
+        # Should NOT show ERROR since fallback succeeded
+        assert "ERROR" not in result.output.upper() or "\u5931\u8d25" not in result.output
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
