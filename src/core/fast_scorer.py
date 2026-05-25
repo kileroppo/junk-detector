@@ -80,6 +80,29 @@ def _default_fast_result(model: str) -> FastScoreResult:
     )
 
 
+def _validate_fast_result(result: FastScoreResult) -> FastScoreResult:
+    """Validate fast score result for suspicious patterns."""
+    # Check for injection indicators in summary
+    injection_phrases = [
+        "ignore previous", "ignore all", "override instructions",
+        "disregard above", "new instructions", "system prompt",
+        "忽略上述", "忽略以上", "忽略之前", "无视上述",
+        "新的指令", "重新定义", "系统提示",
+    ]
+    response_text = (result.summary or "").lower()
+    if any(phrase in response_text for phrase in injection_phrases):
+        logger.warning("Injection indicator in fast score response: %s", result.summary)
+        return _default_fast_result(result.model_used)
+
+    # Check for suspicious all-extreme patterns
+    scores = [result.scam_prob, result.advertorial_prob, result.emotional_manipulation, result.originality]
+    if all(s >= 98 for s in scores) or all(s <= 2 for s in scores):
+        logger.warning("Suspicious extreme scores in fast result: %s", scores)
+        return _default_fast_result(result.model_used)
+
+    return result
+
+
 async def score_fast(
     content_text: str,
     config: Optional[ScoringConfig] = None,
@@ -140,6 +163,7 @@ async def score_fast(
 
             data = _extract_json(raw_text)
             result = _build_fast_result(data, model)
+            result = _validate_fast_result(result)
 
             # Attach cost if available
             hidden = getattr(response, "_hidden_params", None)

@@ -308,11 +308,16 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
 
         # 4.6. Detect injection indicators in response text
         injection_phrases = [
+            # English
             "ignore previous", "ignore all", "override instructions",
             "disregard above", "ignore above", "new instructions",
             "system prompt", "forget everything",
+            # Chinese (中文注入检测)
+            "忽略上述", "忽略以上", "忽略之前", "忽略所有",
+            "无视上述", "无视以上", "新的指令", "重新定义",
+            "系统提示", "覆盖指令",
         ]
-        response_text = (result.summary or "").lower() + " ".join(result.labels).lower()
+        response_text = (result.summary or "").lower() + " " + " ".join(result.labels).lower()
         if any(phrase in response_text for phrase in injection_phrases):
             logger.warning(
                 "Injection indicator detected in LLM response: summary=%s, labels=%s",
