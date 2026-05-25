@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Add tests for side_effects module (base, notification, stats_collector, webhook_callback) - 148 lines at 0% coverage. Tests the SideEffectRunner concurrent execution, NotificationSideEffect threshold logic, StatsCollector aggregation, and WebhookCallback delivery.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create tests/test_side_effects.py",
     "Create helper fixtures: a mock PipelineContext with a ScoreResult (overall_score, labels, dimensions) and a Content (title, source_url, text, content_hash). Import from src.core.pipeline and src.models.score.",
@@ -22,5 +22,5 @@
     "pytest tests/test_side_effects.py -v --cov=src/core/side_effects --cov-report=term-missing"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 48 tests pass with 100% coverage across all 4 side_effects source files. Used patch('httpx.AsyncClient') since httpx is imported locally inside execute methods. urlparse exception path covered via mocking."
 }
