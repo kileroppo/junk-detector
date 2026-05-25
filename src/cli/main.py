@@ -569,6 +569,65 @@ def _batch_json_output(results: list[dict]) -> None:
 
 
 @app.command()
+def watch(
+    urls_file: str = typer.Option(..., "--urls-file", help="Path to file with URLs (one per line)"),
+    interval: int = typer.Option(3600, "--interval", "-i", help="Seconds between scoring cycles"),
+    fast: bool = typer.Option(True, "--fast/--no-fast", help="Use fast scoring (default: True)"),
+    once: bool = typer.Option(False, "--once", help="Run single cycle then exit (for testing)"),
+) -> None:
+    """Watch URLs and re-score periodically. Simple replacement for monitor."""
+    import time
+    from datetime import datetime
+
+    path = Path(urls_file)
+    if not path.exists():
+        console.print(f"\u274c \u9519\u8bef: \u6587\u4ef6\u4e0d\u5b58\u5728: {urls_file}", style="bold red")
+        raise typer.Exit(code=1)
+
+    cycle = 0
+    try:
+        while True:
+            cycle += 1
+            # Re-read file each cycle (allows editing between cycles)
+            raw_lines = path.read_text(encoding="utf-8").splitlines()
+            urls = [
+                line.strip()
+                for line in raw_lines
+                if line.strip() and not line.strip().startswith("#")
+            ]
+
+            if not urls:
+                console.print("\U0001f4ed \u6ca1\u6709\u9700\u8981\u8bc4\u5206\u7684 URL", style="dim")
+                if once:
+                    return
+                time.sleep(interval)
+                continue
+
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            console.print(
+                f"\n\U0001f504 Cycle {cycle} \u2014 {now} \u2014 {len(urls)} URLs",
+                style="bold cyan",
+            )
+
+            # Score all URLs
+            results = asyncio.run(_batch_score(urls, fast=fast))
+
+            # Print summary
+            _batch_table_output(results)
+
+            if once:
+                return
+
+            console.print(
+                f"\U0001f4a4 Next cycle in {interval}s... (Ctrl+C to stop)", style="dim"
+            )
+            time.sleep(interval)
+
+    except KeyboardInterrupt:
+        console.print(f"\n\u270b Watch stopped after {cycle} cycle(s).", style="yellow")
+
+
+@app.command()
 def history(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of records to show"),
     min_score: Optional[float] = typer.Option(
