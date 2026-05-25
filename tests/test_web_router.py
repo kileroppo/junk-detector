@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from src.models.score import Content, DimensionScores, InputType, ScoreResult
 from src.web.router import _compute_stats
 
 
@@ -180,3 +181,194 @@ class TestWebRoutes:
         ]
         response = web_client.get("/result/1")
         assert response.status_code == 200
+
+
+def _make_score_result():
+    """Helper to create a ScoreResult for test mocks."""
+    return ScoreResult(
+        overall_score=72.5,
+        dimensions=DimensionScores(
+            originality=80,
+            info_density=70,
+            reasoning_quality=75,
+            readability=85,
+            timeliness=60,
+            ai_generated_prob=15,
+            emotional_manipulation=10,
+            advertorial_prob=20,
+            scam_prob=5,
+        ),
+        labels=[],
+        summary="Good content",
+        confidence=0.9,
+        model_used="test",
+        cost=0.001,
+    )
+
+
+def _make_content(text="extracted text", title="Title", source_url="https://example.com"):
+    """Helper to create a Content object for test mocks."""
+    return Content(
+        input_type=InputType.TEXT,
+        text=text,
+        title=title,
+        source_url=source_url,
+    )
+
+
+class TestScoreSubmit:
+    """Tests for POST /score-submit endpoint."""
+
+    @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.storage.db.save")
+    @patch("src.extractors.text.extract_from_text")
+    def test_submit_text_input(
+        self, mock_extract, mock_save, mock_score, web_client
+    ):
+        """POST /score-submit with text input returns 200 with result."""
+        mock_extract.return_value = _make_content()
+        mock_score.return_value = _make_score_result()
+        mock_save.return_value = None
+
+        response = web_client.post(
+            "/score-submit",
+            data={"input_type": "text", "text": "Some sample text for scoring"},
+        )
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        mock_score.assert_called_once()
+
+    @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.storage.db.save")
+    @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
+    def test_submit_url_input(
+        self, mock_extract_url, mock_save, mock_score, web_client
+    ):
+        """POST /score-submit with url input calls extract_from_url."""
+        mock_extract_url.return_value = _make_content(
+            text="web page content", source_url="https://example.com/article"
+        )
+        mock_score.return_value = _make_score_result()
+        mock_save.return_value = None
+
+        response = web_client.post(
+            "/score-submit",
+            data={"input_type": "url", "url": "https://example.com/article"},
+        )
+
+        assert response.status_code == 200
+        mock_extract_url.assert_called_once_with("https://example.com/article")
+        mock_score.assert_called_once()
+
+    @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.storage.db.save")
+    @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
+    def test_submit_text_looks_like_url(
+        self, mock_extract_url, mock_save, mock_score, web_client
+    ):
+        """POST /score-submit with text starting with http:// calls extract_from_url."""
+        mock_extract_url.return_value = _make_content(
+            text="page content", source_url="http://example.com/page"
+        )
+        mock_score.return_value = _make_score_result()
+        mock_save.return_value = None
+
+        response = web_client.post(
+            "/score-submit",
+            data={"input_type": "text", "text": "http://example.com/page"},
+        )
+
+        assert response.status_code == 200
+        mock_extract_url.assert_called_once_with("http://example.com/page")
+
+    def test_submit_empty_input(self, web_client):
+        """POST /score-submit with no text or url returns 422."""
+        response = web_client.post(
+            "/score-submit",
+            data={"input_type": "text"},
+        )
+
+        assert response.status_code == 422
+        assert "text/html" in response.headers["content-type"]
+
+    @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.extractors.text.extract_from_text")
+    def test_submit_scorer_raises_exception(
+        self, mock_extract, mock_score, web_client
+    ):
+        """POST /score-submit returns 500 when scorer raises."""
+        mock_extract.return_value = _make_content()
+        mock_score.side_effect = RuntimeError("LLM API error")
+
+        response = web_client.post(
+            "/score-submit",
+            data={"input_type": "text", "text": "Some text to score"},
+        )
+
+        assert response.status_code == 500
+        assert "text/html" in response.headers["content-type"]
+
+    @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.storage.db.save")
+    @patch("src.extractors.text.extract_from_text")
+    def test_submit_htmx_request(
+        self, mock_extract, mock_save, mock_score, web_client
+    ):
+        """POST /score-submit with HX-Request header returns inline template."""
+        mock_extract.return_value = _make_content()
+        mock_score.return_value = _make_score_result()
+        mock_save.return_value = None
+
+        response = web_client.post(
+            "/score-submit",
+            data={"input_type": "text", "text": "Some text"},
+            headers={"HX-Request": "true"},
+        )
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
+class TestResultDetailEdgeCases:
+    """Edge case tests for GET /result/{id}."""
+
+    @patch("src.web.router.query")
+    def test_result_detail_query_raises(self, mock_query, web_client):
+        """GET /result/{id} returns 404 when query() raises exception."""
+        mock_query.side_effect = RuntimeError("DB connection error")
+
+        response = web_client.get("/result/1")
+
+        assert response.status_code == 404
+
+
+class TestHistoryPageFilters:
+    """Tests for GET /history-page with filters and pagination."""
+
+    @patch("src.web.router.query")
+    def test_history_page_date_from_filter(self, mock_query, web_client):
+        """GET /history-page with date_from filter passes it to query."""
+        mock_query.return_value = []
+
+        response = web_client.get("/history-page?date_from=2024-01-01")
+
+        assert response.status_code == 200
+        # Verify date_from was passed in filters
+        call_args = mock_query.call_args
+        assert call_args[1]["filters"]["date_from"] == "2024-01-01"
+
+    @patch("src.web.router.query")
+    def test_history_page_pagination_page2(self, mock_query, web_client):
+        """GET /history-page?page=2 fetches enough results for pagination."""
+        # Return 40 results so page 2 has data
+        mock_query.return_value = [
+            {"overall_score": 50.0, "id": i} for i in range(40)
+        ]
+
+        response = web_client.get("/history-page?page=2")
+
+        assert response.status_code == 200
+        # page=2 means offset_limit = 2*20 = 40
+        call_args = mock_query.call_args
+        assert call_args[1]["limit"] == 40
