@@ -416,3 +416,49 @@ class TestDefaultFastResult:
         assert result.quick_verdict == 50.0
         assert result.scam_prob == 50.0
         assert result.model_used == "test-model"
+
+
+class TestBuildFastResultClamping:
+    """Tests verifying _build_fast_result clamps out-of-range values."""
+
+    def test_confidence_above_1_is_clamped(self):
+        """Confidence > 1.0 is clamped to 1.0."""
+        data = {
+            "scam_prob": 10, "advertorial_prob": 15,
+            "emotional_manipulation": 20, "originality": 80,
+            "quick_verdict": 75, "summary": "Good", "confidence": 3.5,
+        }
+        result = _build_fast_result(data, "test-model")
+        assert result.confidence == 1.0
+
+    def test_confidence_below_0_is_clamped(self):
+        """Confidence < 0.0 is clamped to 0.0."""
+        data = {
+            "scam_prob": 10, "advertorial_prob": 15,
+            "emotional_manipulation": 20, "originality": 80,
+            "quick_verdict": 75, "summary": "Good", "confidence": -0.2,
+        }
+        result = _build_fast_result(data, "test-model")
+        assert result.confidence == 0.0
+
+    def test_scores_above_100_are_clamped(self):
+        """Scores > 100 are clamped to 100."""
+        data = {
+            "scam_prob": 150, "advertorial_prob": 15,
+            "emotional_manipulation": 20, "originality": 80,
+            "quick_verdict": 120, "summary": "Good", "confidence": 0.8,
+        }
+        result = _build_fast_result(data, "test-model")
+        assert result.scam_prob == 100.0
+        assert result.quick_verdict == 100.0
+
+    def test_scores_below_0_are_clamped(self):
+        """Scores < 0 are clamped to 0."""
+        data = {
+            "scam_prob": -5, "advertorial_prob": 15,
+            "emotional_manipulation": 20, "originality": -10,
+            "quick_verdict": 75, "summary": "Good", "confidence": 0.8,
+        }
+        result = _build_fast_result(data, "test-model")
+        assert result.scam_prob == 0.0
+        assert result.originality == 0.0

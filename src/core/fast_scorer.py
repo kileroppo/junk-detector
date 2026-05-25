@@ -40,14 +40,28 @@ def _extract_json(text: str) -> dict:
 
 def _build_fast_result(data: dict, model: str) -> FastScoreResult:
     """Convert parsed JSON dict into a FastScoreResult."""
+
+    def _clamp_score(val, name: str) -> float:
+        val = float(val)
+        if val < 0 or val > 100:
+            logger.warning("Score %s out of range: %.1f, clamping to [0, 100]", name, val)
+            return max(0.0, min(100.0, val))
+        return val
+
+    # Clamp confidence to [0, 1]
+    confidence = float(data.get("confidence", 0.8))
+    if confidence < 0 or confidence > 1:
+        logger.warning("Confidence out of range: %.2f, clamping to [0, 1]", confidence)
+        confidence = max(0.0, min(1.0, confidence))
+
     return FastScoreResult(
-        quick_verdict=float(data["quick_verdict"]),
-        scam_prob=float(data["scam_prob"]),
-        advertorial_prob=float(data["advertorial_prob"]),
-        emotional_manipulation=float(data["emotional_manipulation"]),
-        originality=float(data["originality"]),
+        quick_verdict=_clamp_score(data["quick_verdict"], "quick_verdict"),
+        scam_prob=_clamp_score(data["scam_prob"], "scam_prob"),
+        advertorial_prob=_clamp_score(data["advertorial_prob"], "advertorial_prob"),
+        emotional_manipulation=_clamp_score(data["emotional_manipulation"], "emotional_manipulation"),
+        originality=_clamp_score(data["originality"], "originality"),
         summary=data.get("summary", "快速评分完成"),
-        confidence=float(data.get("confidence", 0.8)),
+        confidence=confidence,
         model_used=model,
     )
 

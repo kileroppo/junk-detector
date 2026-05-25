@@ -306,6 +306,40 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
             )
             return result
 
+        # 4.6. Detect injection indicators in response text
+        injection_phrases = [
+            "ignore previous", "ignore all", "override instructions",
+            "disregard above", "ignore above", "new instructions",
+            "system prompt", "forget everything",
+        ]
+        response_text = (result.summary or "").lower() + " ".join(result.labels).lower()
+        if any(phrase in response_text for phrase in injection_phrases):
+            logger.warning(
+                "Injection indicator detected in LLM response: summary=%s, labels=%s",
+                result.summary, result.labels,
+            )
+            result = ScoreResult(
+                overall_score=50.0,
+                dimensions=DimensionScores(
+                    originality=50,
+                    info_density=50,
+                    reasoning_quality=50,
+                    readability=50,
+                    timeliness=50,
+                    ai_generated_prob=50,
+                    emotional_manipulation=50,
+                    advertorial_prob=50,
+                    scam_prob=50,
+                ),
+                labels=[],
+                summary="LLM输出异常，可能存在prompt注入",
+                confidence=0.1,
+                model_used="validation_rejected",
+                cost=result.cost,
+                rule_hits=[],
+            )
+            return result
+
         # 5. Apply rule overrides (high confidence rules override LLM dimensions)
         for dim, score_val in rule_result.dimension_overrides.items():
             conf = rule_result.confidence.get(dim, 0)

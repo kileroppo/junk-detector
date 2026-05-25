@@ -347,3 +347,51 @@ async def test_judge_hidden_params_empty_dict(mock_acompletion):
     config = ScoringConfig(primary_model="test-model")
     result = await judge("some content", config)
     assert result.cost == 0.0
+
+
+class TestBuildScoreResultClamping:
+    """Tests verifying _build_score_result clamps out-of-range values."""
+
+    def test_confidence_above_1_is_clamped(self):
+        """Confidence > 1.0 is clamped to 1.0."""
+        data = {
+            "originality": 75, "info_density": 60, "reasoning_quality": 70,
+            "readability": 80, "timeliness": 50, "ai_generated_prob": 20,
+            "emotional_manipulation": 10, "advertorial_prob": 15, "scam_prob": 5,
+            "summary": "Good", "confidence": 5.0, "labels": [],
+        }
+        result = _build_score_result(data, "test-model")
+        assert result.confidence == 1.0
+
+    def test_confidence_below_0_is_clamped(self):
+        """Confidence < 0.0 is clamped to 0.0."""
+        data = {
+            "originality": 75, "info_density": 60, "reasoning_quality": 70,
+            "readability": 80, "timeliness": 50, "ai_generated_prob": 20,
+            "emotional_manipulation": 10, "advertorial_prob": 15, "scam_prob": 5,
+            "summary": "Good", "confidence": -0.5, "labels": [],
+        }
+        result = _build_score_result(data, "test-model")
+        assert result.confidence == 0.0
+
+    def test_dimension_above_100_is_clamped(self):
+        """Dimension score > 100 is clamped to 100."""
+        data = {
+            "originality": 150, "info_density": 60, "reasoning_quality": 70,
+            "readability": 80, "timeliness": 50, "ai_generated_prob": 20,
+            "emotional_manipulation": 10, "advertorial_prob": 15, "scam_prob": 5,
+            "summary": "Good", "confidence": 0.85, "labels": [],
+        }
+        result = _build_score_result(data, "test-model")
+        assert result.dimensions.originality == 100
+
+    def test_dimension_below_0_is_clamped(self):
+        """Dimension score < 0 is clamped to 0."""
+        data = {
+            "originality": 75, "info_density": 60, "reasoning_quality": 70,
+            "readability": 80, "timeliness": -10, "ai_generated_prob": 20,
+            "emotional_manipulation": 10, "advertorial_prob": 15, "scam_prob": 5,
+            "summary": "Good", "confidence": 0.85, "labels": [],
+        }
+        result = _build_score_result(data, "test-model")
+        assert result.dimensions.timeliness == 0

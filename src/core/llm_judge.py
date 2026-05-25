@@ -40,17 +40,31 @@ def _extract_json(text: str) -> dict:
 
 def _build_score_result(data: dict, model: str) -> ScoreResult:
     """Convert parsed JSON dict into a ScoreResult, computing overall_score."""
+
+    def _clamp_score(val, name: str) -> int:
+        val = int(val)
+        if val < 0 or val > 100:
+            logger.warning("Dimension %s out of range: %d, clamping to [0, 100]", name, val)
+            return max(0, min(100, val))
+        return val
+
     dimensions = DimensionScores(
-        originality=data["originality"],
-        info_density=data["info_density"],
-        reasoning_quality=data["reasoning_quality"],
-        readability=data["readability"],
-        timeliness=data["timeliness"],
-        ai_generated_prob=data["ai_generated_prob"],
-        emotional_manipulation=data["emotional_manipulation"],
-        advertorial_prob=data["advertorial_prob"],
-        scam_prob=data["scam_prob"],
+        originality=_clamp_score(data["originality"], "originality"),
+        info_density=_clamp_score(data["info_density"], "info_density"),
+        reasoning_quality=_clamp_score(data["reasoning_quality"], "reasoning_quality"),
+        readability=_clamp_score(data["readability"], "readability"),
+        timeliness=_clamp_score(data["timeliness"], "timeliness"),
+        ai_generated_prob=_clamp_score(data["ai_generated_prob"], "ai_generated_prob"),
+        emotional_manipulation=_clamp_score(data["emotional_manipulation"], "emotional_manipulation"),
+        advertorial_prob=_clamp_score(data["advertorial_prob"], "advertorial_prob"),
+        scam_prob=_clamp_score(data["scam_prob"], "scam_prob"),
     )
+
+    # Clamp confidence to [0, 1]
+    confidence = float(data.get("confidence", 0.8))
+    if confidence < 0 or confidence > 1:
+        logger.warning("Confidence out of range: %.2f, clamping to [0, 1]", confidence)
+        confidence = max(0.0, min(1.0, confidence))
 
     # Compute overall score using default weights
     config = ScoringConfig()
@@ -74,7 +88,7 @@ def _build_score_result(data: dict, model: str) -> ScoreResult:
         dimensions=dimensions,
         labels=data.get("labels", []),
         summary=data.get("summary", "评分完成"),
-        confidence=float(data.get("confidence", 0.8)),
+        confidence=confidence,
         model_used=model,
         scored_at=datetime.now(),
     )
