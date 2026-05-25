@@ -1,0 +1,38 @@
+## Codebase Patterns
+- CLI uses typer + Rich console. Test with typer.testing.CliRunner.
+- All LLM calls go through src/core/scorer.score() - mock this for integration tests
+- Config loads from config.yaml with YAML cache (src/core/config.py). reload_config() clears cache.
+- MonitorService is the integration layer: Thunder (discovery) -> Queue -> Dispatcher (execution) -> Pipeline (scoring)
+- Web extraction: _strip_noise -> _find_main_content -> _extract_text pipeline in src/extractors/web.py
+- Tests in tests/ flat structure. conftest.py has shared fixtures (mock_llm_response, sample_junk_text, etc.)
+- pytest-asyncio with asyncio_mode=auto - async tests just use async def
+- API key validation pattern: check env var based on model name before calling scorer
+
+## 2026-05-25 - Product Hardening Iteration
+- What was implemented:
+  - FEAT-001: Added .gitignore entries for .agents/, .coverage, .python-version. Untracked binary files from git.
+  - FEAT-002: Created tests/test_cli_integration.py with 8 integration tests for the CLI score command. Added _validate_api_key() to src/cli/main.py for graceful error messages when API keys are missing.
+  - FEAT-003: Added generate_summary() to MonitorService with result tracking (_scored_items), daily summary generation (total_scored, average_score, high_risk_items, top_labels), and CLI display via Rich.
+  - FEAT-004: Created tests/fixtures/ with Chinese blog and WeChat HTML fixtures. Added tests/test_web_extraction_robustness.py with 14 tests. Added "qr-code" and "qr" to NOISE_CLASSES in web.py.
+  - FEAT-005: This progress documentation.
+
+- Files changed:
+  - .gitignore (added entries)
+  - src/cli/main.py (API key validation, monitor summary display)
+  - src/monitor/service.py (generate_summary, _scored_items tracking, last_summary property)
+  - src/extractors/web.py (added qr-code/qr to NOISE_CLASSES)
+  - tests/test_cli_integration.py (new, 8 tests)
+  - tests/test_web_extraction_robustness.py (new, 14 tests)
+  - tests/test_monitor_service.py (5 new tests)
+  - tests/fixtures/chinese_blog_with_sidebar.html (new)
+  - tests/fixtures/wechat_article.html (new)
+
+- Coverage: 76% (448 tests) -> ~79% (475 tests)
+
+- **Learnings for future iterations:**
+  - typer.testing.CliRunner env parameter overrides os.environ for the CLI process - use it to test API key presence/absence
+  - MonitorService._execute_task is the hook point for tracking individual scoring results
+  - BeautifulSoup's NOISE_CLASSES pattern is the cheapest way to add extraction rules - just add class/id substrings
+  - The scorer's cache check (content_hash in DB) can interfere with tests if not properly isolated - conftest.py resets dedup cache
+  - Rich console output in tests needs to be checked via string matching on result.output (CliRunner captures it)
+---
