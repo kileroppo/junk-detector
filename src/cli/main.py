@@ -168,6 +168,12 @@ def _validate_api_key(model_name: str) -> None:
                 raise typer.Exit(code=1)
             return
 
+    # No known provider matched — warn but don't block (custom models via litellm are valid)
+    console.print(
+        f"⚠️  Unknown model provider '{model_name}'. Cannot validate API key.",
+        style="yellow",
+    )
+
 
 # ---------------------------------------------------------------------------
 # Commands

@@ -153,3 +153,27 @@ class TestScoreApiKeyValidation:
         result = runner.invoke(app, ["score", "--text", "sample", "--model", "ollama"], env=env)
 
         assert result.exit_code == 0, f"Output: {result.output}"
+
+    @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.storage.db.save")
+    @patch("src.core.config.load_config")
+    def test_score_unknown_model_warns(self, mock_load_config, mock_db_save, mock_scorer):
+        """score --text with unknown model shows warning but still attempts scoring."""
+        from src.models.score import ScoringConfig
+
+        mock_scorer.return_value = _mock_score_result()
+        mock_db_save.return_value = None
+        mock_load_config.return_value = ScoringConfig(
+            primary_model="mistral-large",
+            fallback_model="mistral-large",
+            confidence_threshold=0.7,
+        )
+
+        # No API keys needed since the model is unknown
+        env = {k: v for k, v in os.environ.items() if "API_KEY" not in k}
+
+        result = runner.invoke(app, ["score", "--text", "sample", "--model", "mistral-large"], env=env)
+
+        assert result.exit_code == 0, f"Output: {result.output}"
+        assert "Unknown model provider" in result.output
+        assert "mistral-large" in result.output

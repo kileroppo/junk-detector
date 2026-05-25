@@ -45,6 +45,8 @@ class MonitorService:
         config: Dictionary with 'thunder' and 'dispatcher' sections.
     """
 
+    _MAX_SCORED_ITEMS = 10000
+
     def __init__(self, config: dict) -> None:
         self._config = config
         self._running = False
@@ -277,6 +279,8 @@ class MonitorService:
                     item_data["score"] = 0
                     item_data["labels"] = []
                 self._scored_items.append(item_data)
+                if len(self._scored_items) > self._MAX_SCORED_ITEMS:
+                    self._scored_items = self._scored_items[self._MAX_SCORED_ITEMS // 2:]
                 logger.info(
                     f"Scored '{task.title or task.url}' from {task.source_name} "
                     f"(attempt {result.attempts_used})"

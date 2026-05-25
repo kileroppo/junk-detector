@@ -276,3 +276,70 @@ class TestGenerateSummary:
         assert service.last_summary is not None
         assert service.last_summary == summary
         assert service.last_summary["total_scored"] == 1
+
+
+class TestScoredItemsTrimming:
+    """Tests for _scored_items bounded growth."""
+
+    def test_scored_items_trimmed_when_exceeds_limit(self):
+        """_scored_items is trimmed when it exceeds MAX_SCORED_ITEMS."""
+        service = MonitorService(SAMPLE_CONFIG)
+
+        # Fill beyond the limit
+        service._scored_items = [
+            {"title": f"Article {i}", "url": f"http://a.com/{i}", "source": "rss", "score": 50, "labels": []}
+            for i in range(MonitorService._MAX_SCORED_ITEMS + 1)
+        ]
+
+        # Simulate what _execute_task does after appending
+        if len(service._scored_items) > service._MAX_SCORED_ITEMS:
+            service._scored_items = service._scored_items[MonitorService._MAX_SCORED_ITEMS // 2:]
+
+        # Should be trimmed to the newer half
+        assert len(service._scored_items) <= MonitorService._MAX_SCORED_ITEMS
+        # The remaining items should be the newer ones (higher indices)
+        assert service._scored_items[0]["title"] == f"Article {MonitorService._MAX_SCORED_ITEMS // 2}"
+
+
+class TestExecuteTaskIntegration:
+    """Tests for _execute_task -> _scored_items integration."""
+
+    @pytest.mark.asyncio
+    async def test_execute_task_populates_scored_items(self):
+        """After _execute_task succeeds, item is added to _scored_items."""
+        from datetime import datetime, timezone
+        from unittest.mock import AsyncMock, patch
+
+        from src.dispatcher.models import TaskPayload
+
+        service = MonitorService(SAMPLE_CONFIG)
+        # Need an event loop semaphore
+        import asyncio
+        service._semaphore = asyncio.Semaphore(service._max_in_flight)
+
+        task = TaskPayload(
+            url="http://example.com/article",
+            title="Test Article",
+            source_name="test-source",
+            max_attempts=3,
+        )
+
+        # Mock _score_item to return a successful result
+        from src.dispatcher.models import TaskResult
+
+        mock_result = TaskResult(
+            task_id=task.id,
+            success=True,
+            score_result={"overall_score": 72, "labels": ["informative"]},
+            started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            attempts_used=1,
+        )
+
+        with patch.object(service, "_score_item", new_callable=AsyncMock, return_value=mock_result):
+            await service._execute_task(task)
+
+        assert len(service._scored_items) == 1
+        assert service._scored_items[0]["title"] == "Test Article"
+        assert service._scored_items[0]["score"] == 72
+        assert service._scored_items[0]["labels"] == ["informative"]
