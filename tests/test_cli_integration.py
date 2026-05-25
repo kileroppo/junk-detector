@@ -107,10 +107,12 @@ class TestScoreInputValidation:
 class TestScoreErrorHandling:
     """Test error handling scenarios for score command."""
 
+    @patch("src.extractors.web.extract_from_url_simple", new_callable=AsyncMock)
     @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
-    def test_score_url_timeout_error(self, mock_extract):
+    def test_score_url_timeout_error(self, mock_extract, mock_simple):
         """score --url with TimeoutError shows graceful error message."""
         mock_extract.side_effect = TimeoutError("Connection timed out")
+        mock_simple.side_effect = TimeoutError("Connection timed out")
 
         result = runner.invoke(app, ["score", "--url", "http://example.com"], env={"DEEPSEEK_API_KEY": "test-key"})
 

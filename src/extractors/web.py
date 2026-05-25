@@ -159,6 +159,69 @@ def _extract_text(content_element: Tag) -> str:
     return "\n".join(lines)
 
 
+async def extract_from_url_simple(url: str) -> Content:
+    """Fallback extraction: fetch URL and strip all HTML tags.
+
+    Uses a simple get_text() approach without article detection or noise removal.
+    This is used as a fallback when the primary extract_from_url fails.
+
+    Args:
+        url: The URL to fetch and extract content from.
+
+    Returns:
+        A Content model with raw stripped text.
+
+    Raises:
+        ValueError: If the URL returns an error or no text can be extracted.
+        TimeoutError: If the request times out.
+    """
+    headers = {"User-Agent": USER_AGENT}
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=TIMEOUT,
+            follow_redirects=True,
+            headers=headers,
+        ) as client:
+            response = await client.get(url)
+    except httpx.TimeoutException as exc:
+        raise TimeoutError(f"Request timed out after {TIMEOUT}s: {url}") from exc
+    except httpx.RequestError as exc:
+        raise ValueError(f"Failed to fetch URL: {url} — {exc}") from exc
+
+    if response.status_code >= 400:
+        raise ValueError(f"URL returned HTTP {response.status_code}: {url}")
+
+    html = response.text
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Simple extraction: just get all text from body
+    body = soup.find("body")
+    if body:
+        text = body.get_text(separator="\n", strip=True)
+    else:
+        text = soup.get_text(separator="\n", strip=True)
+
+    if not text or len(text.strip()) == 0:
+        raise ValueError(f"Could not extract any text content from: {url}")
+
+    text = text.strip()
+
+    # Try to get title
+    title_tag = soup.find("title")
+    title = title_tag.get_text(strip=True) if title_tag else None
+
+    content = Content(
+        input_type=InputType.URL,
+        text=text,
+        source_url=url,
+        title=title,
+    )
+    content.compute_hash()
+
+    return content
+
+
 async def extract_from_url(url: str) -> Content:
     """Fetch a URL and extract its main article content.
 

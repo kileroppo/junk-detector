@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import re
 from typing import Optional
 
+import httpx
 import litellm
 
 from src.core.prompt_loader import get_prompt_template
@@ -68,6 +70,7 @@ async def score_fast(
     content_text: str,
     config: Optional[ScoringConfig] = None,
     language: str = "zh",
+    max_retries: int = 1,
 ) -> FastScoreResult:
     """Score content using the fast 4-dimension screening prompt.
 
@@ -76,6 +79,7 @@ async def score_fast(
         config: Scoring configuration (contains model name, etc.).
                 If None, uses default ScoringConfig.
         language: Language code (unused for fast mode, kept for API consistency).
+        max_retries: Number of retry attempts for timeout errors.
 
     Returns:
         FastScoreResult with 4 dimension scores and quick_verdict.
@@ -140,6 +144,20 @@ async def score_fast(
 
         except Exception as e:
             last_error = e
+            # Check if it's a timeout error - retry if retries remain
+            is_timeout = (
+                isinstance(e, httpx.TimeoutException)
+                or "timeout" in str(e).lower()
+            )
+            if is_timeout and attempt < max_retries:
+                logger.warning(
+                    "Timeout on attempt %d/%d, retrying in 1s: %s",
+                    attempt + 1,
+                    max_retries + 1,
+                    e,
+                )
+                await asyncio.sleep(1)
+                continue
             logger.error("LLM API call failed in fast scorer: %s", e)
             break
 

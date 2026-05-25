@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -10,6 +11,7 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 
+import httpx
 import litellm
 
 from src.core.prompt_loader import get_prompt_template
@@ -190,6 +192,20 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
 
         except Exception as e:
             last_error = e
+            # Check if it's a timeout error - retry if attempts remain
+            is_timeout = (
+                isinstance(e, httpx.TimeoutException)
+                or "timeout" in str(e).lower()
+            )
+            if is_timeout and attempt < max_attempts - 1:
+                logger.warning(
+                    "Timeout on attempt %d/%d, retrying in 1s: %s",
+                    attempt + 1,
+                    max_attempts,
+                    e,
+                )
+                await asyncio.sleep(1)
+                continue
             logger.error("LLM API call failed: %s", e)
             break
 

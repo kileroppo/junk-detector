@@ -188,6 +188,7 @@ def score(
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Model preset: ollama, deepseek, openai, anthropic"),
     fast: bool = typer.Option(False, "--fast", help="Use fast 4-dimension scoring instead of full 9-dimension"),
+    retry: int = typer.Option(1, "--retry", help="Number of retry attempts for LLM timeouts"),
 ) -> None:
     """Score content quality across 9 dimensions."""
 
@@ -218,7 +219,7 @@ def score(
             config = load_config(override_model=model)
             _validate_api_key(config.primary_model)
 
-            fast_result: FastScoreResult = asyncio.run(score_fast(content.text, config=config))
+            fast_result: FastScoreResult = asyncio.run(score_fast(content.text, config=config, max_retries=retry))
         except typer.Exit:
             raise
         except Exception as exc:
@@ -285,9 +286,19 @@ def _extract_content(
         return extract_from_file(file)
 
     if url is not None:
-        from src.extractors.web import extract_from_url
+        from src.extractors.web import extract_from_url, extract_from_url_simple
 
-        return asyncio.run(extract_from_url(url))
+        try:
+            return asyncio.run(extract_from_url(url))
+        except Exception as original_error:
+            console.print(
+                f"⚠️  主提取失败，尝试简单提取: {original_error}",
+                style="yellow",
+            )
+            try:
+                return asyncio.run(extract_from_url_simple(url))
+            except Exception:
+                raise original_error
 
     # Should not reach here due to earlier validation
     raise ValueError("No input source provided")
@@ -312,6 +323,7 @@ def quick(
     file: Optional[str] = typer.Option(None, "--file", "-f", help="File path to read and score"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Model preset"),
+    retry: int = typer.Option(1, "--retry", help="Number of retry attempts for LLM timeouts"),
 ) -> None:
     """Quick content screening - single-line pass/fail verdict."""
 
@@ -340,7 +352,7 @@ def quick(
         config = load_config(override_model=model)
         _validate_api_key(config.primary_model)
 
-        fast_result: FastScoreResult = asyncio.run(score_fast(content.text, config=config))
+        fast_result: FastScoreResult = asyncio.run(score_fast(content.text, config=config, max_retries=retry))
     except typer.Exit:
         raise
     except Exception as exc:
@@ -360,6 +372,7 @@ def batch(
     stdin: bool = typer.Option(False, "--stdin", help="Read URLs from stdin"),
     fast: bool = typer.Option(True, "--fast/--no-fast", help="Use fast 4-dimension scoring (default: True)"),
     json_output: bool = typer.Option(False, "--json", help="Output JSON array instead of table"),
+    retry: int = typer.Option(1, "--retry", help="Number of retry attempts for LLM timeouts"),
 ) -> None:
     """Batch score multiple URLs concurrently."""
 
