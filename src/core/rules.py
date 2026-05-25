@@ -525,6 +525,13 @@ def should_skip_llm(rule_result: RuleResult, content_text: str) -> tuple[bool, s
             return (False, "clean_prose_needs_llm")
         return (False, "insufficient_confidence")
 
+    # High-confidence single dimension: if any dimension has score >= 90 and confidence >= 0.9,
+    # the rules are confident enough on their own
+    for dim, score in rule_result.dimension_overrides.items():
+        conf = rule_result.confidence.get(dim, 0)
+        if score >= 90 and conf >= 0.9:
+            return (True, "high_confidence_single_dimension")
+
     # Check if we have >= 3 distinct non-combo rules with high average confidence
     if non_combo_count >= 3:
         # Only average confidence values >= 0.7 to exclude dimensions that were

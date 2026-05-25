@@ -33,12 +33,12 @@ class TestShouldSkipLlm:
         rule_result = RuleResult(
             matched_rules=["scam_keywords", "emotional_anxiety_phrases", "advertorial_promo"],
             dimension_overrides={
-                "scam_prob": 95.0,
+                "scam_prob": 85.0,
                 "emotional_manipulation": 85.0,
                 "advertorial_prob": 80.0,
             },
             confidence={
-                "scam_prob": 0.95,
+                "scam_prob": 0.90,
                 "emotional_manipulation": 0.90,
                 "advertorial_prob": 0.85,
             },
@@ -57,15 +57,15 @@ class TestShouldSkipLlm:
                 "combo_crypto_scam_combo",
             ],
             dimension_overrides={
-                "scam_prob": 95.0,
+                "scam_prob": 75.0,
                 "emotional_manipulation": 85.0,
             },
             confidence={
-                "scam_prob": 0.95,
-                "emotional_manipulation": 0.90,
+                "scam_prob": 0.80,
+                "emotional_manipulation": 0.85,
             },
         )
-        # Only 2 non-combo rules, so should NOT skip
+        # Only 2 non-combo rules and no single dimension at score >= 90, so should NOT skip
         should_skip, reason = should_skip_llm(rule_result, "some text")
         assert should_skip is False
         assert reason == "insufficient_confidence"
@@ -153,7 +153,7 @@ class TestShouldSkipLlm:
         rule_result = RuleResult(
             matched_rules=["scam_keywords", "emotional_anxiety_phrases", "ai_generated_signals"],
             dimension_overrides={
-                "scam_prob": 95.0,
+                "scam_prob": 85.0,
                 "emotional_manipulation": 70.0,
                 "ai_generated_prob": 65.0,
             },
@@ -178,13 +178,13 @@ class TestShouldSkipLlm:
                 "ai_generated_signals",
             ],
             dimension_overrides={
-                "scam_prob": 95.0,
+                "scam_prob": 85.0,
                 "emotional_manipulation": 85.0,
                 "advertorial_prob": 80.0,
                 "ai_generated_prob": 65.0,
             },
             confidence={
-                "scam_prob": 0.95,
+                "scam_prob": 0.90,
                 "emotional_manipulation": 0.90,
                 "advertorial_prob": 0.85,
                 "ai_generated_prob": 0.90,
@@ -363,7 +363,7 @@ class TestScorerIntegrationWithSkip:
     @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_two_rules_does_not_trigger_skip(self, mock_filter, mock_acompletion):
-        """Only 2 non-combo rules should NOT trigger skip, LLM should be called."""
+        """Only 2 non-combo rules with scores below 90 should NOT trigger skip, LLM should be called."""
         from src.core.content_filter import FilterResult
         from src.core.scorer import score
 
@@ -373,12 +373,12 @@ class TestScorerIntegrationWithSkip:
         mock_rule_result = RuleResult(
             matched_rules=["scam_keywords", "emotional_anxiety_phrases"],
             dimension_overrides={
-                "scam_prob": 95.0,
+                "scam_prob": 75.0,
                 "emotional_manipulation": 85.0,
             },
             confidence={
-                "scam_prob": 0.95,
-                "emotional_manipulation": 0.90,
+                "scam_prob": 0.80,
+                "emotional_manipulation": 0.85,
             },
         )
 

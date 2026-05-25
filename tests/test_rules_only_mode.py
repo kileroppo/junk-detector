@@ -114,6 +114,21 @@ class TestRulesOnlyFastResult:
         assert result is None
 
 
+class TestShouldSkipLlmSingleHighConfidence:
+    """Test should_skip_llm with high-confidence single dimension."""
+
+    def test_should_skip_llm_single_high_confidence_dimension(self):
+        """should_skip_llm returns True when any dimension has score >= 90 and confidence >= 0.9."""
+        from src.core.rules import apply_rules, should_skip_llm
+
+        # 5 scam keywords trigger scam_prob=95, confidence=0.95
+        text = "日入过万 躺赚 财富自由 限时免费 加微信领取"
+        result = apply_rules(text)
+        skip, reason = should_skip_llm(result, text)
+        assert skip is True
+        assert reason == "high_confidence_single_dimension"
+
+
 class TestScoreFastRulesPreCheck:
     """Test that score_fast uses rules pre-check before LLM."""
 
@@ -189,9 +204,9 @@ class TestQuickCLIRulesOnly:
         )
 
         assert result.exit_code == 1, f"Output: {result.output}"
-        # Auto rules-only engaged; content triggers 1 rule only,
-        # so should_skip_llm returns False -> uncertain verdict (score 50)
-        assert "\u26a0\ufe0f" in result.output
+        # Auto rules-only engaged; high-confidence single dimension (scam_prob=95)
+        # triggers skip_llm -> scam verdict (score 5)
+        assert "\U0001f6a8" in result.output
 
     def test_quick_scam_json_without_api_key(self):
         """quick --text --json with scam content returns rules_only model."""
@@ -204,9 +219,8 @@ class TestQuickCLIRulesOnly:
         assert result.exit_code == 1, f"Output: {result.output}"
         data = json.loads(result.output)
         assert data["model_used"] == "rules_only"
-        # With auto rules-only, should_skip_llm requires 3+ rules.
-        # SCAM_CONTENT only triggers 1 rule so gets uncertain verdict (50).
-        assert data["quick_verdict"] <= 50.0
+        # High-confidence single dimension: scam_prob=95, quick_verdict=5
+        assert data["quick_verdict"] <= 10.0
 
     def test_quick_clean_content_fails_without_api_key(self):
         """quick --text with clean content fails gracefully without API key."""
