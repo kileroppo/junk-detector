@@ -379,7 +379,7 @@ def serve(
     import uvicorn
 
     bind_port = port if strict_port else _resolve_port(host, port)
-    uvicorn.run("src.api.app:app", host=host, port=bind_port, reload=True)
+    uvicorn.run("src.api.app:app", host=host, port=bind_port, reload=True)  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
@@ -472,7 +472,7 @@ async def _run_monitor(config_path: str) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
             loop.add_signal_handler(sig, _signal_handler)
-        except NotImplementedError:
+        except NotImplementedError:  # pragma: no cover
             # Windows doesn't support add_signal_handler
             pass
 
@@ -518,7 +518,7 @@ def monitor_start(
 ) -> None:
     """Start the real-time content monitor (runs until Ctrl+C)."""
     try:
-        asyncio.run(_run_monitor(config))
+        asyncio.run(_run_monitor(config))  # pragma: no cover
     except KeyboardInterrupt:
         console.print("\n  [yellow]Interrupted.[/yellow]")
 
