@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Add tests for source_reputation and hydrators modules - 140 lines at 0% coverage. Tests domain normalization, blacklist/whitelist logic, auto-blacklist check, score adjustments, and hydrator metadata enrichment.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create tests/test_source_reputation.py",
     "Test _normalize_domain: lowercases, strips www. prefix",
@@ -23,5 +23,5 @@
     "pytest tests/test_source_reputation.py tests/test_hydrators.py -v --cov=src/core/source_reputation --cov=src/core/hydrators --cov-report=term-missing"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 34 tests pass. Coverage: source_reputation.py 85%, hydrators.py 91%. Used dotted module paths (src.core.source_reputation) for --cov flag instead of slash paths. Mocking src.storage.db.query_by_domain works correctly for both sync (source_reputation) and async/to_thread (hydrators) usage."
 }
