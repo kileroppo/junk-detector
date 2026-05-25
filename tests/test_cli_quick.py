@@ -103,7 +103,7 @@ class TestQuickCommandCaution:
 
     @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
     def test_quick_text_boundary_60(self, mock_score_fast):
-        """quick --text with score exactly 60 shows caution emoji but exits 0."""
+        """quick --text with score exactly 60 shows OK emoji and exits 0."""
         mock_score_fast.return_value = _mock_fast_result(60.0)
 
         result = runner.invoke(
@@ -113,7 +113,7 @@ class TestQuickCommandCaution:
         )
 
         assert result.exit_code == 0, f"Output: {result.output}"
-        assert "\u26a0\ufe0f" in result.output
+        assert "\u2705" in result.output
 
 
 class TestQuickCommandJson:

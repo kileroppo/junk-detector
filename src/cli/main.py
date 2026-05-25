@@ -136,16 +136,15 @@ def _pretty_print_result(result: ScoreResult, content: Content) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _has_api_key(model_name: str) -> bool:
-    """Check if the required API key env var is available for the given model.
+def _key_env_var_for_model(model_name: str) -> str | None:
+    """Return the env var name needed for the given model, or None for ollama/unknown.
 
-    Returns True if the key is set (or not required), False otherwise.
-    Models containing 'ollama' do not require an API key.
+    This is the single source of truth for mapping model names to API key env vars.
     """
     model_lower = model_name.lower()
 
     if "ollama" in model_lower:
-        return True
+        return None
 
     key_map: list[tuple[list[str], str]] = [
         (["deepseek"], "DEEPSEEK_API_KEY"),
@@ -155,10 +154,23 @@ def _has_api_key(model_name: str) -> bool:
 
     for keywords, env_var in key_map:
         if any(kw in model_lower for kw in keywords):
-            return bool(os.environ.get(env_var))
+            return env_var
 
-    # Unknown provider - assume key is available (custom models via litellm)
-    return True
+    # Unknown provider - no known env var
+    return None
+
+
+def _has_api_key(model_name: str) -> bool:
+    """Check if the required API key env var is available for the given model.
+
+    Returns True if the key is set (or not required), False otherwise.
+    Models containing 'ollama' do not require an API key.
+    """
+    env_var = _key_env_var_for_model(model_name)
+    if env_var is None:
+        # ollama or unknown provider - assume key is available
+        return True
+    return bool(os.environ.get(env_var))
 
 
 def _validate_api_key(model_name: str) -> None:
@@ -167,32 +179,23 @@ def _validate_api_key(model_name: str) -> None:
     Raises typer.Exit(code=1) with a helpful message if the key is missing.
     Models containing 'ollama' do not require an API key.
     """
-    model_lower = model_name.lower()
-
-    if "ollama" in model_lower:
+    env_var = _key_env_var_for_model(model_name)
+    if env_var is None:
+        model_lower = model_name.lower()
+        if "ollama" not in model_lower:
+            # No known provider matched - warn but don't block (custom models via litellm)
+            console.print(
+                f"\u26a0\ufe0f  Unknown model provider '{model_name}'. Cannot validate API key.",
+                style="yellow",
+            )
         return
 
-    key_map: list[tuple[list[str], str]] = [
-        (["deepseek"], "DEEPSEEK_API_KEY"),
-        (["openai", "gpt"], "OPENAI_API_KEY"),
-        (["anthropic", "claude"], "ANTHROPIC_API_KEY"),
-    ]
-
-    for keywords, env_var in key_map:
-        if any(kw in model_lower for kw in keywords):
-            if not os.environ.get(env_var):
-                console.print(
-                    f"❌ {env_var} not set. Run: export {env_var}=your-key",
-                    style="bold red",
-                )
-                raise typer.Exit(code=1)
-            return
-
-    # No known provider matched — warn but don't block (custom models via litellm are valid)
-    console.print(
-        f"⚠️  Unknown model provider '{model_name}'. Cannot validate API key.",
-        style="yellow",
-    )
+    if not os.environ.get(env_var):
+        console.print(
+            f"\u274c {env_var} not set. Run: export {env_var}=your-key",
+            style="bold red",
+        )
+        raise typer.Exit(code=1)
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +378,7 @@ def _extract_content(
 def _print_quick_verdict(result: FastScoreResult) -> None:
     """Print a single-line verdict based on the fast score result."""
     score_val = result.quick_verdict
-    if score_val > 60:
+    if score_val >= 60:
         verdict = f"\u2705 \u770b\u8d77\u6765\u6b63\u5e38 (score: {score_val:.0f})"
     elif score_val >= 40:
         verdict = f"\u26a0\ufe0f \u9700\u8981\u6ce8\u610f (score: {score_val:.0f})"
@@ -435,12 +438,14 @@ def quick(
         raise typer.Exit(code=2)
 
     # Auto rules-only when no API key is available
+    auto_rules_only = False
     if not rules_only:
         from src.core.config import load_config as _load_config_check
 
         _config_check = _load_config_check(override_model=model)
         if not _has_api_key(_config_check.primary_model):
             rules_only = True
+            auto_rules_only = True
 
     # Rules-only mode: skip API key validation and LLM call
     if rules_only:
@@ -487,6 +492,12 @@ def quick(
             typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
         else:
             _print_quick_verdict(fast_result)
+            # Hint when auto rules-only is engaged and rules returned uncertain
+            if auto_rules_only and fast_result.confidence <= 0.2:
+                console.print(
+                    "\U0001f4a1 \u63d0\u793a: \u8bbe\u7f6e API key \u53ef\u83b7\u5f97\u66f4\u51c6\u786e\u7684\u5206\u6790",
+                    style="dim",
+                )
         raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
 
     try:
