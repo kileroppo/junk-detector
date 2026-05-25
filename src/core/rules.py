@@ -500,6 +500,45 @@ def _check_combo_rules(
 # ---------------------------------------------------------------------------
 
 
+def should_skip_llm(rule_result: RuleResult, content_text: str) -> tuple[bool, str]:
+    """Determine if rules are confident enough to skip the LLM call.
+
+    Logic:
+    - Count distinct non-combo rules matched (strong signals from multiple categories).
+    - If >= 3 distinct non-combo rules matched AND average confidence across all
+      matched dimensions >= 0.85: return (True, "high_confidence_rules").
+    - If 0 keywords matched AND content is long (> 1000 chars): return
+      (False, "clean_prose_needs_llm") -- clean text still needs LLM analysis.
+    - Default: return (False, "insufficient_confidence").
+
+    Args:
+        rule_result: The RuleResult from apply_rules().
+        content_text: The original content text.
+
+    Returns:
+        Tuple of (should_skip: bool, reason: str).
+    """
+    # Count non-combo rules
+    non_combo_rules = [r for r in rule_result.matched_rules if not r.startswith("combo_")]
+    non_combo_count = len(non_combo_rules)
+
+    # Special case: no rules matched at all
+    if non_combo_count == 0:
+        if len(content_text) > 1000:
+            return (False, "clean_prose_needs_llm")
+        return (False, "insufficient_confidence")
+
+    # Check if we have >= 3 distinct non-combo rules with high average confidence
+    if non_combo_count >= 3:
+        confidences = list(rule_result.confidence.values())
+        if confidences:
+            avg_confidence = sum(confidences) / len(confidences)
+            if avg_confidence >= 0.85:
+                return (True, "high_confidence_rules")
+
+    return (False, "insufficient_confidence")
+
+
 def apply_rules(content: str) -> RuleResult:
     """Apply all deterministic rules against content.
 

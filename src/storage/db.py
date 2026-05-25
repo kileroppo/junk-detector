@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 
 from src.models.score import Content, ScoreResult
 
@@ -351,5 +351,123 @@ def query_by_domain(domain: str, db_path: str = "junk_detector.db") -> list[floa
         )
         rows = cursor.fetchall()
         return [row["overall_score"] for row in rows]
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Scoring stats tracking (rules_only vs LLM usage)
+# ---------------------------------------------------------------------------
+
+_CREATE_SCORING_STATS_SQL = """
+CREATE TABLE IF NOT EXISTS scoring_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT UNIQUE NOT NULL,
+    rules_only_count INTEGER DEFAULT 0,
+    llm_count INTEGER DEFAULT 0
+);
+"""
+
+_initialized_stats_dbs: set[str] = set()
+
+
+def init_scoring_stats_table(db_path: str = "junk_detector.db") -> None:
+    """Create the scoring_stats table if it does not exist.
+
+    Args:
+        db_path: Path to the SQLite database file.
+    """
+    if db_path in _initialized_stats_dbs:
+        return
+    conn = _get_connection(db_path)
+    try:
+        conn.execute(_CREATE_SCORING_STATS_SQL)
+        conn.commit()
+        _initialized_stats_dbs.add(db_path)
+    finally:
+        conn.close()
+
+
+def _ensure_stats_initialized(db_path: str) -> None:
+    """Lazy initialization for scoring_stats table."""
+    if db_path not in _initialized_stats_dbs:
+        init_scoring_stats_table(db_path)
+
+
+def increment_rules_only(db_path: str = "junk_detector.db") -> None:
+    """Increment rules_only_count for today's date.
+
+    Upserts the row for today, incrementing the counter by 1.
+
+    Args:
+        db_path: Path to the SQLite database file.
+    """
+    _ensure_stats_initialized(db_path)
+    today = date.today().isoformat()
+    conn = _get_connection(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO scoring_stats (date, rules_only_count, llm_count)
+            VALUES (?, 1, 0)
+            ON CONFLICT(date) DO UPDATE SET
+                rules_only_count = rules_only_count + 1
+            """,
+            (today,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def increment_llm_count(db_path: str = "junk_detector.db") -> None:
+    """Increment llm_count for today's date.
+
+    Upserts the row for today, incrementing the counter by 1.
+
+    Args:
+        db_path: Path to the SQLite database file.
+    """
+    _ensure_stats_initialized(db_path)
+    today = date.today().isoformat()
+    conn = _get_connection(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO scoring_stats (date, rules_only_count, llm_count)
+            VALUES (?, 0, 1)
+            ON CONFLICT(date) DO UPDATE SET
+                llm_count = llm_count + 1
+            """,
+            (today,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_daily_stats(db_path: str = "junk_detector.db", target_date: str | None = None) -> dict:
+    """Get scoring stats for a given date.
+
+    Args:
+        db_path: Path to the SQLite database file.
+        target_date: ISO date string (e.g. "2025-01-28"). Defaults to today.
+
+    Returns:
+        Dict with keys: rules_only_count, llm_count. Both default to 0 if no data.
+    """
+    _ensure_stats_initialized(db_path)
+    if target_date is None:
+        target_date = date.today().isoformat()
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "SELECT rules_only_count, llm_count FROM scoring_stats WHERE date = ?",
+            (target_date,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return {"rules_only_count": 0, "llm_count": 0}
+        return {"rules_only_count": row["rules_only_count"], "llm_count": row["llm_count"]}
     finally:
         conn.close()

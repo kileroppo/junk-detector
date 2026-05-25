@@ -16,7 +16,7 @@ from src.core.platform_profiles import (
     check_platform_extra_rules,
     detect_platform,
 )
-from src.core.rules import apply_rules
+from src.core.rules import apply_rules, should_skip_llm
 from src.models.score import DimensionScores, ScoreResult, ScoringConfig
 
 logger = logging.getLogger(__name__)
@@ -208,6 +208,50 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
             existing_conf = rule_result.confidence.get("advertorial_prob", 0)
             rule_result.confidence["advertorial_prob"] = max(existing_conf, 0.7)
 
+    # 1.6. Smart rules skip: check if rules are confident enough to skip LLM entirely
+    skip_llm, skip_reason = should_skip_llm(rule_result, content_text)
+    if skip_llm:
+        logger.info("Smart rules skip triggered: reason=%s", skip_reason)
+        # Construct ScoreResult from rule overrides, filling missing dims with defaults
+        _positive_default = 50.0
+        _negative_default = 0.0
+        positive_dims_list = ["originality", "info_density", "reasoning_quality", "readability", "timeliness"]
+        negative_dims_list = ["ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob"]
+
+        dims_dict: dict[str, float] = {}
+        for dim in positive_dims_list:
+            dims_dict[dim] = rule_result.dimension_overrides.get(dim, _positive_default)
+        for dim in negative_dims_list:
+            dims_dict[dim] = rule_result.dimension_overrides.get(dim, _negative_default)
+
+        dimensions = DimensionScores(**dims_dict)
+        result = ScoreResult(
+            overall_score=0,
+            dimensions=dimensions,
+            labels=[],
+            summary="规则高置信度判定，跳过LLM",
+            confidence=min(rule_result.confidence.values()) if rule_result.confidence else 0.85,
+            model_used="rules_skip",
+            cost=0.0,
+            rule_hits=rule_result.matched_rules,
+            dimension_sources={dim: "rule" for dim in rule_result.dimension_overrides},
+        )
+
+        # 7. Recalculate overall_score with weights
+        result.overall_score = _calculate_overall(result.dimensions, config)
+
+        # 8. Generate labels from thresholds
+        result.labels = _generate_labels(result.dimensions, config)
+
+        # Track stats
+        try:
+            from src.storage.db import increment_rules_only
+            increment_rules_only()
+        except Exception as e:
+            logger.debug("Failed to increment rules_only stats: %s", e)
+
+        return result
+
     # 2. Check if rules alone can produce a full score (all 9 dimensions covered with high confidence)
     all_dimensions = [
         "originality", "info_density", "reasoning_quality", "readability", "timeliness",
@@ -235,6 +279,13 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
             rule_hits=rule_result.matched_rules,
             dimension_sources={dim: "rule" for dim in all_dimensions},
         )
+
+        # Track stats
+        try:
+            from src.storage.db import increment_rules_only
+            increment_rules_only()
+        except Exception as e:
+            logger.debug("Failed to increment rules_only stats: %s", e)
     else:
         # 3. Call LLM judge with primary model
         result = await judge(content_text, config, language=language)
@@ -351,6 +402,13 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
             if conf >= 0.9:
                 setattr(result.dimensions, dim, score_val)
                 result.dimension_sources[dim] = "rule"
+
+        # Track stats
+        try:
+            from src.storage.db import increment_llm_count
+            increment_llm_count()
+        except Exception as e:
+            logger.debug("Failed to increment llm_count stats: %s", e)
 
     # 6. Record rule hits
     result.rule_hits = rule_result.matched_rules
