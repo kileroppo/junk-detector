@@ -64,21 +64,17 @@ async def enrich_stage(ctx: PipelineContext) -> PipelineContext:
     from src.core.hydrators import (
         hydrate_source_reputation,
         hydrate_article_stats,
-        hydrate_similar_articles,
     )
 
     # Run hydrators — each returns a dict to merge into metadata
     hydrators = [
         ("source_reputation", hydrate_source_reputation),
         ("article_stats", hydrate_article_stats),
-        ("similar_articles", hydrate_similar_articles),
     ]
 
     for hydrator_name, hydrator_fn in hydrators:
         try:
             if hydrator_name == "source_reputation":
-                result = await hydrator_fn(ctx, db_path=_get_db_path(ctx))
-            elif hydrator_name == "similar_articles":
                 result = await hydrator_fn(ctx, db_path=_get_db_path(ctx))
             else:
                 result = await hydrator_fn(ctx)
@@ -100,28 +96,6 @@ async def enrich_stage(ctx: PipelineContext) -> PipelineContext:
                 logger.info(f"Fingerprint: found {len(similar)} similar article(s)")
     except Exception as e:
         logger.debug(f"Fingerprint check failed: {e}")
-
-    # Multimodal: extract and analyze images if present
-    try:
-        from src.extractors.multimodal import extract_images_from_html, analyze_images_with_vlm, is_vision_model
-
-        # Only if we have HTML source (from URL extraction)
-        raw_html = ctx.metadata.get("raw_html", "")
-        if raw_html and ctx.content and ctx.content.source_url:
-            image_urls = await extract_images_from_html(raw_html, base_url=ctx.content.source_url)
-            if image_urls:
-                ctx.metadata["image_urls"] = image_urls
-                ctx.metadata["image_count"] = len(image_urls)
-
-                # Try VLM analysis if vision model is configured
-                model = ctx.config.primary_model
-                if is_vision_model(model):
-                    image_analysis = await analyze_images_with_vlm(image_urls, model=model)
-                    if image_analysis:
-                        ctx.metadata["image_analysis"] = image_analysis
-                        logger.info(f"Multimodal: analyzed {len(image_urls)} image(s)")
-    except Exception as e:
-        logger.debug(f"Multimodal enrichment failed: {e}")
 
     return ctx
 
@@ -187,11 +161,6 @@ async def score_stage(ctx: PipelineContext) -> PipelineContext:
         text_to_score = ctx.content.text
     if text_to_score is None:
         text_to_score = ctx.raw_input
-
-    # Append image analysis to scored text if available
-    image_analysis = ctx.metadata.get("image_analysis", "")
-    if image_analysis:
-        text_to_score = text_to_score + f"\n\n[Visual Content Analysis: {image_analysis}]"
 
     # Determine language from context metadata (set by preferences during enrich stage)
     language = ctx.metadata.get("language", "zh")

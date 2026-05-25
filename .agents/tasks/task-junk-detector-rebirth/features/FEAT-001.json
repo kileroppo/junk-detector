@@ -1,0 +1,41 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Phase 1 (Delete Dead Code) + Environment Setup: Install dependencies, then delete all dead code as specified in PRD-REBIRTH.md Phase 1. This removes ~800 lines of unused code.",
+  "status": "in_progress",
+  "steps": [
+    "Install project dependencies: pip install -e '.[dev]' to ensure the project baseline is working.",
+    "Delete the entire src/core/plans/ directory (5 files: __init__.py, base.py, llm_plan.py, rules_plan.py, similarity_plan.py). These are only self-referencing, never imported by the rest of the codebase.",
+    "Delete src/dispatcher/dispatcher.py (208 lines). The MonitorService imports from src.dispatcher.models, src.dispatcher.retry, and src.dispatcher.task_queue directly, never from dispatcher.py.",
+    "Update src/dispatcher/__init__.py to remove the import of Dispatcher from dispatcher.py. Keep imports of TaskPayload, TaskResult, TaskStatus, TaskPriority from models, and PriorityTaskQueue from task_queue.",
+    "Delete src/extractors/multimodal.py (155 lines). It is imported inside pipeline_stages.py enrich_stage in a try/except block.",
+    "Remove the multimodal import block from src/core/pipeline_stages.py in enrich_stage (lines 102-121 approximately: the try block that imports from src.extractors.multimodal). Also remove the image_analysis augmentation in score_stage (the block that appends image_analysis to text_to_score).",
+    "Delete the find_similar() function from src/core/embeddings.py (lines 68-129). Keep embed_content() and cosine_similarity() intact. Also remove the 'from src.storage.db import get_all_embeddings' import inside find_similar since it will no longer exist.",
+    "Remove the train_from_history() function from src/core/fast_classifier.py (the entire function starting around line 150 to end of file). Keep everything else (extract_features, classify_fast, _rule_based_classify, _try_ml_model).",
+    "Delete src/core/summarizer.py entirely (81 lines). It is never imported anywhere (verified via grep).",
+    "Remove the hydrate_similar_articles() function from src/core/hydrators.py (lines 158 to end). Also remove its import and usage in src/core/pipeline_stages.py enrich_stage - remove it from the hydrators list and from the import statement.",
+    "Verify no broken imports: run 'python -c \"from src.api.app import app; from src.core.scorer import score; from src.core.pipeline import build_default_pipeline; from src.monitor.service import MonitorService\"'",
+    "Run 'find src/ -name \"*.py\" | xargs python -c \"import importlib, sys; [importlib.import_module(f.replace(\"/\",\".\").replace(\".py\",\"\")) for f in sys.argv[1:] if \"__pycache__\" not in f]\"' or equivalent to check all modules import cleanly."
+  ],
+  "acceptance_criteria": [
+    "src/core/plans/ directory no longer exists",
+    "src/dispatcher/dispatcher.py no longer exists",
+    "src/extractors/multimodal.py no longer exists",
+    "src/core/summarizer.py no longer exists",
+    "find_similar() function does not exist in src/core/embeddings.py but embed_content() and cosine_similarity() still exist",
+    "train_from_history() function does not exist in src/core/fast_classifier.py but classify_fast() and _rule_based_classify() still exist",
+    "hydrate_similar_articles() function does not exist in src/core/hydrators.py but hydrate_source_reputation() and hydrate_article_stats() still exist",
+    "src/core/pipeline_stages.py no longer references multimodal or hydrate_similar_articles",
+    "All Python modules in src/ import without errors",
+    "src/dispatcher/__init__.py does not reference Dispatcher class"
+  ],
+  "verification": [
+    "python -c 'from src.api.app import app; from src.core.scorer import score; from src.core.pipeline import build_default_pipeline'",
+    "python -c 'from src.monitor.service import MonitorService'",
+    "python -c 'from src.core.embeddings import embed_content, cosine_similarity'",
+    "python -c 'from src.core.fast_classifier import classify_fast'",
+    "python -c 'from src.core.hydrators import hydrate_source_reputation, hydrate_article_stats'"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
