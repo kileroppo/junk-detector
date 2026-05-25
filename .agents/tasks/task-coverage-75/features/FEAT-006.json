@@ -2,7 +2,7 @@
   "id": "FEAT-006",
   "type": "feat",
   "description": "Add tests for preferences/service, extractors/text, platform_profiles, and monitor/service to push total coverage above 75%. These are the remaining uncovered modules needed to cross the threshold.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create tests/test_preferences_service.py: test PreferencesService.get_preferences returns default for missing user, test save_preferences upserts correctly, test update_preferences merges partial update, test delete_preferences removes record, test build_scoring_config merges user prefs with system defaults (mock _load_config_yaml). Use tmp_db_path fixture.",
     "Create tests/test_extractors_text.py: test extract_from_text with valid text returns Content with correct fields, test extract_from_text with empty text raises ValueError, test extract_from_file with valid file (use tmp_path), test extract_from_file with nonexistent path raises FileNotFoundError, test extract_from_file with empty file raises ValueError.",
@@ -17,5 +17,5 @@
     "pytest tests/ --cov=src --cov-report=term-missing -q 2>&1 | grep TOTAL"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Coverage reached 76% (2535/3360 lines covered). All 448 tests pass. Created 13 test files total (4 originally planned + 9 additional to cross the 75% threshold). Rate limiter accumulates state across tests when using TestClient; patching _should_rate_limit=False resolves 429 errors in preferences router tests. Bcrypt/passlib has version incompatibility in the test environment, resolved by mocking _pwd_context in auth service tests."
 }
