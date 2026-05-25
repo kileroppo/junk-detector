@@ -401,7 +401,7 @@ def _calculate_lexical_diversity(content: str) -> float:
     if not content:
         return 1.0
     # Filter out whitespace and punctuation for diversity calculation
-    chars = [c for c in content if c.strip() and c not in "，。！？、；：''（）【】《》…—·"]
+    chars = [c for c in content if c.strip() and c not in "，。！？、；：（）【】《》…—·"]
     if not chars:
         return 1.0
     unique_chars = set(chars)
