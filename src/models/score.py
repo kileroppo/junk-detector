@@ -65,6 +65,20 @@ class ScoreResult(BaseModel):
     )
 
 
+class FastScoreResult(BaseModel):
+    """Lightweight scoring result for fast screening (4 dimensions only)."""
+
+    quick_verdict: float = Field(..., ge=0, le=100, description="综合质量评分 0-100")
+    scam_prob: float = Field(..., ge=0, le=100, description="骗局/收割概率")
+    advertorial_prob: float = Field(..., ge=0, le=100, description="软文/广告概率")
+    emotional_manipulation: float = Field(..., ge=0, le=100, description="情绪操纵度")
+    originality: float = Field(..., ge=0, le=100, description="原创性")
+    summary: str = Field(..., description="一句话评价")
+    confidence: float = Field(default=0.8, ge=0, le=1, description="评分置信度")
+    model_used: str = Field(default="", description="使用的模型")
+    cost: float = Field(default=0.0, ge=0, description="本次调用成本")
+
+
 class ScoringConfig(BaseModel):
     """Configuration for the scoring system."""
 

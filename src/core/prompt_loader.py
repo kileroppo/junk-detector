@@ -14,6 +14,7 @@ _PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
 _PROMPT_FILES = {
     "zh": "score_content.txt",
     "en": "score_content_en.txt",
+    "fast": "score_content_fast.txt",
 }
 
 # Cache loaded templates

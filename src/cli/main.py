@@ -21,7 +21,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from src.models.score import ScoreResult, Content
+from src.models.score import ScoreResult, FastScoreResult, Content
 
 app = typer.Typer(
     name="junk-detector",
@@ -187,6 +187,7 @@ def score(
     file: Optional[str] = typer.Option(None, "--file", "-f", help="File path to read and score"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Model preset: ollama, deepseek, openai, anthropic"),
+    fast: bool = typer.Option(False, "--fast", help="Use fast 4-dimension scoring instead of full 9-dimension"),
 ) -> None:
     """Score content quality across 9 dimensions."""
 
@@ -207,6 +208,29 @@ def score(
     except Exception as exc:
         console.print(f"❌ 未知错误: {exc}", style="bold red")
         raise typer.Exit(code=1)
+
+    # Fast scoring path
+    if fast:
+        try:
+            from src.core.config import load_config
+            from src.core.fast_scorer import score_fast
+
+            config = load_config(override_model=model)
+            _validate_api_key(config.primary_model)
+
+            fast_result: FastScoreResult = asyncio.run(score_fast(content.text, config=config))
+        except typer.Exit:
+            raise
+        except Exception as exc:
+            console.print(f"❌ 快速评分失败: {exc}", style="bold red")
+            raise typer.Exit(code=1)
+
+        if json_output:
+            output = fast_result.model_dump(mode="json")
+            typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
+        else:
+            _print_quick_verdict(fast_result)
+        return
 
     # Score the content
     try:
@@ -267,6 +291,67 @@ def _extract_content(
 
     # Should not reach here due to earlier validation
     raise ValueError("No input source provided")
+
+
+def _print_quick_verdict(result: FastScoreResult) -> None:
+    """Print a single-line verdict based on the fast score result."""
+    score_val = result.quick_verdict
+    if score_val > 60:
+        verdict = f"\u2705 \u770b\u8d77\u6765\u6b63\u5e38 (score: {score_val:.0f})"
+    elif score_val >= 40:
+        verdict = f"\u26a0\ufe0f \u9700\u8981\u6ce8\u610f (score: {score_val:.0f})"
+    else:
+        verdict = f"\U0001f6a8 \u7591\u4f3c\u5783\u573e\u5185\u5bb9 (score: {score_val:.0f})"
+    console.print(verdict)
+
+
+@app.command()
+def quick(
+    text: Optional[str] = typer.Option(None, "--text", "-t", help="Text content to score"),
+    url: Optional[str] = typer.Option(None, "--url", "-u", help="URL to fetch and score"),
+    file: Optional[str] = typer.Option(None, "--file", "-f", help="File path to read and score"),
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model preset"),
+) -> None:
+    """Quick content screening - single-line pass/fail verdict."""
+
+    # Validate: exactly one input source
+    sources = [s for s in (text, url, file) if s is not None]
+    if len(sources) == 0:
+        console.print("\u274c \u9519\u8bef: \u5fc5\u987b\u6307\u5b9a --text, --url, \u6216 --file \u4e2d\u7684\u4e00\u4e2a", style="bold red")
+        raise typer.Exit(code=1)
+    if len(sources) > 1:
+        console.print("\u274c \u9519\u8bef: \u53ea\u80fd\u6307\u5b9a --text, --url, --file \u4e2d\u7684\u4e00\u4e2a", style="bold red")
+        raise typer.Exit(code=1)
+
+    try:
+        content = _extract_content(text=text, url=url, file=file)
+    except (ValueError, FileNotFoundError, TimeoutError) as exc:
+        console.print(f"\u274c \u63d0\u53d6\u5185\u5bb9\u5931\u8d25: {exc}", style="bold red")
+        raise typer.Exit(code=1)
+    except Exception as exc:
+        console.print(f"\u274c \u672a\u77e5\u9519\u8bef: {exc}", style="bold red")
+        raise typer.Exit(code=1)
+
+    try:
+        from src.core.config import load_config
+        from src.core.fast_scorer import score_fast
+
+        config = load_config(override_model=model)
+        _validate_api_key(config.primary_model)
+
+        fast_result: FastScoreResult = asyncio.run(score_fast(content.text, config=config))
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        console.print(f"\u274c \u5feb\u901f\u8bc4\u5206\u5931\u8d25: {exc}", style="bold red")
+        raise typer.Exit(code=1)
+
+    if json_output:
+        output = fast_result.model_dump(mode="json")
+        typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
+    else:
+        _print_quick_verdict(fast_result)
 
 
 @app.command()
