@@ -269,30 +269,4 @@ async def partials_recent_scores(request: Request):
     )
 
 
-@router.get("/partials/monitor-stats", response_class=HTMLResponse)
-async def partials_monitor_stats(request: Request):
-    """Return monitor stats as HTML (for HTMX polling)."""
-    thunder_stats = {
-        "sources_count": 0,
-        "items_discovered": 0,
-        "seen_urls_count": 0,
-    }
-    dispatcher_stats = {
-        "in_flight": 0,
-        "queue_size": 0,
-        "total_scored": 0,
-        "total_failed": 0,
-        "total_retried": 0,
-        "max_in_flight": 3,
-    }
-    is_running = False
 
-    return templates.TemplateResponse(
-        request,
-        "partials/monitor_stats.html",
-        {
-            "thunder": thunder_stats,
-            "dispatcher": dispatcher_stats,
-            "is_running": is_running,
-        },
-    )

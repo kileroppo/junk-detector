@@ -139,10 +139,10 @@ class TestWebRoutes:
         response = web_client.get("/partials/recent-scores")
         assert response.status_code == 200
 
-    def test_partials_monitor_stats(self, web_client):
-        """GET /partials/monitor-stats returns HTML fragment."""
+    def test_partials_monitor_stats_removed(self, web_client):
+        """GET /partials/monitor-stats returns 404 (endpoint removed)."""
         response = web_client.get("/partials/monitor-stats")
-        assert response.status_code == 200
+        assert response.status_code == 404
 
     @patch("src.web.router.query")
     def test_result_detail_not_found(self, mock_query, web_client):

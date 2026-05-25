@@ -139,3 +139,15 @@ class TestWatchCommand:
         import re
 
         assert re.search(r"\d{4}-\d{2}-\d{2}", result.output)
+
+    @patch("src.cli.main._batch_score", new_callable=AsyncMock)
+    def test_watch_handles_scoring_exception(self, mock_batch, tmp_path):
+        """watch continues gracefully when _batch_score raises an exception."""
+        urls_file = tmp_path / "urls.txt"
+        urls_file.write_text("https://example.com/page\n")
+
+        mock_batch.side_effect = RuntimeError("Network timeout")
+
+        result = runner.invoke(app, ["watch", "--urls-file", str(urls_file), "--once"])
+        assert result.exit_code == 0
+        assert "failed" in result.output

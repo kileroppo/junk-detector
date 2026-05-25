@@ -610,10 +610,19 @@ def watch(
             )
 
             # Score all URLs
-            results = asyncio.run(_batch_score(urls, fast=fast))
-
-            # Print summary
-            _batch_table_output(results)
+            try:
+                results = asyncio.run(_batch_score(urls, fast=fast))
+                # Print summary
+                _batch_table_output(results)
+            except Exception as exc:
+                console.print(
+                    f"\u26a0\ufe0f Cycle {cycle} failed: {exc}",
+                    style="bold yellow",
+                )
+                if once:
+                    return
+                time.sleep(interval)
+                continue
 
             if once:
                 return
