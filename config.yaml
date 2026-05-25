@@ -49,12 +49,7 @@ scoring:
     高质量原创: 80.0
     信息密度高: 80.0
 
-# Embedding model for similarity detection (Task #2 will use this)
-embedding:
-  model: "ollama/nomic-embed-text"  # or "text-embedding-3-small" for OpenAI
-  api_base: "http://localhost:11434"
-
-# Summarization for long articles (Task #3 will use this)
+# Summarization for long articles
 summarization:
   enabled: true
   max_chars_before_summarize: 5000  # articles longer than this get summarized first
@@ -129,56 +124,6 @@ platforms:
 
 
 
-# Thunder — real-time content stream monitoring
-# Inspired by x-algorithm's Thunder service
-thunder:
-  enabled: true
-  
-  # Content sources to monitor
-  sources:
-    - name: "hacker-news"
-      type: rss
-      url: "https://hnrss.org/newest"
-      poll_interval_seconds: 300    # every 5 minutes
-      priority: 5
-      enabled: true
-    
-    - name: "36kr"  
-      type: rss
-      url: "https://36kr.com/feed"
-      poll_interval_seconds: 600    # every 10 minutes
-      priority: 5
-      enabled: true
-    
-    - name: "ruanyifeng-weekly"
-      type: rss
-      url: "https://www.ruanyifeng.com/blog/atom.xml"
-      poll_interval_seconds: 3600   # every hour
-      priority: 3
-      enabled: true
-
-  # Webhook endpoint (receives POST requests with content URLs)
-  webhook:
-    enabled: true
-    path: "/webhook/content"   # POST here to submit content for scoring
-
-# Dispatcher — task scheduling and execution
-# Inspired by x-algorithm's Dispatcher + Engine pattern  
-dispatcher:
-  max_in_flight: 3              # max concurrent LLM scoring tasks
-  retry:
-    max_attempts: 3
-    base_delay_seconds: 2.0
-    max_delay_seconds: 60.0
-    exponential_base: 2.0
-  
-  # Rate limiting
-  max_tasks_per_minute: 20      # prevent runaway costs
-  
-  # Graceful shutdown timeout
-  shutdown_timeout_seconds: 30
-
-
 # API rate limiting
 rate_limiting:
   authenticated_rpm: 30       # requests/minute for authenticated users
@@ -188,19 +133,3 @@ rate_limiting:
   burst_allowance: 5          # extra burst allowed above limit
 
 
-
-# Side Effects — async post-scoring actions
-# Inspired by x-algorithm's SideEffect pattern
-side_effects:
-  notification:
-    enabled: true
-    threshold: 30.0          # alert when score below this
-    webhook_url: null        # set to URL to receive alerts (e.g. Slack webhook)
-  
-  webhook_callback:
-    enabled: false
-    callback_url: null       # POST full results to this URL after every score
-    include_content: false   # include text preview in callback payload
-  
-  stats_collector:
-    enabled: true            # always collect stats

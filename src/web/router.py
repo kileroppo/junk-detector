@@ -272,7 +272,6 @@ async def partials_recent_scores(request: Request):
 @router.get("/partials/monitor-stats", response_class=HTMLResponse)
 async def partials_monitor_stats(request: Request):
     """Return monitor stats as HTML (for HTMX polling)."""
-    # Try to get monitor stats from the running service
     thunder_stats = {
         "sources_count": 0,
         "items_discovered": 0,
@@ -287,21 +286,6 @@ async def partials_monitor_stats(request: Request):
         "max_in_flight": 3,
     }
     is_running = False
-
-    try:
-        # Try to access the monitor service if it's registered in app state
-        from src.monitor.service import MonitorService
-
-        # Check if there's a global monitor instance
-        app = request.app
-        monitor: MonitorService | None = getattr(app, "_monitor_service", None)
-        if monitor:
-            stats = monitor.stats
-            thunder_stats = stats.get("thunder", thunder_stats)
-            dispatcher_stats = stats.get("dispatcher", dispatcher_stats)
-            is_running = monitor._running
-    except Exception:
-        pass
 
     return templates.TemplateResponse(
         request,

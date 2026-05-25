@@ -129,13 +129,6 @@ def load_config(override_model: str | None = None) -> ScoringConfig:
     if "label_thresholds" in scoring:
         kwargs["label_thresholds"] = scoring["label_thresholds"]
 
-    # Embedding section
-    embedding = data.get("embedding", {})
-    if "model" in embedding:
-        kwargs["embedding_model"] = embedding["model"]
-    if "api_base" in embedding:
-        kwargs["embedding_api_base"] = embedding["api_base"]
-
     # Summarization section
     summarization = data.get("summarization", {})
     if "enabled" in summarization:

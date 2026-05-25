@@ -416,15 +416,10 @@ class TestPostprocessStage:
     @patch("src.core.pipeline_stages._save_result", new_callable=AsyncMock)
     @patch("src.core.source_reputation.get_source_adjustment", return_value=(0, ""))
     @patch("src.core.content_fingerprint.save_fingerprint")
-    @patch("src.core.side_effects.base.SideEffectRunner")
     async def test_originality_penalty_on_high_similarity(
-        self, mock_runner, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
+        self, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
     ):
         from src.core.pipeline_stages import postprocess_stage
-
-        mock_runner_instance = MagicMock()
-        mock_runner_instance.run_all = AsyncMock()
-        mock_runner.return_value = mock_runner_instance
 
         text_ctx.content = sample_content
         text_ctx.result = sample_result
@@ -445,15 +440,10 @@ class TestPostprocessStage:
     @patch("src.core.pipeline_stages._save_result", new_callable=AsyncMock)
     @patch("src.core.source_reputation.get_source_adjustment", return_value=(0, ""))
     @patch("src.core.content_fingerprint.save_fingerprint")
-    @patch("src.core.side_effects.base.SideEffectRunner")
     async def test_source_reputation_note_on_low_reputation(
-        self, mock_runner, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
+        self, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
     ):
         from src.core.pipeline_stages import postprocess_stage
-
-        mock_runner_instance = MagicMock()
-        mock_runner_instance.run_all = AsyncMock()
-        mock_runner.return_value = mock_runner_instance
 
         text_ctx.content = sample_content
         text_ctx.result = sample_result
@@ -469,15 +459,10 @@ class TestPostprocessStage:
     @patch("src.core.pipeline_stages._save_result", new_callable=AsyncMock)
     @patch("src.core.source_reputation.get_source_adjustment", return_value=(-20, "黑名单来源"))
     @patch("src.core.content_fingerprint.save_fingerprint")
-    @patch("src.core.side_effects.base.SideEffectRunner")
     async def test_negative_source_adjustment(
-        self, mock_runner, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
+        self, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
     ):
         from src.core.pipeline_stages import postprocess_stage
-
-        mock_runner_instance = MagicMock()
-        mock_runner_instance.run_all = AsyncMock()
-        mock_runner.return_value = mock_runner_instance
 
         text_ctx.content = sample_content
         text_ctx.result = sample_result
@@ -493,15 +478,10 @@ class TestPostprocessStage:
     @patch("src.core.pipeline_stages._save_result", new_callable=AsyncMock)
     @patch("src.core.source_reputation.get_source_adjustment", return_value=(15, "可信来源"))
     @patch("src.core.content_fingerprint.save_fingerprint")
-    @patch("src.core.side_effects.base.SideEffectRunner")
     async def test_positive_source_adjustment(
-        self, mock_runner, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
+        self, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
     ):
         from src.core.pipeline_stages import postprocess_stage
-
-        mock_runner_instance = MagicMock()
-        mock_runner_instance.run_all = AsyncMock()
-        mock_runner.return_value = mock_runner_instance
 
         text_ctx.content = sample_content
         text_ctx.result = sample_result
@@ -517,9 +497,8 @@ class TestPostprocessStage:
     @patch("src.core.pipeline_stages._save_result", new_callable=AsyncMock)
     @patch("src.core.source_reputation.get_source_adjustment", return_value=(0, ""))
     @patch("src.core.content_fingerprint.save_fingerprint")
-    @patch("src.core.side_effects.base.SideEffectRunner")
     async def test_no_result_returns_early(
-        self, mock_runner, mock_fp, mock_adj, mock_save, text_ctx
+        self, mock_fp, mock_adj, mock_save, text_ctx
     ):
         from src.core.pipeline_stages import postprocess_stage
 
@@ -534,15 +513,10 @@ class TestPostprocessStage:
     @patch("src.core.pipeline_stages._save_result", new_callable=AsyncMock)
     @patch("src.core.source_reputation.get_source_adjustment", return_value=(0, ""))
     @patch("src.core.content_fingerprint.save_fingerprint")
-    @patch("src.core.side_effects.base.SideEffectRunner")
     async def test_save_failure_adds_error(
-        self, mock_runner, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
+        self, mock_fp, mock_adj, mock_save, text_ctx, sample_content, sample_result
     ):
         from src.core.pipeline_stages import postprocess_stage
-
-        mock_runner_instance = MagicMock()
-        mock_runner_instance.run_all = AsyncMock()
-        mock_runner.return_value = mock_runner_instance
 
         text_ctx.content = sample_content
         text_ctx.result = sample_result

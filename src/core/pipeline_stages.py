@@ -255,23 +255,6 @@ async def postprocess_stage(ctx: PipelineContext) -> PipelineContext:
     except Exception as e:
         logger.debug(f"Fingerprint save failed (non-blocking): {e}")
 
-    # Run side effects (fire-and-forget, never blocks)
-    try:
-        from src.core.side_effects.base import SideEffectRunner
-        from src.core.side_effects.notification import NotificationSideEffect
-        from src.core.side_effects.stats_collector import StatsCollectorSideEffect
-
-        # Build runner with default effects
-        runner = SideEffectRunner(
-            [
-                NotificationSideEffect(threshold=30.0),
-                StatsCollectorSideEffect(),
-            ]
-        )
-        await runner.run_all(ctx)
-    except Exception as e:
-        logger.warning(f"Side effects failed (non-blocking): {e}")
-
     return ctx
 
 
@@ -318,7 +301,7 @@ async def _summarize_text(text: str, config) -> str:
 
 
 async def _save_result(ctx: PipelineContext) -> None:
-    """Save scoring result and embedding to storage."""
+    """Save scoring result to storage."""
     from src.storage.db import save as db_save
 
     if ctx.result is None or ctx.content is None:
@@ -326,31 +309,3 @@ async def _save_result(ctx: PipelineContext) -> None:
 
     db_path = _get_db_path(ctx)
     await asyncio.to_thread(db_save, ctx.result, ctx.content, db_path)
-
-    # Also compute and store embedding for future similarity searches
-    try:
-        import json
-
-        from src.core.embeddings import embed_content
-        from src.storage.db import _ensure_initialized, _get_connection
-
-        text = ctx.content.text
-        embedding = await embed_content(
-            text,
-            model=ctx.config.embedding_model,
-            api_base=ctx.config.embedding_api_base,
-        )
-
-        if embedding:
-            _ensure_initialized(db_path)
-            conn = _get_connection(db_path)
-            try:
-                conn.execute(
-                    "UPDATE scores SET embedding_json = ? WHERE content_hash = ?",
-                    (json.dumps(embedding), ctx.content.content_hash),
-                )
-                conn.commit()
-            finally:
-                conn.close()
-    except Exception as e:
-        logger.warning(f"Failed to save embedding: {e}")
