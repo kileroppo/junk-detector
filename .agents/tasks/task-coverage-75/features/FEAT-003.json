@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Add tests for side_effects module (base, notification, stats_collector, webhook_callback) - 148 lines at 0% coverage. Tests the SideEffectRunner concurrent execution, NotificationSideEffect threshold logic, StatsCollector aggregation, and WebhookCallback delivery.",
+  "status": "in_progress",
+  "steps": [
+    "Create tests/test_side_effects.py",
+    "Create helper fixtures: a mock PipelineContext with a ScoreResult (overall_score, labels, dimensions) and a Content (title, source_url, text, content_hash). Import from src.core.pipeline and src.models.score.",
+    "Test SideEffectRunner: register() adds effects, run_all() calls should_trigger then execute for triggered effects, effects that fail should_trigger are skipped, effects that raise in execute are caught (error isolation), untriggered effects are not executed",
+    "Test NotificationSideEffect: should_trigger returns True when score < threshold, should_trigger returns False when score >= threshold, should_trigger returns False when result is None, execute logs warning with correct info, execute calls webhook when webhook_url configured (mock httpx)",
+    "Test StatsCollectorSideEffect: should_trigger returns True when result is not None, execute increments total_scored and total_score_sum, execute tracks per-source scores (parse hostname from source_url), execute tracks label counts, get_stats() returns correct aggregates, reset() clears all state",
+    "Test WebhookCallbackSideEffect: should_trigger returns True when result exists, execute POSTs correct payload to callback_url (mock httpx), execute with include_content=True includes text_preview, execute handles httpx failure gracefully (logs warning, no exception)"
+  ],
+  "acceptance_criteria": [
+    "All tests in tests/test_side_effects.py pass",
+    "src/core/side_effects/base.py reaches 90%+ coverage",
+    "src/core/side_effects/notification.py reaches 90%+ coverage",
+    "src/core/side_effects/stats_collector.py reaches 90%+ coverage",
+    "src/core/side_effects/webhook_callback.py reaches 90%+ coverage"
+  ],
+  "verification": [
+    "pytest tests/test_side_effects.py -v --cov=src/core/side_effects --cov-report=term-missing"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
