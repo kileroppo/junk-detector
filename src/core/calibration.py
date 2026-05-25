@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime
+from typing import Any
 
 from src.storage.db import _get_connection
 
@@ -88,7 +89,7 @@ def _score_to_verdict(score: float) -> str:
         return "excellent"
 
 
-def get_calibration_stats(db_path: str = "junk_detector.db") -> dict:
+def get_calibration_stats(db_path: str = "junk_detector.db") -> dict[str, Any]:
     """Calculate calibration statistics by comparing user feedback with scores.
 
     Joins the feedback table with the scores table on content_hash to compare
@@ -153,7 +154,7 @@ def get_calibration_stats(db_path: str = "junk_detector.db") -> dict:
         conn.close()
 
 
-def suggest_rule_updates(db_path: str = "junk_detector.db") -> dict:
+def suggest_rule_updates(db_path: str = "junk_detector.db") -> dict[str, list[str]]:
     """Analyze false negatives and false positives to suggest rule updates.
 
     False negatives: content user flagged as junk but we scored as ok/excellent.
