@@ -6,7 +6,7 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class FeedItem(BaseModel):

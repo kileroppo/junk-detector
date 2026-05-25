@@ -127,15 +127,11 @@ class RSSSource(ContentSource):
                 items.append(item)
 
             self._last_polled_at = datetime.now(timezone.utc)
-            logger.debug(
-                f"RSSSource '{self.name}' polled: {len(items)} entries found"
-            )
+            logger.debug(f"RSSSource '{self.name}' polled: {len(items)} entries found")
             return items
 
         except Exception as e:
-            logger.warning(
-                f"RSSSource '{self.name}' poll failed: {type(e).__name__}: {e}"
-            )
+            logger.warning(f"RSSSource '{self.name}' poll failed: {type(e).__name__}: {e}")
             return []
 
 
@@ -191,7 +187,5 @@ class WebhookSource(ContentSource):
                 break
 
         if items:
-            logger.debug(
-                f"WebhookSource '{self.name}' polled: {len(items)} items drained"
-            )
+            logger.debug(f"WebhookSource '{self.name}' polled: {len(items)} items drained")
         return items

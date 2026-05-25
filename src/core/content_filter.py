@@ -143,7 +143,7 @@ def _check_phishing(text: str) -> FilterResult | None:
         return FilterResult(
             passed=False,
             violation_type="钓鱼",
-            violation_details=f"检测到钓鱼内容，包含诱导短语和链接",
+            violation_details="检测到钓鱼内容，包含诱导短语和链接",
             matched_patterns=matched_phrases,
         )
     return None

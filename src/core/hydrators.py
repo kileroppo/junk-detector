@@ -64,12 +64,11 @@ async def hydrate_source_reputation(
     # Query all scores from this domain
     try:
         from src.storage.db import query_by_domain
+
         domain_scores = await asyncio.to_thread(query_by_domain, domain, db_path)
 
         if domain_scores:
-            result["source_reputation"] = round(
-                sum(domain_scores) / len(domain_scores), 1
-            )
+            result["source_reputation"] = round(sum(domain_scores) / len(domain_scores), 1)
             result["source_article_count"] = len(domain_scores)
 
     except Exception as e:

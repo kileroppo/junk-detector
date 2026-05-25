@@ -29,7 +29,9 @@ def auth_db(tmp_db_path):
 @pytest.fixture
 def registered_user(auth_db):
     """Register and return a user for tests that need an existing user."""
-    user_create = UserCreate(username="testuser", password="securepass123", email="test@example.com")
+    user_create = UserCreate(
+        username="testuser", password="securepass123", email="test@example.com"
+    )
     user = AuthService.register(user_create, auth_db)
     return user
 

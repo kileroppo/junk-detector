@@ -5,14 +5,12 @@ Covers:
 - Scorer integration: verifies LLM is skipped/called based on rules confidence
 - Stats tracking: increment_rules_only, increment_llm_count, get_daily_stats
 """
+
 from __future__ import annotations
 
 import json
-import os
 from datetime import date
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from src.core.rules import RuleResult, should_skip_llm
 from src.storage.db import (
@@ -21,7 +19,6 @@ from src.storage.db import (
     increment_rules_only,
     init_scoring_stats_table,
 )
-
 
 # ---------------------------------------------------------------------------
 # Tests for should_skip_llm
@@ -130,7 +127,11 @@ class TestShouldSkipLlm:
     def test_combo_only_rules_not_counted(self):
         """If only combo rules fired, non-combo count is 0 -> treated as no keywords."""
         rule_result = RuleResult(
-            matched_rules=["combo_engagement_bait", "combo_crypto_scam_combo", "combo_fomo_urgency"],
+            matched_rules=[
+                "combo_engagement_bait",
+                "combo_crypto_scam_combo",
+                "combo_fomo_urgency",
+            ],
             dimension_overrides={
                 "advertorial_prob": 80.0,
                 "scam_prob": 90.0,
@@ -234,9 +235,7 @@ class TestScorerIntegrationWithSkip:
 
     @patch("src.core.llm_judge.litellm.acompletion")
     @patch("src.core.content_filter.check_content")
-    async def test_llm_skipped_when_high_confidence_multi_rule(
-        self, mock_filter, mock_acompletion
-    ):
+    async def test_llm_skipped_when_high_confidence_multi_rule(self, mock_filter, mock_acompletion):
         """When rules produce high confidence across >= 3 categories, LLM is NOT called."""
         from src.core.content_filter import FilterResult
         from src.core.scorer import score
@@ -259,7 +258,7 @@ class TestScorerIntegrationWithSkip:
         )
 
         with patch("src.core.scorer.apply_rules", return_value=mock_rule_result):
-            with patch("src.storage.db.increment_rules_only") as mock_stats:
+            with patch("src.storage.db.increment_rules_only") as _mock_stats:
                 result = await score("日入过万 震惊 必看 推荐码 优惠券 限时免费")
 
         assert result.model_used == "rules_skip"
@@ -284,12 +283,12 @@ class TestScorerIntegrationWithSkip:
         from src.core.scorer import score
 
         mock_filter.return_value = FilterResult(passed=True)
-        mock_acompletion.return_value = _make_mock_litellm_response(
-            _make_llm_response_content()
-        )
+        mock_acompletion.return_value = _make_mock_litellm_response(_make_llm_response_content())
 
         # This is clean text that won't trigger rules
-        clean_text = "这是一篇关于人工智能技术发展的客观分析文章，深入探讨了机器学习在医疗领域的应用前景。"
+        clean_text = (
+            "这是一篇关于人工智能技术发展的客观分析文章，深入探讨了机器学习在医疗领域的应用前景。"
+        )
 
         with patch("src.storage.db.increment_llm_count"):
             result = await score(clean_text)
@@ -300,9 +299,7 @@ class TestScorerIntegrationWithSkip:
 
     @patch("src.core.llm_judge.litellm.acompletion")
     @patch("src.core.content_filter.check_content")
-    async def test_rules_skip_produces_valid_labels(
-        self, mock_filter, mock_acompletion
-    ):
+    async def test_rules_skip_produces_valid_labels(self, mock_filter, mock_acompletion):
         """When rules skip is triggered, labels are still generated from thresholds."""
         from src.core.content_filter import FilterResult
         from src.core.scorer import score
@@ -334,9 +331,7 @@ class TestScorerIntegrationWithSkip:
 
     @patch("src.core.llm_judge.litellm.acompletion")
     @patch("src.core.content_filter.check_content")
-    async def test_rules_skip_overall_score_is_valid(
-        self, mock_filter, mock_acompletion
-    ):
+    async def test_rules_skip_overall_score_is_valid(self, mock_filter, mock_acompletion):
         """When rules skip is triggered, overall_score is properly calculated."""
         from src.core.content_filter import FilterResult
         from src.core.scorer import score
@@ -367,17 +362,13 @@ class TestScorerIntegrationWithSkip:
 
     @patch("src.core.llm_judge.litellm.acompletion")
     @patch("src.core.content_filter.check_content")
-    async def test_two_rules_does_not_trigger_skip(
-        self, mock_filter, mock_acompletion
-    ):
+    async def test_two_rules_does_not_trigger_skip(self, mock_filter, mock_acompletion):
         """Only 2 non-combo rules should NOT trigger skip, LLM should be called."""
         from src.core.content_filter import FilterResult
         from src.core.scorer import score
 
         mock_filter.return_value = FilterResult(passed=True)
-        mock_acompletion.return_value = _make_mock_litellm_response(
-            _make_llm_response_content()
-        )
+        mock_acompletion.return_value = _make_mock_litellm_response(_make_llm_response_content())
 
         mock_rule_result = RuleResult(
             matched_rules=["scam_keywords", "emotional_anxiety_phrases"],

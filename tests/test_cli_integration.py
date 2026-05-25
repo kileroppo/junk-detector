@@ -2,13 +2,13 @@
 
 All LLM/scorer calls are mocked to avoid real API calls.
 """
+
 from __future__ import annotations
 
 import json
 import os
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from src.cli.main import app
@@ -51,7 +51,9 @@ class TestScorePrettyOutput:
         mock_scorer.return_value = _mock_score_result()
         mock_db_save.return_value = None
 
-        result = runner.invoke(app, ["score", "--text", "sample text"], env={"DEEPSEEK_API_KEY": "test-key"})
+        result = runner.invoke(
+            app, ["score", "--text", "sample text"], env={"DEEPSEEK_API_KEY": "test-key"}
+        )
 
         assert result.exit_code == 0, f"Output: {result.output}"
         assert "评分结果" in result.output
@@ -73,7 +75,9 @@ class TestScoreJsonOutput:
         mock_scorer.return_value = _mock_score_result()
         mock_db_save.return_value = None
 
-        result = runner.invoke(app, ["score", "--text", "sample text", "--json"], env={"DEEPSEEK_API_KEY": "test-key"})
+        result = runner.invoke(
+            app, ["score", "--text", "sample text", "--json"], env={"DEEPSEEK_API_KEY": "test-key"}
+        )
 
         assert result.exit_code == 0, f"Output: {result.output}"
         data = json.loads(result.output)
@@ -114,14 +118,18 @@ class TestScoreErrorHandling:
         mock_extract.side_effect = TimeoutError("Connection timed out")
         mock_simple.side_effect = TimeoutError("Connection timed out")
 
-        result = runner.invoke(app, ["score", "--url", "http://example.com"], env={"DEEPSEEK_API_KEY": "test-key"})
+        result = runner.invoke(
+            app, ["score", "--url", "http://example.com"], env={"DEEPSEEK_API_KEY": "test-key"}
+        )
 
         assert result.exit_code == 1
         assert "提取内容失败" in result.output
 
     def test_score_file_not_found(self):
         """score --file with nonexistent file shows file not found error."""
-        result = runner.invoke(app, ["score", "--file", "/nonexistent/file.txt"], env={"DEEPSEEK_API_KEY": "test-key"})
+        result = runner.invoke(
+            app, ["score", "--file", "/nonexistent/file.txt"], env={"DEEPSEEK_API_KEY": "test-key"}
+        )
 
         assert result.exit_code == 1
         assert "提取内容失败" in result.output or "File not found" in result.output
@@ -174,7 +182,9 @@ class TestScoreApiKeyValidation:
         # No API keys needed since the model is unknown
         env = {k: v for k, v in os.environ.items() if "API_KEY" not in k}
 
-        result = runner.invoke(app, ["score", "--text", "sample", "--model", "mistral-large"], env=env)
+        result = runner.invoke(
+            app, ["score", "--text", "sample", "--model", "mistral-large"], env=env
+        )
 
         assert result.exit_code == 0, f"Output: {result.output}"
         assert "Unknown model provider" in result.output

@@ -79,9 +79,7 @@ class PreferencesService:
     """Service for managing user preferences."""
 
     @staticmethod
-    def get_preferences(
-        user_id: int, db_path: str = "junk_detector.db"
-    ) -> UserPreferences:
+    def get_preferences(user_id: int, db_path: str = "junk_detector.db") -> UserPreferences:
         """Fetch user preferences from DB.
 
         If no record exists, returns default UserPreferences with user_id set.
@@ -106,9 +104,7 @@ class PreferencesService:
             if row is None:
                 # Return defaults
                 now = datetime.now()
-                return UserPreferences(
-                    user_id=user_id, created_at=now, updated_at=now
-                )
+                return UserPreferences(user_id=user_id, created_at=now, updated_at=now)
 
             data = json.loads(row["preferences_json"])
             data["user_id"] = user_id
@@ -203,9 +199,7 @@ class PreferencesService:
             for key, value in update_data["label_thresholds"].items():
                 if value is not None:
                     current_thresholds[key] = value
-            current.label_thresholds = LabelThresholds.model_validate(
-                current_thresholds
-            )
+            current.label_thresholds = LabelThresholds.model_validate(current_thresholds)
 
         if "monitored_sources" in update_data:
             current.monitored_sources = update.monitored_sources  # type: ignore[assignment]
@@ -222,9 +216,7 @@ class PreferencesService:
         return PreferencesService.save_preferences(current, db_path)
 
     @staticmethod
-    def delete_preferences(
-        user_id: int, db_path: str = "junk_detector.db"
-    ) -> None:
+    def delete_preferences(user_id: int, db_path: str = "junk_detector.db") -> None:
         """Delete user preferences (reset to defaults).
 
         Args:
@@ -235,17 +227,13 @@ class PreferencesService:
 
         conn = _get_connection(db_path)
         try:
-            conn.execute(
-                "DELETE FROM user_preferences WHERE user_id = ?", (user_id,)
-            )
+            conn.execute("DELETE FROM user_preferences WHERE user_id = ?", (user_id,))
             conn.commit()
         finally:
             conn.close()
 
     @staticmethod
-    def build_scoring_config(
-        user_id: int, db_path: str = "junk_detector.db"
-    ) -> ScoringConfig:
+    def build_scoring_config(user_id: int, db_path: str = "junk_detector.db") -> ScoringConfig:
         """Build a ScoringConfig by merging user prefs with system defaults.
 
         For each weight/threshold, if the user has set it (not None),
@@ -304,9 +292,7 @@ class PreferencesService:
             if prefs.preferred_model
             else active_model_cfg.get("primary", "deepseek/deepseek-chat")
         )
-        fallback_model = active_model_cfg.get(
-            "fallback", "deepseek/deepseek-chat"
-        )
+        fallback_model = active_model_cfg.get("fallback", "deepseek/deepseek-chat")
 
         # --- Confidence threshold ---
         confidence = (

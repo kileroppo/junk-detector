@@ -44,9 +44,7 @@ NOISE_CLASSES = [
     "qr",
 ]
 
-USER_AGENT = (
-    "Mozilla/5.0 (compatible; JunkDetectorBot/0.1; +https://github.com/junk-detector)"
-)
+USER_AGENT = "Mozilla/5.0 (compatible; JunkDetectorBot/0.1; +https://github.com/junk-detector)"
 
 TIMEOUT = 10.0
 
@@ -266,9 +264,7 @@ async def extract_from_url(url: str) -> Content:
     # Verify content type is HTML
     content_type = response.headers.get("content-type", "")
     if "text/html" not in content_type and "application/xhtml" not in content_type:
-        raise ValueError(
-            f"URL returned non-HTML content (content-type: {content_type}): {url}"
-        )
+        raise ValueError(f"URL returned non-HTML content (content-type: {content_type}): {url}")
 
     html = response.text
     soup = BeautifulSoup(html, "html.parser")

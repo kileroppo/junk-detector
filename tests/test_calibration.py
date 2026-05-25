@@ -26,7 +26,9 @@ def cal_db(tmp_db_path):
     return tmp_db_path
 
 
-def _insert_score(db_path: str, content_hash: str, overall_score: float, title: str = "Test") -> None:
+def _insert_score(
+    db_path: str, content_hash: str, overall_score: float, title: str = "Test"
+) -> None:
     """Helper to insert a score record directly for testing."""
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -126,9 +128,7 @@ class TestRecordFeedback:
         record_feedback("hash1", "ok", cal_db)
 
         conn = sqlite3.connect(cal_db)
-        cursor = conn.execute(
-            "SELECT COUNT(*) FROM feedback WHERE content_hash = 'hash1'"
-        )
+        cursor = conn.execute("SELECT COUNT(*) FROM feedback WHERE content_hash = 'hash1'")
         count = cursor.fetchone()[0]
         conn.close()
 
@@ -397,9 +397,7 @@ class TestExtractDistinctiveNgrams:
 
     def test_empty_baseline(self):
         """Returns frequent n-grams when baseline is empty."""
-        result = _extract_distinctive_ngrams(
-            ["免费领取", "免费领取"], [], min_frequency=2
-        )
+        result = _extract_distinctive_ngrams(["免费领取", "免费领取"], [], min_frequency=2)
         assert "免费领取" in result
 
     def test_filters_baseline_ngrams(self):

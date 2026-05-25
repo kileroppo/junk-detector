@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from collections import Counter
 from datetime import datetime
 
@@ -57,9 +56,7 @@ def record_feedback(
         ValueError: If user_verdict is not a valid verdict.
     """
     if user_verdict not in VALID_VERDICTS:
-        raise ValueError(
-            f"Invalid verdict '{user_verdict}'. Must be one of: {VALID_VERDICTS}"
-        )
+        raise ValueError(f"Invalid verdict '{user_verdict}'. Must be one of: {VALID_VERDICTS}")
 
     _ensure_initialized(db_path)
 
@@ -207,12 +204,8 @@ def suggest_rule_updates(db_path: str = "junk_detector.db") -> dict:
                 # False positive: we said junk but user says it's fine
                 false_positive_texts.append(text)
 
-        suggested_keywords = _extract_distinctive_ngrams(
-            false_negative_texts, true_positive_texts
-        )
-        suggested_removals = _extract_distinctive_ngrams(
-            false_positive_texts, true_positive_texts
-        )
+        suggested_keywords = _extract_distinctive_ngrams(false_negative_texts, true_positive_texts)
+        suggested_removals = _extract_distinctive_ngrams(false_positive_texts, true_positive_texts)
 
         return {
             "suggested_keywords": suggested_keywords,

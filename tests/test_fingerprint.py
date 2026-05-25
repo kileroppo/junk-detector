@@ -3,16 +3,15 @@
 Verifies SimHash computation, Hamming distance, and database round-trip.
 Uses tmp_path for isolated database tests.
 """
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from src.core.content_fingerprint import (
     find_similar,
     hamming_distance,
     save_fingerprint,
-    similarity_score,
     simhash,
+    similarity_score,
 )
 
 

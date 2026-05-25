@@ -102,9 +102,7 @@ class ScoringConfig(BaseModel):
     # Model configuration
     primary_model: str = Field(default="deepseek/deepseek-chat", description="主要评分模型")
     fallback_model: str = Field(default="deepseek/deepseek-chat", description="复评模型")
-    confidence_threshold: float = Field(
-        default=0.7, ge=0, le=1, description="低于此阈值触发复评"
-    )
+    confidence_threshold: float = Field(default=0.7, ge=0, le=1, description="低于此阈值触发复评")
     api_base: Optional[str] = Field(default=None, description="API base URL (e.g. for Ollama)")
 
     # Label thresholds

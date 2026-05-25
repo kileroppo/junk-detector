@@ -3,12 +3,12 @@
 Verifies API endpoints return correct responses with mocked scoring logic.
 All LLM and storage calls are mocked to avoid external dependencies.
 """
+
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -96,9 +96,15 @@ class TestScoreEndpoint:
         mock_result = ScoreResult(
             overall_score=50.0,
             dimensions=DimensionScores(
-                originality=50, info_density=50, reasoning_quality=50,
-                readability=50, timeliness=50, ai_generated_prob=50,
-                emotional_manipulation=50, advertorial_prob=50, scam_prob=50,
+                originality=50,
+                info_density=50,
+                reasoning_quality=50,
+                readability=50,
+                timeliness=50,
+                ai_generated_prob=50,
+                emotional_manipulation=50,
+                advertorial_prob=50,
+                scam_prob=50,
             ),
             labels=[],
             summary="OK",
@@ -131,9 +137,7 @@ class TestHistoryEndpoint:
     @patch("src.api.app.query")
     def test_history_returns_list(self, mock_query, client):
         """History endpoint returns a list of results."""
-        mock_query.return_value = [
-            {"overall_score": 72.5, "title": "Test Article"}
-        ]
+        mock_query.return_value = [{"overall_score": 72.5, "title": "Test Article"}]
         response = client.get("/history")
         assert response.status_code == 200
         data = response.json()
@@ -161,9 +165,15 @@ class TestDedupBehavior:
         mock_result = ScoreResult(
             overall_score=60.0,
             dimensions=DimensionScores(
-                originality=60, info_density=55, reasoning_quality=65,
-                readability=70, timeliness=50, ai_generated_prob=25,
-                emotional_manipulation=15, advertorial_prob=10, scam_prob=5,
+                originality=60,
+                info_density=55,
+                reasoning_quality=65,
+                readability=70,
+                timeliness=50,
+                ai_generated_prob=25,
+                emotional_manipulation=15,
+                advertorial_prob=10,
+                scam_prob=5,
             ),
             labels=[],
             summary="Test",

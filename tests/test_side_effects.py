@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 from src.core.pipeline import PipelineContext
 from src.core.side_effects.base import SideEffect, SideEffectRunner
 from src.core.side_effects.notification import NotificationSideEffect
 from src.core.side_effects.stats_collector import StatsCollectorSideEffect
 from src.models.score import Content, DimensionScores, InputType, ScoreResult
-
 
 # ===== Fixtures =====
 
@@ -78,7 +74,13 @@ def _make_context(
 class DummySideEffect(SideEffect):
     """A simple side effect for testing the runner."""
 
-    def __init__(self, name: str = "dummy", should_fire: bool = True, raise_on_execute: bool = False, raise_on_trigger: bool = False):
+    def __init__(
+        self,
+        name: str = "dummy",
+        should_fire: bool = True,
+        raise_on_execute: bool = False,
+        raise_on_trigger: bool = False,
+    ):
         self._name = name
         self._should_fire = should_fire
         self._raise_on_execute = raise_on_execute
@@ -231,7 +233,9 @@ class TestNotificationSideEffect:
 
     async def test_execute_with_webhook(self):
         ctx = _make_context(overall_score=15)
-        effect = NotificationSideEffect(threshold=30.0, webhook_url="https://hooks.example.com/alert")
+        effect = NotificationSideEffect(
+            threshold=30.0, webhook_url="https://hooks.example.com/alert"
+        )
 
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -255,7 +259,9 @@ class TestNotificationSideEffect:
 
     async def test_execute_webhook_error_logged(self, caplog):
         ctx = _make_context(overall_score=15)
-        effect = NotificationSideEffect(threshold=30.0, webhook_url="https://hooks.example.com/alert")
+        effect = NotificationSideEffect(
+            threshold=30.0, webhook_url="https://hooks.example.com/alert"
+        )
 
         with patch("httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
@@ -271,7 +277,9 @@ class TestNotificationSideEffect:
 
     async def test_execute_webhook_bad_status(self, caplog):
         ctx = _make_context(overall_score=15)
-        effect = NotificationSideEffect(threshold=30.0, webhook_url="https://hooks.example.com/alert")
+        effect = NotificationSideEffect(
+            threshold=30.0, webhook_url="https://hooks.example.com/alert"
+        )
 
         mock_response = MagicMock()
         mock_response.status_code = 500
@@ -360,7 +368,9 @@ class TestStatsCollectorSideEffect:
     async def test_execute_unknown_source_when_no_url(self):
         ctx = PipelineContext(raw_input="test", input_type="text")
         ctx.result = _make_result(overall_score=55)
-        ctx.content = Content(input_type=InputType.TEXT, text="no url content", source_url=None, title="No URL")
+        ctx.content = Content(
+            input_type=InputType.TEXT, text="no url content", source_url=None, title="No URL"
+        )
         ctx.content.compute_hash()
         effect = StatsCollectorSideEffect()
         await effect.execute(ctx)
@@ -434,7 +444,6 @@ class TestStatsCollectorSideEffect:
         assert len(effect._label_counts) == 0
 
     async def test_reset_updates_last_reset(self):
-        from datetime import datetime, timezone
 
         effect = StatsCollectorSideEffect()
         old_reset = effect._last_reset
@@ -467,6 +476,3 @@ class TestStatsCollectorSideEffect:
         with patch("urllib.parse.urlparse", side_effect=ValueError("bad url")):
             await effect.execute(ctx)
         assert "unknown" in effect._source_scores
-
-
-

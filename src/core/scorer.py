@@ -79,7 +79,12 @@ def _generate_labels(dimensions: DimensionScores, config: ScoringConfig) -> list
     return labels
 
 
-async def score(content_text: str, config: ScoringConfig | None = None, source_url: str | None = None, language: str = "zh") -> ScoreResult:
+async def score(
+    content_text: str,
+    config: ScoringConfig | None = None,
+    source_url: str | None = None,
+    language: str = "zh",
+) -> ScoreResult:
     """Main scoring orchestrator.
 
     Pipeline:
@@ -104,15 +109,18 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
     """
     if config is None:
         from src.core.config import load_config
+
         config = load_config()
 
     # Pre-filter: reject obviously violating content before spending tokens
     from src.core.content_filter import check_content
+
     filter_result = check_content(content_text)
     if not filter_result.passed:
         logger.info(
             "Content rejected by pre-filter: %s — %s",
-            filter_result.violation_type, filter_result.violation_details,
+            filter_result.violation_type,
+            filter_result.violation_details,
         )
         return ScoreResult(
             overall_score=0.0,
@@ -139,6 +147,7 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
     content_hash = hashlib.sha256(content_text.encode()).hexdigest()
     try:
         from src.storage.db import query_by_content_hash
+
         cached = query_by_content_hash(content_hash)
         if cached:
             scored_at_str = cached.get("scored_at", "")
@@ -165,11 +174,11 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
     # FastClassifier pre-screen — skip LLM for high-confidence predictions
     try:
         from src.core.fast_classifier import classify_fast
+
         classifier_result = classify_fast(content_text)
         if classifier_result.should_skip_llm:
             logger.info(
-                "FastClassifier: skipping LLM (category=%s, "
-                "confidence=%.2f, score=%s)",
+                "FastClassifier: skipping LLM (category=%s, confidence=%.2f, score=%s)",
                 classifier_result.category,
                 classifier_result.confidence,
                 classifier_result.predicted_score,
@@ -195,9 +204,7 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
     platform_rule_hits = check_platform_extra_rules(content_text, platform)
     if platform_rule_hits:
         logger.info("Platform extra rules matched: %s", platform_rule_hits)
-        rule_result.matched_rules.extend(
-            [f"platform_{platform}:{kw}" for kw in platform_rule_hits]
-        )
+        rule_result.matched_rules.extend([f"platform_{platform}:{kw}" for kw in platform_rule_hits])
         # Boost advertorial_prob if platform extra rules fire (self-promotion signals)
         current_advertorial = rule_result.dimension_overrides.get("advertorial_prob", 0)
         boost = min(len(platform_rule_hits) * 15, 40)  # +15 per keyword, max +40
@@ -215,8 +222,19 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
         # Construct ScoreResult from rule overrides, filling missing dims with defaults
         _positive_default = 50.0
         _negative_default = 0.0
-        positive_dims_list = ["originality", "info_density", "reasoning_quality", "readability", "timeliness"]
-        negative_dims_list = ["ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob"]
+        positive_dims_list = [
+            "originality",
+            "info_density",
+            "reasoning_quality",
+            "readability",
+            "timeliness",
+        ]
+        negative_dims_list = [
+            "ai_generated_prob",
+            "emotional_manipulation",
+            "advertorial_prob",
+            "scam_prob",
+        ]
 
         dims_dict: dict[str, float] = {}
         for dim in positive_dims_list:
@@ -246,6 +264,7 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
         # Track stats
         try:
             from src.storage.db import increment_rules_only
+
             increment_rules_only()
         except Exception as e:
             logger.debug("Failed to increment rules_only stats: %s", e)
@@ -254,12 +273,17 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
 
     # 2. Check if rules alone can produce a full score (all 9 dimensions covered with high confidence)
     all_dimensions = [
-        "originality", "info_density", "reasoning_quality", "readability", "timeliness",
-        "ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob",
+        "originality",
+        "info_density",
+        "reasoning_quality",
+        "readability",
+        "timeliness",
+        "ai_generated_prob",
+        "emotional_manipulation",
+        "advertorial_prob",
+        "scam_prob",
     ]
-    rules_covered = {
-        dim for dim, conf in rule_result.confidence.items() if conf >= 0.9
-    }
+    rules_covered = {dim for dim, conf in rule_result.confidence.items() if conf >= 0.9}
 
     if rules_covered >= set(all_dimensions):
         # Rules cover everything — skip LLM entirely (cost = 0)
@@ -283,6 +307,7 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
         # Track stats
         try:
             from src.storage.db import increment_rules_only
+
             increment_rules_only()
         except Exception as e:
             logger.debug("Failed to increment rules_only stats: %s", e)
@@ -291,14 +316,17 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
         result = await judge(content_text, config, language=language)
         logger.info(
             "Primary model (%s) returned confidence=%.2f",
-            config.primary_model, result.confidence,
+            config.primary_model,
+            result.confidence,
         )
 
         # 4. If confidence below threshold → re-score with fallback model
         if result.confidence < config.confidence_threshold:
             logger.info(
                 "Confidence %.2f < threshold %.2f, escalating to fallback model (%s)",
-                result.confidence, config.confidence_threshold, config.fallback_model,
+                result.confidence,
+                config.confidence_threshold,
+                config.fallback_model,
             )
             fallback_config = config.model_copy(deep=True)
             fallback_config.primary_model = config.fallback_model
@@ -316,8 +344,19 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
 
         # 4.5. Output validation: detect suspicious LLM outputs
         dims = result.dimensions
-        positive_dims = [dims.originality, dims.info_density, dims.reasoning_quality, dims.readability, dims.timeliness]
-        negative_dims = [dims.ai_generated_prob, dims.emotional_manipulation, dims.advertorial_prob, dims.scam_prob]
+        positive_dims = [
+            dims.originality,
+            dims.info_density,
+            dims.reasoning_quality,
+            dims.readability,
+            dims.timeliness,
+        ]
+        negative_dims = [
+            dims.ai_generated_prob,
+            dims.emotional_manipulation,
+            dims.advertorial_prob,
+            dims.scam_prob,
+        ]
         all_dims = positive_dims + negative_dims
 
         suspicious = False
@@ -360,19 +399,32 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
         # 4.6. Detect injection indicators in response text
         injection_phrases = [
             # English
-            "ignore previous", "ignore all", "override instructions",
-            "disregard above", "ignore above", "new instructions",
-            "system prompt", "forget everything",
+            "ignore previous",
+            "ignore all",
+            "override instructions",
+            "disregard above",
+            "ignore above",
+            "new instructions",
+            "system prompt",
+            "forget everything",
             # Chinese (中文注入检测)
-            "忽略上述", "忽略以上", "忽略之前", "忽略所有",
-            "无视上述", "无视以上", "新的指令", "重新定义",
-            "系统提示", "覆盖指令",
+            "忽略上述",
+            "忽略以上",
+            "忽略之前",
+            "忽略所有",
+            "无视上述",
+            "无视以上",
+            "新的指令",
+            "重新定义",
+            "系统提示",
+            "覆盖指令",
         ]
         response_text = (result.summary or "").lower() + " " + " ".join(result.labels).lower()
         if any(phrase in response_text for phrase in injection_phrases):
             logger.warning(
                 "Injection indicator detected in LLM response: summary=%s, labels=%s",
-                result.summary, result.labels,
+                result.summary,
+                result.labels,
             )
             result = ScoreResult(
                 overall_score=50.0,
@@ -406,6 +458,7 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
         # Track stats
         try:
             from src.storage.db import increment_llm_count
+
             increment_llm_count()
         except Exception as e:
             logger.debug("Failed to increment llm_count stats: %s", e)

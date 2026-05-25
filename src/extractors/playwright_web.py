@@ -104,7 +104,8 @@ async def extract_from_url_playwright(url: str, timeout_ms: int = 30000) -> Cont
         RuntimeError: If the browser crashes or fails to launch.
     """
     try:
-        from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
+        from playwright.async_api import TimeoutError as PlaywrightTimeout
+        from playwright.async_api import async_playwright
     except ImportError:
         raise ImportError(
             "Playwright is not installed. Install it with: "
@@ -131,9 +132,7 @@ async def extract_from_url_playwright(url: str, timeout_ms: int = 30000) -> Cont
             await page.goto(url, wait_until="networkidle", timeout=timeout_ms)
         except PlaywrightTimeout:
             # If networkidle times out, try with domcontentloaded
-            logger.warning(
-                f"networkidle timeout for {url}, retrying with domcontentloaded"
-            )
+            logger.warning(f"networkidle timeout for {url}, retrying with domcontentloaded")
             await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
             # Give extra time for JS rendering
             await page.wait_for_timeout(3000)
@@ -203,9 +202,7 @@ async def extract_from_url_playwright(url: str, timeout_ms: int = 30000) -> Cont
         )
         content.compute_hash()
 
-        logger.info(
-            f"Successfully extracted {len(text)} chars from {url} via Playwright"
-        )
+        logger.info(f"Successfully extracted {len(text)} chars from {url} via Playwright")
         return content
 
     except ImportError:
@@ -256,8 +253,7 @@ async def smart_extract(url: str) -> Content:
             return await extract_static(url)
         except Exception as e:
             logger.warning(
-                f"Playwright extraction failed for {url}: {e}. "
-                "Falling back to static extraction."
+                f"Playwright extraction failed for {url}: {e}. Falling back to static extraction."
             )
             return await extract_static(url)
     else:

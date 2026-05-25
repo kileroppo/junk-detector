@@ -3,6 +3,7 @@
 Verifies that keyword/regex rules correctly identify content quality signals
 and produce appropriate dimension overrides with confidence levels.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -100,9 +101,7 @@ class TestApplyRulesParametrized:
             "scam_many_keywords",
         ],
     )
-    def test_rule_fires_with_expected_score(
-        self, text, expected_dimension, min_score, description
-    ):
+    def test_rule_fires_with_expected_score(self, text, expected_dimension, min_score, description):
         """Rules produce dimension overrides at or above expected thresholds."""
         result = apply_rules(text)
         assert expected_dimension in result.dimension_overrides, (

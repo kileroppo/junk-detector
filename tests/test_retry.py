@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -67,7 +66,10 @@ async def test_score_fast_retry_exhausted_returns_default():
             # Should return default low-confidence result
             assert result.confidence == 0.1
             assert result.quick_verdict == 50.0
-            assert result.summary == "LLM\u54cd\u5e94\u89e3\u6790\u5931\u8d25\uff0c\u8fd4\u56de\u9ed8\u8ba4\u8bc4\u5206"
+            assert (
+                result.summary
+                == "LLM\u54cd\u5e94\u89e3\u6790\u5931\u8d25\uff0c\u8fd4\u56de\u9ed8\u8ba4\u8bc4\u5206"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -112,8 +114,16 @@ def test_extract_content_fallback_on_primary_failure():
         title="Fallback",
     )
 
-    with patch("src.extractors.web.extract_from_url", new_callable=AsyncMock, side_effect=ValueError("Primary failed")):
-        with patch("src.extractors.web.extract_from_url_simple", new_callable=AsyncMock, return_value=fallback_content):
+    with patch(
+        "src.extractors.web.extract_from_url",
+        new_callable=AsyncMock,
+        side_effect=ValueError("Primary failed"),
+    ):
+        with patch(
+            "src.extractors.web.extract_from_url_simple",
+            new_callable=AsyncMock,
+            return_value=fallback_content,
+        ):
             result = _extract_content(text=None, url="https://example.com", file=None)
             assert result.text == "Fallback content here"
 
@@ -122,8 +132,16 @@ def test_extract_content_both_methods_fail():
     """_extract_content should raise original error when both extraction methods fail."""
     from src.cli.main import _extract_content
 
-    with patch("src.extractors.web.extract_from_url", new_callable=AsyncMock, side_effect=ValueError("Primary extraction failed")):
-        with patch("src.extractors.web.extract_from_url_simple", new_callable=AsyncMock, side_effect=ValueError("Simple also failed")):
+    with patch(
+        "src.extractors.web.extract_from_url",
+        new_callable=AsyncMock,
+        side_effect=ValueError("Primary extraction failed"),
+    ):
+        with patch(
+            "src.extractors.web.extract_from_url_simple",
+            new_callable=AsyncMock,
+            side_effect=ValueError("Simple also failed"),
+        ):
             with pytest.raises(ValueError, match="Primary extraction failed"):
                 _extract_content(text=None, url="https://example.com", file=None)
 

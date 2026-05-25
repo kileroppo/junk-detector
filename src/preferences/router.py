@@ -24,12 +24,10 @@ try:
     from src.auth.dependencies import get_current_user
     from src.auth.models import User
 except ImportError:
-    logger.warning(
-        "Auth module not available, using mock user fallback (user_id=0)"
-    )
-    from src.auth.models import User  # type: ignore[no-redef]
-
+    logger.warning("Auth module not available, using mock user fallback (user_id=0)")
     from datetime import datetime
+
+    from src.auth.models import User  # type: ignore[no-redef]
 
     async def get_current_user() -> User:  # type: ignore[misc]
         """Fallback: return a mock user when auth module is not ready."""
@@ -125,9 +123,7 @@ async def remove_source(
     prefs = PreferencesService.get_preferences(current_user.id)
 
     original_count = len(prefs.monitored_sources)
-    prefs.monitored_sources = [
-        s for s in prefs.monitored_sources if s.name != source_name
-    ]
+    prefs.monitored_sources = [s for s in prefs.monitored_sources if s.name != source_name]
 
     if len(prefs.monitored_sources) == original_count:
         raise HTTPException(

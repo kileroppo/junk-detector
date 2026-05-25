@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date, datetime
+from datetime import date
 
 from src.models.score import Content, ScoreResult
 
@@ -79,9 +79,7 @@ def init_db(db_path: str = "junk_detector.db") -> None:
             conn.commit()
 
         # Migration: add index on source_url
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_scores_source_url ON scores(source_url)"
-        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_scores_source_url ON scores(source_url)")
         conn.commit()
 
         _initialized_dbs.add(db_path)
@@ -107,9 +105,7 @@ def save(
     """
     _ensure_initialized(db_path)
 
-    dimensions_json = json.dumps(
-        result.dimensions.model_dump(), ensure_ascii=False
-    )
+    dimensions_json = json.dumps(result.dimensions.model_dump(), ensure_ascii=False)
     labels_json = json.dumps(result.labels, ensure_ascii=False)
     rule_hits_json = json.dumps(result.rule_hits, ensure_ascii=False)
     scored_at = result.scored_at.isoformat()
@@ -221,9 +217,7 @@ def query(
         conn.close()
 
 
-def get_history(
-    limit: int = 20, db_path: str = "junk_detector.db"
-) -> list[dict]:
+def get_history(limit: int = 20, db_path: str = "junk_detector.db") -> list[dict]:
     """Shortcut to get recent scoring history.
 
     Args:
@@ -249,10 +243,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     return d
 
 
-
-def lookup_by_hash_prefix(
-    hash_prefix: str, db_path: str = "junk_detector.db"
-) -> dict | None:
+def lookup_by_hash_prefix(hash_prefix: str, db_path: str = "junk_detector.db") -> dict | None:
     """Look up a single score record by content_hash prefix (LIKE query).
 
     Args:
@@ -278,9 +269,7 @@ def lookup_by_hash_prefix(
         conn.close()
 
 
-def query_by_content_hash(
-    content_hash: str, db_path: str = "junk_detector.db"
-) -> dict | None:
+def query_by_content_hash(content_hash: str, db_path: str = "junk_detector.db") -> dict | None:
     """Query a single score record by its content_hash.
 
     Args:
@@ -294,9 +283,7 @@ def query_by_content_hash(
 
     conn = _get_connection(db_path)
     try:
-        cursor = conn.execute(
-            "SELECT * FROM scores WHERE content_hash = ?", (content_hash,)
-        )
+        cursor = conn.execute("SELECT * FROM scores WHERE content_hash = ?", (content_hash,))
         row = cursor.fetchone()
         if row is None:
             return None

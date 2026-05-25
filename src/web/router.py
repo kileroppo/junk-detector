@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Optional
 
@@ -223,7 +222,7 @@ async def history_page(
         )
         # Slice for current page
         start_idx = (page - 1) * 20
-        results = all_results[start_idx:start_idx + 20]
+        results = all_results[start_idx : start_idx + 20]
     except Exception:
         results = []
 

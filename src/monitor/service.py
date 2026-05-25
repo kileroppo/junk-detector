@@ -23,7 +23,7 @@ from typing import Any
 import yaml
 
 from src.core.pipeline import PipelineContext, build_default_pipeline
-from src.dispatcher.models import TaskPayload, TaskResult, TaskPriority, TaskStatus
+from src.dispatcher.models import TaskPayload, TaskPriority, TaskResult
 from src.dispatcher.retry import RetryPolicy
 from src.thunder.models import FeedItem, SourceConfig
 from src.thunder.monitor import ThunderMonitor
@@ -156,15 +156,14 @@ class MonitorService:
         logger.info("MonitorService starting...")
 
         # Start the consumer loop
-        self._consumer_task = asyncio.create_task(
-            self._consumer_loop(), name="monitor-consumer"
-        )
+        self._consumer_task = asyncio.create_task(self._consumer_loop(), name="monitor-consumer")
 
         # Start thunder (begins polling sources)
         await self.thunder.start()
 
         source_names = [
-            s.name for s in self.thunder._sources  # noqa: SLF001
+            s.name
+            for s in self.thunder._sources  # noqa: SLF001
         ]
         logger.info(
             f"MonitorService started — monitoring {len(source_names)} source(s): "
@@ -233,17 +232,13 @@ class MonitorService:
                     url=feed_item.url,
                     title=feed_item.title,
                     source_name=feed_item.source_name,
-                    priority=TaskPriority(
-                        min(feed_item.priority, TaskPriority.BACKGROUND)
-                    ),
+                    priority=TaskPriority(min(feed_item.priority, TaskPriority.BACKGROUND)),
                     max_attempts=self._retry_policy.max_attempts,
                 )
 
                 # Acquire semaphore (respects max_in_flight)
                 await self._semaphore.acquire()
-                asyncio.create_task(
-                    self._execute_task(task), name=f"score-{task.id[:8]}"
-                )
+                asyncio.create_task(self._execute_task(task), name=f"score-{task.id[:8]}")
 
             except asyncio.CancelledError:
                 break
@@ -280,7 +275,7 @@ class MonitorService:
                     item_data["labels"] = []
                 self._scored_items.append(item_data)
                 if len(self._scored_items) > self._MAX_SCORED_ITEMS:
-                    self._scored_items = self._scored_items[self._MAX_SCORED_ITEMS // 2:]
+                    self._scored_items = self._scored_items[self._MAX_SCORED_ITEMS // 2 :]
                 logger.info(
                     f"Scored '{task.title or task.url}' from {task.source_name} "
                     f"(attempt {result.attempts_used})"
@@ -301,9 +296,7 @@ class MonitorService:
                     await asyncio.sleep(delay)
                     # Re-acquire semaphore for retry
                     await self._semaphore.acquire()
-                    asyncio.create_task(
-                        self._execute_task(task), name=f"score-retry-{task.id[:8]}"
-                    )
+                    asyncio.create_task(self._execute_task(task), name=f"score-retry-{task.id[:8]}")
                 else:
                     self._total_failed += 1
                     logger.error(
@@ -403,9 +396,7 @@ class MonitorService:
             average_score = 0.0
 
         # Identify high risk items (score < 40)
-        high_risk_items = [
-            item for item in self._scored_items if item["score"] < 40
-        ]
+        high_risk_items = [item for item in self._scored_items if item["score"] < 40]
 
         # Aggregate labels by frequency
         label_counter: Counter[str] = Counter()
@@ -483,15 +474,11 @@ class MonitorService:
 
         # Validate required sections exist
         if "thunder" not in config:
-            logger.warning(
-                f"No 'thunder' section in {config_path}, using defaults"
-            )
+            logger.warning(f"No 'thunder' section in {config_path}, using defaults")
             config["thunder"] = {"enabled": True, "sources": []}
 
         if "dispatcher" not in config:
-            logger.warning(
-                f"No 'dispatcher' section in {config_path}, using defaults"
-            )
+            logger.warning(f"No 'dispatcher' section in {config_path}, using defaults")
             config["dispatcher"] = {}
 
         return cls(config)

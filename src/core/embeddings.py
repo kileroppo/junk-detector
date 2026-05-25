@@ -10,8 +10,8 @@ This enables detection of plagiarism/洗稿/搬运 (content laundering/reposting
 
 from __future__ import annotations
 
-import math
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +75,7 @@ def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
         return 0.0
 
     if len(vec_a) != len(vec_b):
-        logger.warning(
-            f"Vector dimension mismatch: {len(vec_a)} vs {len(vec_b)}"
-        )
+        logger.warning(f"Vector dimension mismatch: {len(vec_a)} vs {len(vec_b)}")
         return 0.0
 
     dot_product = sum(a * b for a, b in zip(vec_a, vec_b))

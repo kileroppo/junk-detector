@@ -3,11 +3,10 @@
 Covers domain normalization, blacklist/whitelist loading, auto-blacklist
 logic, and score adjustments.
 """
+
 from __future__ import annotations
 
 from unittest.mock import patch
-
-import pytest
 
 from src.core.source_reputation import (
     _normalize_domain,
@@ -84,23 +83,17 @@ class TestIsBlacklisted:
 
     def test_blacklisted_domain(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(
-            "sources:\n  blacklist:\n    - spam.com\n  whitelist: []\n"
-        )
+        config_file.write_text("sources:\n  blacklist:\n    - spam.com\n  whitelist: []\n")
         assert is_blacklisted("spam.com", str(config_file)) is True
 
     def test_non_blacklisted_domain(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(
-            "sources:\n  blacklist:\n    - spam.com\n  whitelist: []\n"
-        )
+        config_file.write_text("sources:\n  blacklist:\n    - spam.com\n  whitelist: []\n")
         assert is_blacklisted("good.com", str(config_file)) is False
 
     def test_www_prefix_normalized(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(
-            "sources:\n  blacklist:\n    - spam.com\n  whitelist: []\n"
-        )
+        config_file.write_text("sources:\n  blacklist:\n    - spam.com\n  whitelist: []\n")
         assert is_blacklisted("www.spam.com", str(config_file)) is True
 
 
@@ -109,16 +102,12 @@ class TestIsWhitelisted:
 
     def test_whitelisted_domain(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(
-            "sources:\n  blacklist: []\n  whitelist:\n    - trusted.org\n"
-        )
+        config_file.write_text("sources:\n  blacklist: []\n  whitelist:\n    - trusted.org\n")
         assert is_whitelisted("trusted.org", str(config_file)) is True
 
     def test_non_whitelisted_domain(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(
-            "sources:\n  blacklist: []\n  whitelist:\n    - trusted.org\n"
-        )
+        config_file.write_text("sources:\n  blacklist: []\n  whitelist:\n    - trusted.org\n")
         assert is_whitelisted("unknown.org", str(config_file)) is False
 
 
@@ -172,8 +161,9 @@ class TestCheckAutoBlacklist:
 class TestGetSourceAdjustment:
     """Tests for get_source_adjustment."""
 
-    def _make_config(self, tmp_path, blacklist=None, whitelist=None,
-                     penalty=30, boost=5, auto_enabled=False):
+    def _make_config(
+        self, tmp_path, blacklist=None, whitelist=None, penalty=30, boost=5, auto_enabled=False
+    ):
         blacklist = blacklist or []
         whitelist = whitelist or []
         bl_str = ", ".join(f'"{d}"' for d in blacklist)
@@ -220,6 +210,8 @@ class TestGetSourceAdjustment:
     def test_auto_blacklisted_domain(self, mock_query, tmp_path, tmp_db_path):
         config = self._make_config(tmp_path, auto_enabled=True)
         mock_query.return_value = [10.0, 15.0, 20.0, 25.0, 10.0]  # avg=16, count=5
-        adj, reason = get_source_adjustment("lowquality.com", config_path=config, db_path=tmp_db_path)
+        adj, reason = get_source_adjustment(
+            "lowquality.com", config_path=config, db_path=tmp_db_path
+        )
         assert adj == -20
         assert reason == "来源历史评分极低"

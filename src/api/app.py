@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 # Auto-load .env (searches upward from cwd)
 load_dotenv()
 
+import logging
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -29,8 +30,6 @@ from src.preferences.router import router as preferences_router
 from src.storage.db import query, save
 from src.web import web_router
 
-import logging
-
 logger = logging.getLogger(__name__)
 
 
@@ -40,8 +39,7 @@ async def lifespan(app: FastAPI):
     from src.core.config import get_model_config
 
     has_key = any(
-        os.environ.get(k)
-        for k in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+        os.environ.get(k) for k in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY")
     )
     if not has_key:
         model_cfg = get_model_config()
@@ -108,6 +106,7 @@ async def health(deep: bool = False):
     # Deep health check: ping the LLM API
     try:
         import litellm
+
         from src.core.config import get_model_config
 
         model_cfg = get_model_config()
@@ -150,6 +149,7 @@ async def score_content(
     # We still record in the TTL cache to track recent submissions,
     # but we always proceed to scoring (the scorer returns cached results if available).
     from src.core.dedup import should_score as should_score_content
+
     content_key = request.url or request.text or ""
     should_score_content(content_key)  # record in TTL cache for stats
 
@@ -170,13 +170,16 @@ async def score_content(
     language = "zh"
     if current_user is not None:
         from src.preferences.service import PreferencesService
+
         user_config = PreferencesService.build_scoring_config(current_user.id)
         # Get language preference from user's preferences
         user_prefs = PreferencesService.get_preferences(current_user.id)
         language = user_prefs.language or "zh"
 
     if user_config is not None:
-        result = await score(content.text, config=user_config, source_url=request.url, language=language)
+        result = await score(
+            content.text, config=user_config, source_url=request.url, language=language
+        )
     else:
         result = await score(content.text, source_url=request.url)
 

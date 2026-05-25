@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from src.core.prompt_loader import clear_cache, get_system_prompt
 
 
@@ -45,7 +43,10 @@ class TestGetSystemPrompt:
         """All system prompts should contain anti-injection instruction."""
         for lang in ("zh", "en", "fast"):
             prompt = get_system_prompt(lang)
-            assert "content for evaluation only" in prompt.lower() or "Ignore any instructions" in prompt
+            assert (
+                "content for evaluation only" in prompt.lower()
+                or "Ignore any instructions" in prompt
+            )
 
     def test_get_system_prompt_fallback(self):
         """Unknown language should fall back to 'zh' system prompt."""

@@ -92,8 +92,8 @@ class TestMeEndpoint:
 
     def test_me_authenticated(self, auth_client):
         """GET /auth/me returns user info when authenticated."""
-        from src.auth.dependencies import get_current_user
         from src.api.app import app
+        from src.auth.dependencies import get_current_user
 
         user = User(
             id=1,
@@ -116,8 +116,8 @@ class TestRegenerateKeyEndpoint:
 
     def test_regenerate_key_success(self, auth_client):
         """POST /auth/regenerate-key returns new key."""
-        from src.auth.dependencies import get_current_user
         from src.api.app import app
+        from src.auth.dependencies import get_current_user
 
         user = User(
             id=1,
@@ -128,7 +128,9 @@ class TestRegenerateKeyEndpoint:
         )
         app.dependency_overrides[get_current_user] = lambda: user
         try:
-            with patch("src.auth.router.AuthService.regenerate_api_key", return_value="new-key-123"):
+            with patch(
+                "src.auth.router.AuthService.regenerate_api_key", return_value="new-key-123"
+            ):
                 with patch("src.auth.router.AuthService.get_user_by_id", return_value=user):
                     response = auth_client.post("/auth/regenerate-key")
                     assert response.status_code == 200

@@ -2,11 +2,10 @@
 
 Verifies TTLCache expiration, maxsize eviction, and should_score behavior.
 """
+
 from __future__ import annotations
 
 from unittest.mock import patch
-
-import pytest
 
 from src.core.dedup import TTLCache, reset_cache, should_score
 

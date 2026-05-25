@@ -56,9 +56,7 @@ class TestPreferencesEndpoints:
 
     def test_delete_preferences(self, client, mock_user):
         """DELETE /preferences resets to defaults."""
-        with patch(
-            "src.preferences.router.PreferencesService.delete_preferences"
-        ) as mock_delete:
+        with patch("src.preferences.router.PreferencesService.delete_preferences") as mock_delete:
             response = client.delete("/preferences")
             assert response.status_code == 200
             assert response.json()["detail"] == "Preferences reset to defaults"

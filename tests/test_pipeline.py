@@ -3,14 +3,10 @@
 Verifies stage execution order, error handling, and context propagation.
 All stages are mocked to test pipeline orchestration behavior.
 """
+
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-
-import pytest
-
 from src.core.pipeline import PipelineContext, ScoringPipeline
-from src.models.score import ScoringConfig
 
 
 class TestScoringPipeline:
@@ -64,6 +60,7 @@ class TestScoringPipeline:
 
     async def test_non_critical_stage_failure_continues(self):
         """Non-critical stage failures are logged but pipeline continues."""
+
         async def enrich_stage(ctx):
             raise RuntimeError("enrichment service unavailable")
 
@@ -83,6 +80,7 @@ class TestScoringPipeline:
 
     async def test_add_remove_replace_stage(self):
         """add_stage, remove_stage, and replace_stage modify the pipeline."""
+
         async def dummy(ctx):
             return ctx
 
@@ -107,6 +105,7 @@ class TestScoringPipeline:
 
     async def test_context_carries_data_between_stages(self):
         """Data set in one stage is available in subsequent stages."""
+
         async def stage_set(ctx):
             ctx.metadata["key"] = "value_from_stage_1"
             return ctx

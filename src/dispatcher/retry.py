@@ -35,7 +35,7 @@ def calculate_delay(attempt: int, policy: RetryPolicy) -> float:
         Delay in seconds before the next retry.
     """
     jitter = random.uniform(0, 0.5)
-    delay = policy.base_delay_seconds * (policy.exponential_base ** attempt) + jitter
+    delay = policy.base_delay_seconds * (policy.exponential_base**attempt) + jitter
     return min(delay, policy.max_delay_seconds)
 
 

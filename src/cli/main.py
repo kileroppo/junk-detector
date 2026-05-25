@@ -21,7 +21,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from src.models.score import ScoreResult, FastScoreResult, Content
+from src.models.score import Content, FastScoreResult, ScoreResult
 
 app = typer.Typer(
     name="junk-detector",
@@ -186,8 +186,12 @@ def score(
     url: Optional[str] = typer.Option(None, "--url", "-u", help="URL to fetch and score"),
     file: Optional[str] = typer.Option(None, "--file", "-f", help="File path to read and score"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model preset: ollama, deepseek, openai, anthropic"),
-    fast: bool = typer.Option(False, "--fast", help="Use fast 4-dimension scoring instead of full 9-dimension"),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Model preset: ollama, deepseek, openai, anthropic"
+    ),
+    fast: bool = typer.Option(
+        False, "--fast", help="Use fast 4-dimension scoring instead of full 9-dimension"
+    ),
     retry: int = typer.Option(1, "--retry", help="Number of retry attempts for LLM timeouts"),
 ) -> None:
     """Score content quality across 9 dimensions."""
@@ -219,7 +223,9 @@ def score(
             config = load_config(override_model=model)
             _validate_api_key(config.primary_model)
 
-            fast_result: FastScoreResult = asyncio.run(score_fast(content.text, config=config, max_retries=retry))
+            fast_result: FastScoreResult = asyncio.run(
+                score_fast(content.text, config=config, max_retries=retry)
+            )
         except typer.Exit:
             raise
         except Exception as exc:
@@ -330,10 +336,16 @@ def quick(
     # Validate: exactly one input source
     sources = [s for s in (text, url, file) if s is not None]
     if len(sources) == 0:
-        console.print("\u274c \u9519\u8bef: \u5fc5\u987b\u6307\u5b9a --text, --url, \u6216 --file \u4e2d\u7684\u4e00\u4e2a", style="bold red")
+        console.print(
+            "\u274c \u9519\u8bef: \u5fc5\u987b\u6307\u5b9a --text, --url, \u6216 --file \u4e2d\u7684\u4e00\u4e2a",
+            style="bold red",
+        )
         raise typer.Exit(code=1)
     if len(sources) > 1:
-        console.print("\u274c \u9519\u8bef: \u53ea\u80fd\u6307\u5b9a --text, --url, --file \u4e2d\u7684\u4e00\u4e2a", style="bold red")
+        console.print(
+            "\u274c \u9519\u8bef: \u53ea\u80fd\u6307\u5b9a --text, --url, --file \u4e2d\u7684\u4e00\u4e2a",
+            style="bold red",
+        )
         raise typer.Exit(code=1)
 
     try:
@@ -352,7 +364,9 @@ def quick(
         config = load_config(override_model=model)
         _validate_api_key(config.primary_model)
 
-        fast_result: FastScoreResult = asyncio.run(score_fast(content.text, config=config, max_retries=retry))
+        fast_result: FastScoreResult = asyncio.run(
+            score_fast(content.text, config=config, max_retries=retry)
+        )
     except typer.Exit:
         raise
     except Exception as exc:
@@ -368,9 +382,13 @@ def quick(
 
 @app.command()
 def batch(
-    urls_file: Optional[str] = typer.Option(None, "--urls-file", help="Path to a file with one URL per line"),
+    urls_file: Optional[str] = typer.Option(
+        None, "--urls-file", help="Path to a file with one URL per line"
+    ),
     stdin: bool = typer.Option(False, "--stdin", help="Read URLs from stdin"),
-    fast: bool = typer.Option(True, "--fast/--no-fast", help="Use fast 4-dimension scoring (default: True)"),
+    fast: bool = typer.Option(
+        True, "--fast/--no-fast", help="Use fast 4-dimension scoring (default: True)"
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output JSON array instead of table"),
     retry: int = typer.Option(1, "--retry", help="Number of retry attempts for LLM timeouts"),
 ) -> None:
@@ -425,7 +443,14 @@ async def _batch_score(urls: list[str], *, fast: bool = True, max_retries: int =
                 try:
                     content = await extract_from_url_simple(url)
                 except Exception:
-                    return {"url": url, "score": None, "verdict": "ERROR", "labels": [], "summary": "", "error": str(primary_error)}
+                    return {
+                        "url": url,
+                        "score": None,
+                        "verdict": "ERROR",
+                        "labels": [],
+                        "summary": "",
+                        "error": str(primary_error),
+                    }
 
             try:
                 if fast:
@@ -453,7 +478,14 @@ async def _batch_score(urls: list[str], *, fast: bool = True, max_retries: int =
                         "error": None,
                     }
             except Exception as exc:
-                return {"url": url, "score": None, "verdict": "ERROR", "labels": [], "summary": "", "error": str(exc)}
+                return {
+                    "url": url,
+                    "score": None,
+                    "verdict": "ERROR",
+                    "labels": [],
+                    "summary": "",
+                    "error": str(exc),
+                }
 
     tasks = [_score_one(url) for url in urls]
     return await asyncio.gather(*tasks)
@@ -546,7 +578,9 @@ def _batch_json_output(results: list[dict]) -> None:
 @app.command()
 def history(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of records to show"),
-    min_score: Optional[float] = typer.Option(None, "--min-score", help="Filter by minimum overall score"),
+    min_score: Optional[float] = typer.Option(
+        None, "--min-score", help="Filter by minimum overall score"
+    ),
     label: Optional[str] = typer.Option(None, "--label", help="Filter by label"),
 ) -> None:
     """View scoring history."""
@@ -633,9 +667,7 @@ def _resolve_port(host: str, port: int, max_attempts: int = 100) -> int:
                     f"[yellow]Port {port} is in use, starting on {candidate} instead[/yellow]"
                 )
             return candidate
-    console.print(
-        f"[red]No free port in range {port}–{min(port + max_attempts - 1, 65535)}[/red]"
-    )
+    console.print(f"[red]No free port in range {port}–{min(port + max_attempts - 1, 65535)}[/red]")
     raise typer.Exit(code=1)
 
 
@@ -786,9 +818,7 @@ async def _run_monitor(config_path: str) -> None:
 
 @monitor_app.command("start")
 def monitor_start(
-    config: str = typer.Option(
-        "config.yaml", "--config", "-c", help="Path to config file"
-    ),
+    config: str = typer.Option("config.yaml", "--config", "-c", help="Path to config file"),
 ) -> None:
     """Start the real-time content monitor (runs until Ctrl+C)."""
     try:
@@ -806,9 +836,7 @@ def monitor_add_source(
     source_type: str = typer.Option("rss", "--type", "-t", help="Source type: rss or webhook"),
     interval: int = typer.Option(300, "--interval", "-i", help="Poll interval in seconds"),
     priority: int = typer.Option(5, "--priority", "-p", help="Priority 1-10 (1=highest)"),
-    config: str = typer.Option(
-        "config.yaml", "--config", "-c", help="Path to config file"
-    ),
+    config: str = typer.Option("config.yaml", "--config", "-c", help="Path to config file"),
 ) -> None:
     """Add a content source to the monitor configuration."""
     import yaml
@@ -820,7 +848,9 @@ def monitor_add_source(
 
     # Validate source type
     if source_type not in ("rss", "webhook"):
-        console.print(f"[bold red]Error:[/bold red] Type must be 'rss' or 'webhook', got '{source_type}'")
+        console.print(
+            f"[bold red]Error:[/bold red] Type must be 'rss' or 'webhook', got '{source_type}'"
+        )
         raise typer.Exit(code=1)
 
     # Validate priority
@@ -865,9 +895,7 @@ def monitor_add_source(
 
 @monitor_app.command("stats")
 def monitor_stats(
-    config: str = typer.Option(
-        "config.yaml", "--config", "-c", help="Path to config file"
-    ),
+    config: str = typer.Option("config.yaml", "--config", "-c", help="Path to config file"),
 ) -> None:
     """Show monitoring configuration and source info."""
     import yaml
@@ -939,8 +967,12 @@ def monitor_stats(
 
 @app.command()
 def feedback(
-    id: Optional[str] = typer.Option(None, "--id", help="Content hash (or prefix, at least 8 chars) to look up"),
-    verdict: Optional[str] = typer.Option(None, "--verdict", help="User verdict: junk, ok, or excellent"),
+    id: Optional[str] = typer.Option(
+        None, "--id", help="Content hash (or prefix, at least 8 chars) to look up"
+    ),
+    verdict: Optional[str] = typer.Option(
+        None, "--verdict", help="User verdict: junk, ok, or excellent"
+    ),
     stats: bool = typer.Option(False, "--stats", help="Show calibration statistics"),
     suggest: bool = typer.Option(False, "--suggest", help="Show rule update suggestions"),
 ) -> None:
@@ -948,8 +980,10 @@ def feedback(
     from src.core.calibration import (
         VALID_VERDICTS,
         get_calibration_stats,
-        record_feedback as cal_record_feedback,
         suggest_rule_updates,
+    )
+    from src.core.calibration import (
+        record_feedback as cal_record_feedback,
     )
 
     # Show calibration stats

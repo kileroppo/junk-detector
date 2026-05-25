@@ -2,6 +2,7 @@
 
 Verifies URL extraction with mocked httpx and text extraction behavior.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch

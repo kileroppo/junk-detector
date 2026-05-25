@@ -47,9 +47,7 @@ class PriorityTaskQueue:
     """
 
     def __init__(self, maxsize: int = 0) -> None:
-        self._queue: asyncio.PriorityQueue[_PriorityItem] = asyncio.PriorityQueue(
-            maxsize=maxsize
-        )
+        self._queue: asyncio.PriorityQueue[_PriorityItem] = asyncio.PriorityQueue(maxsize=maxsize)
 
     async def put(self, task: TaskPayload) -> None:
         """Add a task to the priority queue."""

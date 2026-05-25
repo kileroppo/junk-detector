@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -236,9 +236,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.limiter = SlidingWindowLimiter()
         self._global_limiter = SlidingWindowLimiter()
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Process request through rate limiting."""
         path = request.url.path
 
@@ -262,9 +260,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Check global rate limit first
         if not self._global_limiter.is_allowed("global", global_limit):
-            logger.warning(
-                "Global rate limit exceeded (limit=%d rpm)", self.config.global_rpm
-            )
+            logger.warning("Global rate limit exceeded (limit=%d rpm)", self.config.global_rpm)
             retry_after = 60  # suggest retry after 1 minute
             return JSONResponse(
                 status_code=429,

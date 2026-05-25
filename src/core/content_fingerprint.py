@@ -6,15 +6,14 @@ Similar texts have low Hamming distance between fingerprints.
 
 Zero API cost, runs in microseconds.
 """
+
 from __future__ import annotations
 
 import hashlib
 import logging
 import re
 import sqlite3
-from collections import defaultdict
 from dataclasses import dataclass
-from pathlib import Path
 
 logger = logging.getLogger("fingerprint")
 
@@ -24,6 +23,7 @@ _FINGERPRINT_BITS = 64
 @dataclass
 class FingerprintMatch:
     """A match found between two content fingerprints."""
+
     content_hash: str  # hash of the matching article
     title: str | None
     source_url: str | None
@@ -33,55 +33,55 @@ class FingerprintMatch:
 
 def simhash(text: str) -> int:
     """Compute SimHash fingerprint for text content.
-    
+
     Algorithm:
     1. Tokenize text into shingles (n-grams)
     2. Hash each shingle to a 64-bit value
     3. For each bit position: sum +1 if bit is 1, -1 if bit is 0
     4. Final hash: bit is 1 if sum > 0, else 0
-    
+
     Args:
         text: Text content to fingerprint.
-    
+
     Returns:
         64-bit integer fingerprint.
     """
     # Tokenize into 3-char shingles (works for both Chinese and English)
     tokens = _tokenize(text)
-    
+
     if not tokens:
         return 0
-    
+
     # Compute weighted bit vector
     v = [0] * _FINGERPRINT_BITS
-    
+
     for token in tokens:
         # Hash the token to get a 64-bit value
         token_hash = _hash_token(token)
-        
+
         for i in range(_FINGERPRINT_BITS):
             bit = (token_hash >> i) & 1
             if bit:
                 v[i] += 1
             else:
                 v[i] -= 1
-    
+
     # Convert to fingerprint
     fingerprint = 0
     for i in range(_FINGERPRINT_BITS):
         if v[i] > 0:
-            fingerprint |= (1 << i)
-    
+            fingerprint |= 1 << i
+
     return fingerprint
 
 
 def hamming_distance(fp1: int, fp2: int) -> int:
     """Compute Hamming distance between two fingerprints.
-    
+
     Args:
         fp1: First 64-bit fingerprint.
         fp2: Second 64-bit fingerprint.
-    
+
     Returns:
         Number of differing bits (0 = identical, max = 64).
     """
@@ -91,11 +91,11 @@ def hamming_distance(fp1: int, fp2: int) -> int:
 
 def similarity_score(fp1: int, fp2: int) -> float:
     """Compute similarity score between two fingerprints.
-    
+
     Args:
         fp1: First fingerprint.
         fp2: Second fingerprint.
-    
+
     Returns:
         Similarity from 0.0 (completely different) to 1.0 (identical).
     """
@@ -109,32 +109,34 @@ def find_similar(
     db_path: str = "junk_detector.db",
 ) -> list[FingerprintMatch]:
     """Find articles with similar fingerprints in the database.
-    
+
     Args:
         text: Text to check for similarity.
         threshold: Maximum Hamming distance to consider a match (default 5).
         db_path: Path to the SQLite database.
-    
+
     Returns:
         List of FingerprintMatch objects, sorted by distance (most similar first).
     """
     fp = simhash(text)
-    
+
     # Load stored fingerprints
     stored = _load_fingerprints(db_path)
-    
+
     matches = []
     for stored_fp, content_hash, title, source_url in stored:
         distance = hamming_distance(fp, stored_fp)
         if distance <= threshold:
-            matches.append(FingerprintMatch(
-                content_hash=content_hash,
-                title=title,
-                source_url=source_url,
-                hamming_distance=distance,
-                similarity=similarity_score(fp, stored_fp),
-            ))
-    
+            matches.append(
+                FingerprintMatch(
+                    content_hash=content_hash,
+                    title=title,
+                    source_url=source_url,
+                    hamming_distance=distance,
+                    similarity=similarity_score(fp, stored_fp),
+                )
+            )
+
     # Sort by distance (most similar first)
     matches.sort(key=lambda m: m.hamming_distance)
     return matches
@@ -148,25 +150,25 @@ def save_fingerprint(
     db_path: str = "junk_detector.db",
 ) -> int:
     """Compute and save a fingerprint to the database.
-    
+
     Args:
         text: Content text.
         content_hash: Unique content hash (from Content model).
         title: Article title.
         source_url: Article source URL.
         db_path: Path to the SQLite database.
-    
+
     Returns:
         The computed fingerprint integer.
     """
     fp = simhash(text)
     _ensure_table(db_path)
-    
+
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(
             """
-            INSERT OR REPLACE INTO content_fingerprints 
+            INSERT OR REPLACE INTO content_fingerprints
             (content_hash, fingerprint, title, source_url)
             VALUES (?, ?, ?, ?)
             """,
@@ -175,28 +177,29 @@ def save_fingerprint(
         conn.commit()
     finally:
         conn.close()
-    
+
     return fp
 
 
 # --- Internal helpers ---
 
+
 def _tokenize(text: str) -> list[str]:
     """Tokenize text into overlapping 3-character shingles.
-    
+
     Works for both Chinese (character-level) and English (word-level + char).
     """
     # Clean text
     text = re.sub(r"\s+", " ", text.strip().lower())
-    
+
     if len(text) < 3:
         return [text] if text else []
-    
+
     # Generate 3-char shingles
     shingles = []
     for i in range(len(text) - 2):
-        shingles.append(text[i:i+3])
-    
+        shingles.append(text[i : i + 3])
+
     return shingles
 
 

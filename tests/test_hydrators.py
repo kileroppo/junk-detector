@@ -2,6 +2,7 @@
 
 Covers hydrate_source_reputation and hydrate_article_stats.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -51,9 +52,7 @@ class TestHydrateSourceReputation:
 
     @pytest.mark.asyncio
     async def test_no_source_url_returns_none_values(self):
-        ctx = FakePipelineContext(
-            content=FakeContent(text="no url here", source_url=None)
-        )
+        ctx = FakePipelineContext(content=FakeContent(text="no url here", source_url=None))
         result = await hydrate_source_reputation(ctx)
         assert result["source_domain"] is None
         assert result["source_reputation"] is None

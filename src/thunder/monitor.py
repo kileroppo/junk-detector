@@ -63,9 +63,7 @@ class ThunderMonitor:
             return
 
         self._running = True
-        logger.info(
-            f"ThunderMonitor starting with {len(self._sources)} source(s)"
-        )
+        logger.info(f"ThunderMonitor starting with {len(self._sources)} source(s)")
 
         for source in self._sources:
             await source.start()
@@ -137,9 +135,7 @@ class ThunderMonitor:
             source: The content source to poll.
         """
         # Determine poll interval from source config if available
-        poll_interval = getattr(
-            getattr(source, "_config", None), "poll_interval_seconds", 300
-        )
+        poll_interval = getattr(getattr(source, "_config", None), "poll_interval_seconds", 300)
 
         while self._running:
             try:
@@ -151,17 +147,13 @@ class ThunderMonitor:
                     self._items_discovered += 1
 
                 if new_items:
-                    logger.info(
-                        f"Source '{source.name}': discovered {len(new_items)} new item(s)"
-                    )
+                    logger.info(f"Source '{source.name}': discovered {len(new_items)} new item(s)")
 
             except asyncio.CancelledError:
                 # Task was cancelled during stop() — exit cleanly
                 raise
             except Exception as e:
-                logger.error(
-                    f"Error polling source '{source.name}': {type(e).__name__}: {e}"
-                )
+                logger.error(f"Error polling source '{source.name}': {type(e).__name__}: {e}")
 
             # Sleep until next poll
             try:

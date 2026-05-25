@@ -1,4 +1,5 @@
 """Tests for the CLI batch command."""
+
 from __future__ import annotations
 
 import json
@@ -6,11 +7,10 @@ import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from src.cli.main import app
-from src.models.score import Content, FastScoreResult, ScoreResult, DimensionScores
+from src.models.score import Content, DimensionScores, FastScoreResult, ScoreResult
 
 runner = CliRunner()
 
@@ -122,7 +122,8 @@ class TestBatchWithStdin:
         mock_score_fast.return_value = _mock_fast_result(65.0)
 
         result = runner.invoke(
-            app, ["batch", "--stdin"],
+            app,
+            ["batch", "--stdin"],
             input="http://example.com/a\nhttp://example.com/b\n",
         )
 
@@ -139,7 +140,8 @@ class TestBatchWithStdin:
         mock_score_fast.return_value = _mock_fast_result(73.0)
 
         result = runner.invoke(
-            app, ["batch", "--stdin", "--json"],
+            app,
+            ["batch", "--stdin", "--json"],
             input="http://example.com/test\n",
         )
 
@@ -169,7 +171,8 @@ class TestBatchErrorHandling:
         mock_score_fast.return_value = _mock_fast_result(75.0)
 
         result = runner.invoke(
-            app, ["batch", "--stdin"],
+            app,
+            ["batch", "--stdin"],
             input="http://ok.com/1\nhttp://fail.com/2\nhttp://ok.com/3\n",
         )
 
@@ -188,7 +191,8 @@ class TestBatchErrorHandling:
         ]
 
         result = runner.invoke(
-            app, ["batch", "--stdin"],
+            app,
+            ["batch", "--stdin"],
             input="http://example.com/1\nhttp://example.com/2\n",
         )
 
@@ -204,7 +208,8 @@ class TestBatchErrorHandling:
         mock_simple.side_effect = Exception("simple also timed out")
 
         result = runner.invoke(
-            app, ["batch", "--stdin", "--json"],
+            app,
+            ["batch", "--stdin", "--json"],
             input="http://fail.com/page\n",
         )
 
@@ -226,7 +231,8 @@ class TestBatchJsonOutput:
         mock_score_fast.return_value = _mock_fast_result(50.0)
 
         result = runner.invoke(
-            app, ["batch", "--stdin", "--json"],
+            app,
+            ["batch", "--stdin", "--json"],
             input="http://example.com/article\n",
         )
 
@@ -257,7 +263,8 @@ class TestBatchJsonOutput:
         ]
 
         result = runner.invoke(
-            app, ["batch", "--stdin", "--json"],
+            app,
+            ["batch", "--stdin", "--json"],
             input="http://a.com\nhttp://b.com\nhttp://c.com\n",
         )
 
@@ -352,7 +359,8 @@ class TestBatchFullScorer:
         mock_score_fast.return_value = _mock_fast_result(70.0)
 
         result = runner.invoke(
-            app, ["batch", "--stdin"],
+            app,
+            ["batch", "--stdin"],
             input="http://example.com/fallback\n",
         )
 
@@ -371,7 +379,8 @@ class TestBatchFullScorer:
         mock_score.return_value = _mock_full_result(75.0)
 
         result = runner.invoke(
-            app, ["batch", "--stdin", "--no-fast"],
+            app,
+            ["batch", "--stdin", "--no-fast"],
             input="http://example.com/article\n",
         )
 
@@ -387,7 +396,8 @@ class TestBatchFullScorer:
         mock_score.return_value = _mock_full_result(75.0)
 
         result = runner.invoke(
-            app, ["batch", "--stdin", "--no-fast", "--json"],
+            app,
+            ["batch", "--stdin", "--no-fast", "--json"],
             input="http://example.com/article\n",
         )
 

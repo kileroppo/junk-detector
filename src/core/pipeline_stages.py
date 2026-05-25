@@ -25,12 +25,13 @@ async def extract_stage(ctx: PipelineContext) -> PipelineContext:
 
     This is a critical stage — pipeline halts if extraction fails.
     """
+    from src.extractors.text import extract_from_file, extract_from_text
     from src.extractors.web import extract_from_url
-    from src.extractors.text import extract_from_text, extract_from_file
 
     # Try to import smart_extract for SPA support
     try:
         from src.extractors.playwright_web import smart_extract
+
         _has_smart_extract = True
     except ImportError:
         _has_smart_extract = False
@@ -63,8 +64,8 @@ async def enrich_stage(ctx: PipelineContext) -> PipelineContext:
     - char_count, paragraph_count, link_count, etc: article statistics
     """
     from src.core.hydrators import (
-        hydrate_source_reputation,
         hydrate_article_stats,
+        hydrate_source_reputation,
     )
 
     # Run hydrators — each returns a dict to merge into metadata
@@ -87,6 +88,7 @@ async def enrich_stage(ctx: PipelineContext) -> PipelineContext:
     # Check for similar content via fingerprint (fast, zero-cost)
     try:
         from src.core.content_fingerprint import find_similar
+
         if ctx.content and ctx.content.text:
             similar = find_similar(ctx.content.text, threshold=5)
             if similar:
@@ -183,7 +185,6 @@ async def postprocess_stage(ctx: PipelineContext) -> PipelineContext:
     # --- Metadata-driven adjustments ---
 
     # Originality penalty for highly similar existing articles
-    similar_articles = ctx.metadata.get("similar_articles", [])
     max_similarity = ctx.metadata.get("max_similarity", 0.0)
     if max_similarity >= 0.90:
         # Very high similarity — likely a copy/repost
@@ -208,17 +209,13 @@ async def postprocess_stage(ctx: PipelineContext) -> PipelineContext:
     if ctx.metadata.get("originality_penalty_applied"):
         from src.core.scorer import _calculate_overall
 
-        ctx.result.overall_score = _calculate_overall(
-            ctx.result.dimensions, ctx.config
-        )
+        ctx.result.overall_score = _calculate_overall(ctx.result.dimensions, ctx.config)
 
     # --- Source reputation blacklist/whitelist adjustment ---
     from src.core.source_reputation import get_source_adjustment
 
     domain = ctx.metadata.get("source_domain")
-    adjustment, reason = get_source_adjustment(
-        domain, db_path=_get_db_path(ctx)
-    )
+    adjustment, reason = get_source_adjustment(domain, db_path=_get_db_path(ctx))
     if adjustment != 0:
         new_score = ctx.result.overall_score + adjustment
         ctx.result.overall_score = max(0, min(100, new_score))
@@ -246,6 +243,7 @@ async def postprocess_stage(ctx: PipelineContext) -> PipelineContext:
     # Save content fingerprint for future similarity detection
     try:
         from src.core.content_fingerprint import save_fingerprint
+
         if ctx.content and ctx.content.text:
             await asyncio.to_thread(
                 save_fingerprint,
@@ -264,10 +262,12 @@ async def postprocess_stage(ctx: PipelineContext) -> PipelineContext:
         from src.core.side_effects.stats_collector import StatsCollectorSideEffect
 
         # Build runner with default effects
-        runner = SideEffectRunner([
-            NotificationSideEffect(threshold=30.0),
-            StatsCollectorSideEffect(),
-        ])
+        runner = SideEffectRunner(
+            [
+                NotificationSideEffect(threshold=30.0),
+                StatsCollectorSideEffect(),
+            ]
+        )
         await runner.run_all(ctx)
     except Exception as e:
         logger.warning(f"Side effects failed (non-blocking): {e}")
@@ -329,9 +329,10 @@ async def _save_result(ctx: PipelineContext) -> None:
 
     # Also compute and store embedding for future similarity searches
     try:
-        from src.core.embeddings import embed_content
-        from src.storage.db import _get_connection, _ensure_initialized
         import json
+
+        from src.core.embeddings import embed_content
+        from src.storage.db import _ensure_initialized, _get_connection
 
         text = ctx.content.text
         embedding = await embed_content(

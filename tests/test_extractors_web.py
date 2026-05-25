@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from bs4 import BeautifulSoup
 
 from src.extractors.web import _extract_title, _find_main_content, _strip_noise

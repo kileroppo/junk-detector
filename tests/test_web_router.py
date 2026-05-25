@@ -222,9 +222,7 @@ class TestScoreSubmit:
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.storage.db.save")
     @patch("src.extractors.text.extract_from_text")
-    def test_submit_text_input(
-        self, mock_extract, mock_save, mock_score, web_client
-    ):
+    def test_submit_text_input(self, mock_extract, mock_save, mock_score, web_client):
         """POST /score-submit with text input returns 200 with result."""
         mock_extract.return_value = _make_content()
         mock_score.return_value = _make_score_result()
@@ -242,9 +240,7 @@ class TestScoreSubmit:
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.storage.db.save")
     @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
-    def test_submit_url_input(
-        self, mock_extract_url, mock_save, mock_score, web_client
-    ):
+    def test_submit_url_input(self, mock_extract_url, mock_save, mock_score, web_client):
         """POST /score-submit with url input calls extract_from_url."""
         mock_extract_url.return_value = _make_content(
             text="web page content", source_url="https://example.com/article"
@@ -264,9 +260,7 @@ class TestScoreSubmit:
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.storage.db.save")
     @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
-    def test_submit_text_looks_like_url(
-        self, mock_extract_url, mock_save, mock_score, web_client
-    ):
+    def test_submit_text_looks_like_url(self, mock_extract_url, mock_save, mock_score, web_client):
         """POST /score-submit with text starting with http:// calls extract_from_url."""
         mock_extract_url.return_value = _make_content(
             text="page content", source_url="http://example.com/page"
@@ -294,9 +288,7 @@ class TestScoreSubmit:
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.extractors.text.extract_from_text")
-    def test_submit_scorer_raises_exception(
-        self, mock_extract, mock_score, web_client
-    ):
+    def test_submit_scorer_raises_exception(self, mock_extract, mock_score, web_client):
         """POST /score-submit returns 500 when scorer raises."""
         mock_extract.return_value = _make_content()
         mock_score.side_effect = RuntimeError("LLM API error")
@@ -312,9 +304,7 @@ class TestScoreSubmit:
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.storage.db.save")
     @patch("src.extractors.text.extract_from_text")
-    def test_submit_htmx_request(
-        self, mock_extract, mock_save, mock_score, web_client
-    ):
+    def test_submit_htmx_request(self, mock_extract, mock_save, mock_score, web_client):
         """POST /score-submit with HX-Request header returns inline template."""
         mock_extract.return_value = _make_content()
         mock_score.return_value = _make_score_result()
@@ -362,9 +352,7 @@ class TestHistoryPageFilters:
     def test_history_page_pagination_page2(self, mock_query, web_client):
         """GET /history-page?page=2 fetches enough results for pagination."""
         # Return 40 results so page 2 has data
-        mock_query.return_value = [
-            {"overall_score": 50.0, "id": i} for i in range(40)
-        ]
+        mock_query.return_value = [{"overall_score": 50.0, "id": i} for i in range(40)]
 
         response = web_client.get("/history-page?page=2")
 

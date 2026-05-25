@@ -12,7 +12,7 @@ from typing import Optional
 import httpx
 import litellm
 
-from src.core.prompt_loader import get_prompt_template, get_system_prompt
+from src.core.prompt_loader import get_system_prompt
 from src.models.score import FastScoreResult, ScoringConfig
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,9 @@ def _build_fast_result(data: dict, model: str) -> FastScoreResult:
         quick_verdict=_clamp_score(data["quick_verdict"], "quick_verdict"),
         scam_prob=_clamp_score(data["scam_prob"], "scam_prob"),
         advertorial_prob=_clamp_score(data["advertorial_prob"], "advertorial_prob"),
-        emotional_manipulation=_clamp_score(data["emotional_manipulation"], "emotional_manipulation"),
+        emotional_manipulation=_clamp_score(
+            data["emotional_manipulation"], "emotional_manipulation"
+        ),
         originality=_clamp_score(data["originality"], "originality"),
         summary=data.get("summary", "快速评分完成"),
         confidence=confidence,
@@ -84,10 +86,19 @@ def _validate_fast_result(result: FastScoreResult) -> FastScoreResult:
     """Validate fast score result for suspicious patterns."""
     # Check for injection indicators in summary
     injection_phrases = [
-        "ignore previous", "ignore all", "override instructions",
-        "disregard above", "new instructions", "system prompt",
-        "忽略上述", "忽略以上", "忽略之前", "无视上述",
-        "新的指令", "重新定义", "系统提示",
+        "ignore previous",
+        "ignore all",
+        "override instructions",
+        "disregard above",
+        "new instructions",
+        "system prompt",
+        "忽略上述",
+        "忽略以上",
+        "忽略之前",
+        "无视上述",
+        "新的指令",
+        "重新定义",
+        "系统提示",
     ]
     response_text = (result.summary or "").lower()
     if any(phrase in response_text for phrase in injection_phrases):
@@ -95,7 +106,12 @@ def _validate_fast_result(result: FastScoreResult) -> FastScoreResult:
         return _default_fast_result(result.model_used)
 
     # Check for suspicious all-extreme patterns
-    scores = [result.scam_prob, result.advertorial_prob, result.emotional_manipulation, result.originality]
+    scores = [
+        result.scam_prob,
+        result.advertorial_prob,
+        result.emotional_manipulation,
+        result.originality,
+    ]
     if all(s >= 98 for s in scores) or all(s <= 2 for s in scores):
         logger.warning("Suspicious extreme scores in fast result: %s", scores)
         return _default_fast_result(result.model_used)
@@ -148,9 +164,7 @@ async def score_fast(
             }
             # If using Ollama, pass api_base
             if model.startswith("ollama/"):
-                kwargs["api_base"] = os.environ.get(
-                    "OLLAMA_API_BASE", "http://localhost:11434"
-                )
+                kwargs["api_base"] = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434")
             # Also use api_base from config if set
             elif hasattr(config, "api_base") and config.api_base:
                 kwargs["api_base"] = config.api_base
@@ -187,10 +201,7 @@ async def score_fast(
         except Exception as e:
             last_error = e
             # Check if it's a timeout error - retry if retries remain
-            is_timeout = (
-                isinstance(e, httpx.TimeoutException)
-                or "timeout" in str(e).lower()
-            )
+            is_timeout = isinstance(e, httpx.TimeoutException) or "timeout" in str(e).lower()
             if is_timeout and attempt < max_retries:
                 logger.warning(
                     "Timeout on attempt %d/%d, retrying in 1s: %s",
@@ -204,7 +215,5 @@ async def score_fast(
             break
 
     # All attempts failed - return low-confidence default
-    logger.error(
-        "All attempts to fast-score content failed. Last error: %s", last_error
-    )
+    logger.error("All attempts to fast-score content failed. Last error: %s", last_error)
     return _default_fast_result(model)

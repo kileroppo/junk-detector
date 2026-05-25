@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 import pytest
 
 from src.models.score import Content, DimensionScores, InputType, ScoreResult
@@ -75,9 +73,15 @@ class TestInitDb:
         result = ScoreResult(
             overall_score=50.0,
             dimensions=DimensionScores(
-                originality=50, info_density=50, reasoning_quality=50,
-                readability=50, timeliness=50, ai_generated_prob=50,
-                emotional_manipulation=50, advertorial_prob=50, scam_prob=50,
+                originality=50,
+                info_density=50,
+                reasoning_quality=50,
+                readability=50,
+                timeliness=50,
+                ai_generated_prob=50,
+                emotional_manipulation=50,
+                advertorial_prob=50,
+                scam_prob=50,
             ),
             labels=[],
             summary="test",

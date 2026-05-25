@@ -3,11 +3,10 @@
 Verifies config.yaml parsing, env var overrides, and graceful defaults.
 All file I/O is mocked.
 """
+
 from __future__ import annotations
 
-from unittest.mock import mock_open, patch
-
-import pytest
+from unittest.mock import patch
 
 from src.core.config import get_model_config, load_config
 from src.models.score import ScoringConfig
@@ -47,7 +46,10 @@ class TestGetModelConfig:
         mock_yaml.return_value = {
             "active_model": "deepseek",
             "models": {
-                "deepseek": {"primary": "deepseek/deepseek-chat", "fallback": "deepseek/deepseek-chat"},
+                "deepseek": {
+                    "primary": "deepseek/deepseek-chat",
+                    "fallback": "deepseek/deepseek-chat",
+                },
                 "openai": {"primary": "gpt-4o", "fallback": "gpt-4o-mini"},
             },
         }
@@ -74,7 +76,10 @@ class TestLoadConfig:
         mock_yaml.return_value = {
             "active_model": "deepseek",
             "models": {
-                "deepseek": {"primary": "deepseek/deepseek-chat", "fallback": "deepseek/deepseek-chat"},
+                "deepseek": {
+                    "primary": "deepseek/deepseek-chat",
+                    "fallback": "deepseek/deepseek-chat",
+                },
             },
             "scoring": {
                 "confidence_threshold": 0.8,

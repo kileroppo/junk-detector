@@ -1,10 +1,10 @@
 """Tests for the CLI quick command and --fast flag on score command."""
+
 from __future__ import annotations
 
 import json
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from src.cli.main import app
@@ -37,7 +37,8 @@ class TestQuickCommandOK:
         mock_score_fast.return_value = _mock_fast_result(75.0)
 
         result = runner.invoke(
-            app, ["quick", "--text", "sample text"],
+            app,
+            ["quick", "--text", "sample text"],
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
@@ -56,7 +57,8 @@ class TestQuickCommandJunk:
         mock_score_fast.return_value = _mock_fast_result(28.0)
 
         result = runner.invoke(
-            app, ["quick", "--text", "scam content"],
+            app,
+            ["quick", "--text", "scam content"],
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
@@ -75,7 +77,8 @@ class TestQuickCommandCaution:
         mock_score_fast.return_value = _mock_fast_result(45.0)
 
         result = runner.invoke(
-            app, ["quick", "--text", "mid quality"],
+            app,
+            ["quick", "--text", "mid quality"],
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
@@ -90,7 +93,8 @@ class TestQuickCommandCaution:
         mock_score_fast.return_value = _mock_fast_result(40.0)
 
         result = runner.invoke(
-            app, ["quick", "--text", "boundary"],
+            app,
+            ["quick", "--text", "boundary"],
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
@@ -103,7 +107,8 @@ class TestQuickCommandCaution:
         mock_score_fast.return_value = _mock_fast_result(60.0)
 
         result = runner.invoke(
-            app, ["quick", "--text", "boundary"],
+            app,
+            ["quick", "--text", "boundary"],
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
@@ -120,7 +125,8 @@ class TestQuickCommandJson:
         mock_score_fast.return_value = _mock_fast_result(75.0)
 
         result = runner.invoke(
-            app, ["quick", "--text", "sample", "--json"],
+            app,
+            ["quick", "--text", "sample", "--json"],
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
@@ -148,7 +154,8 @@ class TestQuickCommandValidation:
     def test_quick_multiple_inputs_error(self):
         """quick with multiple inputs returns exit code 1."""
         result = runner.invoke(
-            app, ["quick", "--text", "x", "--url", "http://x"],
+            app,
+            ["quick", "--text", "x", "--url", "http://x"],
         )
 
         assert result.exit_code == 1
@@ -164,7 +171,8 @@ class TestScoreFastFlag:
         mock_score_fast.return_value = _mock_fast_result(75.0)
 
         result = runner.invoke(
-            app, ["score", "--fast", "--text", "sample text"],
+            app,
+            ["score", "--fast", "--text", "sample text"],
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
@@ -179,7 +187,8 @@ class TestScoreFastFlag:
         mock_score_fast.return_value = _mock_fast_result(75.0)
 
         result = runner.invoke(
-            app, ["score", "--fast", "--text", "sample", "--json"],
+            app,
+            ["score", "--fast", "--text", "sample", "--json"],
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
@@ -193,7 +202,8 @@ class TestScoreFastFlag:
         mock_score_fast.return_value = _mock_fast_result(25.0)
 
         result = runner.invoke(
-            app, ["score", "--fast", "--text", "scam"],
+            app,
+            ["score", "--fast", "--text", "scam"],
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 

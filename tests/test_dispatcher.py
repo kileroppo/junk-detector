@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
-
-import pytest
 
 from src.dispatcher.models import (
     DispatcherStats,
@@ -17,7 +14,6 @@ from src.dispatcher.models import (
 )
 from src.dispatcher.retry import RetryPolicy, calculate_delay, should_retry
 from src.dispatcher.task_queue import PriorityTaskQueue
-
 
 # ===== TaskPriority Tests =====
 
@@ -212,10 +208,10 @@ class TestCalculateDelay:
     def test_exponential_growth(self):
         policy = RetryPolicy(base_delay_seconds=1.0, exponential_base=2.0)
         with patch("src.dispatcher.retry.random.uniform", return_value=0.0):
-            assert calculate_delay(0, policy) == 1.0   # 1 * 2^0 = 1
-            assert calculate_delay(1, policy) == 2.0   # 1 * 2^1 = 2
-            assert calculate_delay(2, policy) == 4.0   # 1 * 2^2 = 4
-            assert calculate_delay(3, policy) == 8.0   # 1 * 2^3 = 8
+            assert calculate_delay(0, policy) == 1.0  # 1 * 2^0 = 1
+            assert calculate_delay(1, policy) == 2.0  # 1 * 2^1 = 2
+            assert calculate_delay(2, policy) == 4.0  # 1 * 2^2 = 4
+            assert calculate_delay(3, policy) == 8.0  # 1 * 2^3 = 8
 
     def test_capped_at_max_delay(self):
         policy = RetryPolicy(
@@ -289,9 +285,7 @@ class TestPriorityTaskQueue:
     async def test_priority_ordering(self):
         """Lower priority number should be dequeued first."""
         queue = PriorityTaskQueue()
-        low = TaskPayload(
-            url="https://low.com", source_name="test", priority=TaskPriority.LOW
-        )
+        low = TaskPayload(url="https://low.com", source_name="test", priority=TaskPriority.LOW)
         critical = TaskPayload(
             url="https://critical.com", source_name="test", priority=TaskPriority.CRITICAL
         )
@@ -366,12 +360,8 @@ class TestPriorityTaskQueue:
 
     async def test_drain_returns_all_items_in_order(self):
         queue = PriorityTaskQueue()
-        high = TaskPayload(
-            url="https://high.com", source_name="test", priority=TaskPriority.HIGH
-        )
-        bg = TaskPayload(
-            url="https://bg.com", source_name="test", priority=TaskPriority.BACKGROUND
-        )
+        high = TaskPayload(url="https://high.com", source_name="test", priority=TaskPriority.HIGH)
+        bg = TaskPayload(url="https://bg.com", source_name="test", priority=TaskPriority.BACKGROUND)
         critical = TaskPayload(
             url="https://critical.com", source_name="test", priority=TaskPriority.CRITICAL
         )

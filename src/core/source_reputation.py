@@ -87,7 +87,9 @@ def is_whitelisted(domain: str, config_path: str | None = None) -> bool:
     return _normalize_domain(domain) in whitelist
 
 
-def check_auto_blacklist(domain: str, db_path: str = "junk_detector.db", config_path: str | None = None) -> bool:
+def check_auto_blacklist(
+    domain: str, db_path: str = "junk_detector.db", config_path: str | None = None
+) -> bool:
     """Check if a domain should be auto-blacklisted based on historical scores.
 
     Returns True if domain qualifies for auto-blacklisting:
@@ -112,6 +114,7 @@ def check_auto_blacklist(domain: str, db_path: str = "junk_detector.db", config_
     # Query all scores and filter by domain
     try:
         from src.storage.db import query_by_domain
+
         domain_scores = query_by_domain(normalized, db_path=db_path)
 
         if len(domain_scores) >= min_articles:

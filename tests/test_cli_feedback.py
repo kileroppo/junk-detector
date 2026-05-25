@@ -1,4 +1,5 @@
 """Tests for the CLI feedback command."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -14,10 +15,12 @@ runner = CliRunner()
 
 def _make_connection(db_path_actual):
     """Create a connection factory that sets row_factory."""
+
     def _factory(db_path):
         conn = sqlite3.connect(db_path_actual, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
+
     return _factory
 
 
@@ -93,16 +96,17 @@ class TestFeedbackRecording:
     def test_record_feedback_success(self, mock_db, monkeypatch):
         """feedback --id <hash> --verdict junk records feedback successfully."""
         conn_factory = _make_connection(mock_db)
-        with patch(
-            "src.storage.db._get_connection",
-            side_effect=conn_factory,
-        ), patch(
-            "src.core.calibration._get_connection",
-            side_effect=conn_factory,
+        with (
+            patch(
+                "src.storage.db._get_connection",
+                side_effect=conn_factory,
+            ),
+            patch(
+                "src.core.calibration._get_connection",
+                side_effect=conn_factory,
+            ),
         ):
-            result = runner.invoke(
-                app, ["feedback", "--id", "abcdef12", "--verdict", "junk"]
-            )
+            result = runner.invoke(app, ["feedback", "--id", "abcdef12", "--verdict", "junk"])
 
         assert result.exit_code == 0, f"Output: {result.output}"
         assert "Feedback recorded successfully" in result.output
@@ -112,12 +116,15 @@ class TestFeedbackRecording:
     def test_record_feedback_excellent(self, mock_db):
         """feedback --id <hash> --verdict excellent records feedback."""
         conn_factory = _make_connection(mock_db)
-        with patch(
-            "src.storage.db._get_connection",
-            side_effect=conn_factory,
-        ), patch(
-            "src.core.calibration._get_connection",
-            side_effect=conn_factory,
+        with (
+            patch(
+                "src.storage.db._get_connection",
+                side_effect=conn_factory,
+            ),
+            patch(
+                "src.core.calibration._get_connection",
+                side_effect=conn_factory,
+            ),
         ):
             result = runner.invoke(
                 app, ["feedback", "--id", "abcdef1234567890", "--verdict", "excellent"]
@@ -134,12 +141,15 @@ class TestFeedbackStats:
     def test_stats_display(self, mock_db):
         """feedback --stats shows calibration statistics table."""
         conn_factory = _make_connection(mock_db)
-        with patch(
-            "src.core.calibration._get_connection",
-            side_effect=conn_factory,
-        ), patch(
-            "src.storage.db._get_connection",
-            side_effect=conn_factory,
+        with (
+            patch(
+                "src.core.calibration._get_connection",
+                side_effect=conn_factory,
+            ),
+            patch(
+                "src.storage.db._get_connection",
+                side_effect=conn_factory,
+            ),
         ):
             result = runner.invoke(app, ["feedback", "--stats"])
 
@@ -157,12 +167,15 @@ class TestFeedbackSuggest:
     def test_suggest_display(self, mock_db):
         """feedback --suggest shows suggestions or no-suggestions message."""
         conn_factory = _make_connection(mock_db)
-        with patch(
-            "src.core.calibration._get_connection",
-            side_effect=conn_factory,
-        ), patch(
-            "src.storage.db._get_connection",
-            side_effect=conn_factory,
+        with (
+            patch(
+                "src.core.calibration._get_connection",
+                side_effect=conn_factory,
+            ),
+            patch(
+                "src.storage.db._get_connection",
+                side_effect=conn_factory,
+            ),
         ):
             result = runner.invoke(app, ["feedback", "--suggest"])
 
@@ -180,9 +193,7 @@ class TestFeedbackErrors:
             "src.storage.db._get_connection",
             side_effect=conn_factory,
         ):
-            result = runner.invoke(
-                app, ["feedback", "--id", "abcdef12", "--verdict", "bad"]
-            )
+            result = runner.invoke(app, ["feedback", "--id", "abcdef12", "--verdict", "bad"])
 
         assert result.exit_code == 1
         assert "invalid verdict" in result.output
@@ -201,18 +212,14 @@ class TestFeedbackErrors:
             "src.storage.db._get_connection",
             side_effect=conn_factory,
         ):
-            result = runner.invoke(
-                app, ["feedback", "--id", "zzzzzzzz", "--verdict", "ok"]
-            )
+            result = runner.invoke(app, ["feedback", "--id", "zzzzzzzz", "--verdict", "ok"])
 
         assert result.exit_code == 1
         assert "no score found" in result.output
 
     def test_id_too_short(self):
         """feedback --id with less than 8 chars shows error."""
-        result = runner.invoke(
-            app, ["feedback", "--id", "abc", "--verdict", "junk"]
-        )
+        result = runner.invoke(app, ["feedback", "--id", "abc", "--verdict", "junk"])
 
         assert result.exit_code == 1
         assert "at least 8 characters" in result.output

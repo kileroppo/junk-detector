@@ -72,7 +72,9 @@ class TestEmbedContent:
     @pytest.mark.asyncio
     async def test_failure_returns_empty(self):
         """embed_content returns empty list on failure."""
-        with patch("litellm.aembedding", new_callable=AsyncMock, side_effect=Exception("API error")):
+        with patch(
+            "litellm.aembedding", new_callable=AsyncMock, side_effect=Exception("API error")
+        ):
             result = await embed_content("Test text")
             assert result == []
 
@@ -82,7 +84,9 @@ class TestEmbedContent:
         mock_response = MagicMock()
         mock_response.data = [{"embedding": [0.5]}]
 
-        with patch("litellm.aembedding", new_callable=AsyncMock, return_value=mock_response) as mock_embed:
+        with patch(
+            "litellm.aembedding", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_embed:
             await embed_content("Text", api_base="http://localhost:11434")
             call_kwargs = mock_embed.call_args[1]
             assert call_kwargs["api_base"] == "http://localhost:11434"

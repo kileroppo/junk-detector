@@ -2,24 +2,29 @@
 
 Verifies query_by_domain wildcard escaping and query_by_content_hash behavior.
 """
+
 from __future__ import annotations
 
-import json
-
-import pytest
-
-from src.storage.db import init_db, query_by_content_hash, query_by_domain, save
 from src.models.score import Content, DimensionScores, InputType, ScoreResult
+from src.storage.db import init_db, query_by_content_hash, query_by_domain, save
 
 
-def _make_result(overall_score: float = 50.0, source_url: str = "https://example.com") -> tuple[ScoreResult, Content]:
+def _make_result(
+    overall_score: float = 50.0, source_url: str = "https://example.com"
+) -> tuple[ScoreResult, Content]:
     """Create a minimal ScoreResult and Content for testing."""
     result = ScoreResult(
         overall_score=overall_score,
         dimensions=DimensionScores(
-            originality=50, info_density=50, reasoning_quality=50,
-            readability=50, timeliness=50, ai_generated_prob=50,
-            emotional_manipulation=50, advertorial_prob=50, scam_prob=50,
+            originality=50,
+            info_density=50,
+            reasoning_quality=50,
+            readability=50,
+            timeliness=50,
+            ai_generated_prob=50,
+            emotional_manipulation=50,
+            advertorial_prob=50,
+            scam_prob=50,
         ),
         labels=[],
         summary="test",

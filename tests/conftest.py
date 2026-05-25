@@ -3,15 +3,12 @@
 Provides mock LLM responses, sample texts, temp DB paths,
 and mock scoring config for all test modules.
 """
-from __future__ import annotations
 
-import os
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from __future__ import annotations
 
 import pytest
 
-from src.models.score import DimensionScores, ScoringConfig
+from src.models.score import ScoringConfig
 
 
 @pytest.fixture
@@ -74,6 +71,7 @@ def mock_config():
 def reset_dedup_cache():
     """Reset the dedup cache before each test to prevent cross-test interference."""
     from src.core.dedup import reset_cache
+
     reset_cache()
     yield
     reset_cache()

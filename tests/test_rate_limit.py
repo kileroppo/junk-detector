@@ -3,11 +3,10 @@
 Verifies SlidingWindowLimiter behavior, path-based filtering,
 and per-user isolation.
 """
+
 from __future__ import annotations
 
 from unittest.mock import patch
-
-import pytest
 
 from src.api.rate_limit import SlidingWindowLimiter, _should_rate_limit
 

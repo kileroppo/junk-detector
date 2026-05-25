@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pytest
-
 from src.preferences.models import (
     LabelThresholds,
     PreferencesUpdate,
@@ -93,9 +91,7 @@ class TestUpdatePreferences:
         PreferencesService.save_preferences(initial, db_path=tmp_db_path)
 
         # Update only originality
-        update = PreferencesUpdate(
-            scoring_weights=ScoringWeights(originality=3.0)
-        )
+        update = PreferencesUpdate(scoring_weights=ScoringWeights(originality=3.0))
         result = PreferencesService.update_preferences(1, update, db_path=tmp_db_path)
 
         assert result.scoring_weights.originality == 3.0
@@ -111,9 +107,7 @@ class TestUpdatePreferences:
         )
         PreferencesService.save_preferences(initial, db_path=tmp_db_path)
 
-        update = PreferencesUpdate(
-            label_thresholds=LabelThresholds(ai_generated=90.0)
-        )
+        update = PreferencesUpdate(label_thresholds=LabelThresholds(ai_generated=90.0))
         result = PreferencesService.update_preferences(1, update, db_path=tmp_db_path)
 
         assert result.label_thresholds.ai_generated == 90.0
@@ -172,9 +166,7 @@ class TestBuildScoringConfig:
         }
 
         with patch("src.preferences.service._load_config_yaml", return_value=mock_config):
-            config = PreferencesService.build_scoring_config(
-                user_id=999, db_path=tmp_db_path
-            )
+            config = PreferencesService.build_scoring_config(user_id=999, db_path=tmp_db_path)
 
         assert config.weights["originality"] == 1.0
         assert config.weights["info_density"] == 1.0
@@ -209,9 +201,7 @@ class TestBuildScoringConfig:
         }
 
         with patch("src.preferences.service._load_config_yaml", return_value=mock_config):
-            config = PreferencesService.build_scoring_config(
-                user_id=1, db_path=tmp_db_path
-            )
+            config = PreferencesService.build_scoring_config(user_id=1, db_path=tmp_db_path)
 
         # User override should win
         assert config.weights["originality"] == 2.5

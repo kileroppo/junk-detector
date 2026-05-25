@@ -17,9 +17,7 @@ from pydantic import BaseModel, Field
 class RuleResult(BaseModel):
     """Result of applying all rules against a piece of content."""
 
-    matched_rules: list[str] = Field(
-        default_factory=list, description="Names of rules that fired"
-    )
+    matched_rules: list[str] = Field(default_factory=list, description="Names of rules that fired")
     dimension_overrides: dict[str, float] = Field(
         default_factory=dict,
         description="Dimension name -> score to override (e.g. {'scam_prob': 95})",
@@ -156,16 +154,12 @@ def _build_keyword_pattern(keyword: str) -> re.Pattern[str]:
     escaped = re.escape(keyword)
     # For short ASCII-only keywords, add ASCII-letter boundaries
     if len(keyword) < 4 and keyword.isascii():
-        return re.compile(
-            r"(?<![A-Za-z])" + escaped + r"(?![A-Za-z])", re.IGNORECASE
-        )
+        return re.compile(r"(?<![A-Za-z])" + escaped + r"(?![A-Za-z])", re.IGNORECASE)
     return re.compile(escaped)
 
 
 # Pre-compile all scam keyword patterns at module load time
-_SCAM_PATTERNS: list[re.Pattern[str]] = [
-    _build_keyword_pattern(kw) for kw in _SCAM_KEYWORDS
-]
+_SCAM_PATTERNS: list[re.Pattern[str]] = [_build_keyword_pattern(kw) for kw in _SCAM_KEYWORDS]
 
 
 def _check_scam_keywords(content: str) -> Optional[tuple[float, float]]:
@@ -240,9 +234,7 @@ _ANXIETY_PHRASES: list[str] = [
 ]
 
 # Pre-compile anxiety patterns for performance
-_ANXIETY_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(phrase) for phrase in _ANXIETY_PHRASES
-]
+_ANXIETY_PATTERNS: list[re.Pattern[str]] = [re.compile(phrase) for phrase in _ANXIETY_PHRASES]
 
 
 def _check_excessive_punctuation(content: str) -> bool:
@@ -409,7 +401,7 @@ def _calculate_lexical_diversity(content: str) -> float:
     if not content:
         return 1.0
     # Filter out whitespace and punctuation for diversity calculation
-    chars = [c for c in content if c.strip() and not c in "，。！？、；：""''（）【】《》…—·"]
+    chars = [c for c in content if c.strip() and c not in "，。！？、；：''（）【】《》…—·"]
     if not chars:
         return 1.0
     unique_chars = set(chars)
@@ -472,14 +464,11 @@ _COMBO_RULES: list[ComboRule] = [
 # Pre-compile combo keyword patterns at module load time for consistency
 # with the word-boundary-aware matching used for individual scam keywords.
 _COMBO_PATTERNS: dict[str, list[re.Pattern[str]]] = {
-    combo.name: [_build_keyword_pattern(kw) for kw in combo.keywords]
-    for combo in _COMBO_RULES
+    combo.name: [_build_keyword_pattern(kw) for kw in combo.keywords] for combo in _COMBO_RULES
 }
 
 
-def _check_combo_rules(
-    content: str, result: RuleResult
-) -> None:
+def _check_combo_rules(content: str, result: RuleResult) -> None:
     """Check combo rules and apply boosts to existing dimension scores.
 
     Combo rules fire when ALL keywords in the combo set are present.
@@ -541,9 +530,7 @@ def should_skip_llm(rule_result: RuleResult, content_text: str) -> tuple[bool, s
         # Only average confidence values >= 0.7 to exclude dimensions that were
         # only set by combo rules (combo boosts start at 0.1 confidence, so a
         # combo-only dimension would have low confidence).
-        confidences = [
-            c for c in rule_result.confidence.values() if c >= 0.7
-        ]
+        confidences = [c for c in rule_result.confidence.values() if c >= 0.7]
         if confidences:
             avg_confidence = sum(confidences) / len(confidences)
             if avg_confidence >= 0.85:

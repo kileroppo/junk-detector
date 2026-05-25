@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 import yaml
 
 from src.monitor.service import MonitorService
 from src.thunder.sources import RSSSource, WebhookSource
-
 
 SAMPLE_CONFIG = {
     "thunder": {
@@ -216,9 +213,27 @@ class TestGenerateSummary:
         """generate_summary returns correct totals and averages."""
         service = MonitorService(SAMPLE_CONFIG)
         service._scored_items = [
-            {"title": "Article 1", "url": "http://a.com/1", "source": "rss", "score": 80, "labels": ["good"]},
-            {"title": "Article 2", "url": "http://a.com/2", "source": "rss", "score": 60, "labels": ["ok"]},
-            {"title": "Article 3", "url": "http://a.com/3", "source": "rss", "score": 40, "labels": ["good"]},
+            {
+                "title": "Article 1",
+                "url": "http://a.com/1",
+                "source": "rss",
+                "score": 80,
+                "labels": ["good"],
+            },
+            {
+                "title": "Article 2",
+                "url": "http://a.com/2",
+                "source": "rss",
+                "score": 60,
+                "labels": ["ok"],
+            },
+            {
+                "title": "Article 3",
+                "url": "http://a.com/3",
+                "source": "rss",
+                "score": 40,
+                "labels": ["good"],
+            },
         ]
 
         summary = service.generate_summary()
@@ -230,9 +245,27 @@ class TestGenerateSummary:
         """Items with overall_score < 40 appear in high_risk_items."""
         service = MonitorService(SAMPLE_CONFIG)
         service._scored_items = [
-            {"title": "Good Article", "url": "http://a.com/1", "source": "rss", "score": 80, "labels": []},
-            {"title": "Risky Article", "url": "http://a.com/2", "source": "rss", "score": 30, "labels": ["spam"]},
-            {"title": "Very Risky", "url": "http://a.com/3", "source": "rss", "score": 10, "labels": ["scam"]},
+            {
+                "title": "Good Article",
+                "url": "http://a.com/1",
+                "source": "rss",
+                "score": 80,
+                "labels": [],
+            },
+            {
+                "title": "Risky Article",
+                "url": "http://a.com/2",
+                "source": "rss",
+                "score": 30,
+                "labels": ["spam"],
+            },
+            {
+                "title": "Very Risky",
+                "url": "http://a.com/3",
+                "source": "rss",
+                "score": 10,
+                "labels": ["scam"],
+            },
         ]
 
         summary = service.generate_summary()
@@ -247,9 +280,27 @@ class TestGenerateSummary:
         """Labels are aggregated and sorted by frequency."""
         service = MonitorService(SAMPLE_CONFIG)
         service._scored_items = [
-            {"title": "A1", "url": "http://a.com/1", "source": "rss", "score": 70, "labels": ["spam", "clickbait"]},
-            {"title": "A2", "url": "http://a.com/2", "source": "rss", "score": 50, "labels": ["spam"]},
-            {"title": "A3", "url": "http://a.com/3", "source": "rss", "score": 60, "labels": ["clickbait", "ai"]},
+            {
+                "title": "A1",
+                "url": "http://a.com/1",
+                "source": "rss",
+                "score": 70,
+                "labels": ["spam", "clickbait"],
+            },
+            {
+                "title": "A2",
+                "url": "http://a.com/2",
+                "source": "rss",
+                "score": 50,
+                "labels": ["spam"],
+            },
+            {
+                "title": "A3",
+                "url": "http://a.com/3",
+                "source": "rss",
+                "score": 60,
+                "labels": ["clickbait", "ai"],
+            },
         ]
 
         summary = service.generate_summary()
@@ -260,13 +311,22 @@ class TestGenerateSummary:
         assert "ai" in summary["top_labels"]
         # spam and clickbait should appear before ai
         ai_index = summary["top_labels"].index("ai")
-        assert summary["top_labels"].index("spam") < ai_index or summary["top_labels"].index("clickbait") < ai_index
+        assert (
+            summary["top_labels"].index("spam") < ai_index
+            or summary["top_labels"].index("clickbait") < ai_index
+        )
 
     def test_last_summary_property(self):
         """After calling generate_summary(), last_summary returns the same data."""
         service = MonitorService(SAMPLE_CONFIG)
         service._scored_items = [
-            {"title": "A1", "url": "http://a.com/1", "source": "rss", "score": 70, "labels": ["good"]},
+            {
+                "title": "A1",
+                "url": "http://a.com/1",
+                "source": "rss",
+                "score": 70,
+                "labels": ["good"],
+            },
         ]
 
         assert service.last_summary is None
@@ -287,18 +347,26 @@ class TestScoredItemsTrimming:
 
         # Fill beyond the limit
         service._scored_items = [
-            {"title": f"Article {i}", "url": f"http://a.com/{i}", "source": "rss", "score": 50, "labels": []}
+            {
+                "title": f"Article {i}",
+                "url": f"http://a.com/{i}",
+                "source": "rss",
+                "score": 50,
+                "labels": [],
+            }
             for i in range(MonitorService._MAX_SCORED_ITEMS + 1)
         ]
 
         # Simulate what _execute_task does after appending
         if len(service._scored_items) > service._MAX_SCORED_ITEMS:
-            service._scored_items = service._scored_items[MonitorService._MAX_SCORED_ITEMS // 2:]
+            service._scored_items = service._scored_items[MonitorService._MAX_SCORED_ITEMS // 2 :]
 
         # Should be trimmed to the newer half
         assert len(service._scored_items) <= MonitorService._MAX_SCORED_ITEMS
         # The remaining items should be the newer ones (higher indices)
-        assert service._scored_items[0]["title"] == f"Article {MonitorService._MAX_SCORED_ITEMS // 2}"
+        assert (
+            service._scored_items[0]["title"] == f"Article {MonitorService._MAX_SCORED_ITEMS // 2}"
+        )
 
 
 class TestExecuteTaskIntegration:
@@ -315,6 +383,7 @@ class TestExecuteTaskIntegration:
         service = MonitorService(SAMPLE_CONFIG)
         # Need an event loop semaphore
         import asyncio
+
         service._semaphore = asyncio.Semaphore(service._max_in_flight)
 
         task = TaskPayload(

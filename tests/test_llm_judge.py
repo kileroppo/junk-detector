@@ -15,7 +15,6 @@ from src.core.llm_judge import (
 )
 from src.models.score import ScoreResult, ScoringConfig
 
-
 # --- Prompt Injection Defense tests ---
 
 
@@ -28,20 +27,22 @@ class TestPromptInjectionDefense:
         """judge() should send messages with role='system' first and role='user' second."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "originality": 75,
-            "info_density": 60,
-            "reasoning_quality": 70,
-            "readability": 80,
-            "timeliness": 50,
-            "ai_generated_prob": 20,
-            "emotional_manipulation": 10,
-            "advertorial_prob": 15,
-            "scam_prob": 5,
-            "summary": "Good",
-            "confidence": 0.85,
-            "labels": [],
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "originality": 75,
+                "info_density": 60,
+                "reasoning_quality": 70,
+                "readability": 80,
+                "timeliness": 50,
+                "ai_generated_prob": 20,
+                "emotional_manipulation": 10,
+                "advertorial_prob": 15,
+                "scam_prob": 5,
+                "summary": "Good",
+                "confidence": 0.85,
+                "labels": [],
+            }
+        )
         mock_response._hidden_params = {}
         mock_acompletion.return_value = mock_response
 
@@ -60,20 +61,22 @@ class TestPromptInjectionDefense:
         """The user message should wrap content in <content_to_evaluate> delimiters."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "originality": 75,
-            "info_density": 60,
-            "reasoning_quality": 70,
-            "readability": 80,
-            "timeliness": 50,
-            "ai_generated_prob": 20,
-            "emotional_manipulation": 10,
-            "advertorial_prob": 15,
-            "scam_prob": 5,
-            "summary": "Good",
-            "confidence": 0.85,
-            "labels": [],
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "originality": 75,
+                "info_density": 60,
+                "reasoning_quality": 70,
+                "readability": 80,
+                "timeliness": 50,
+                "ai_generated_prob": 20,
+                "emotional_manipulation": 10,
+                "advertorial_prob": 15,
+                "scam_prob": 5,
+                "summary": "Good",
+                "confidence": 0.85,
+                "labels": [],
+            }
+        )
         mock_response._hidden_params = {}
         mock_acompletion.return_value = mock_response
 
@@ -92,20 +95,22 @@ class TestPromptInjectionDefense:
         """Injection text in content should only appear in user message, not system."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({
-            "originality": 75,
-            "info_density": 60,
-            "reasoning_quality": 70,
-            "readability": 80,
-            "timeliness": 50,
-            "ai_generated_prob": 20,
-            "emotional_manipulation": 10,
-            "advertorial_prob": 15,
-            "scam_prob": 5,
-            "summary": "Good",
-            "confidence": 0.85,
-            "labels": [],
-        })
+        mock_response.choices[0].message.content = json.dumps(
+            {
+                "originality": 75,
+                "info_density": 60,
+                "reasoning_quality": 70,
+                "readability": 80,
+                "timeliness": 50,
+                "ai_generated_prob": 20,
+                "emotional_manipulation": 10,
+                "advertorial_prob": 15,
+                "scam_prob": 5,
+                "summary": "Good",
+                "confidence": 0.85,
+                "labels": [],
+            }
+        )
         mock_response._hidden_params = {}
         mock_acompletion.return_value = mock_response
 
@@ -241,20 +246,22 @@ def test_default_score_result():
 
 def _make_valid_response_json():
     """Return a valid JSON string for LLM scoring response."""
-    return json.dumps({
-        "originality": 75,
-        "info_density": 60,
-        "reasoning_quality": 70,
-        "readability": 80,
-        "timeliness": 50,
-        "ai_generated_prob": 20,
-        "emotional_manipulation": 10,
-        "advertorial_prob": 15,
-        "scam_prob": 5,
-        "summary": "Good",
-        "confidence": 0.85,
-        "labels": [],
-    })
+    return json.dumps(
+        {
+            "originality": 75,
+            "info_density": 60,
+            "reasoning_quality": 70,
+            "readability": 80,
+            "timeliness": 50,
+            "ai_generated_prob": 20,
+            "emotional_manipulation": 10,
+            "advertorial_prob": 15,
+            "scam_prob": 5,
+            "summary": "Good",
+            "confidence": 0.85,
+            "labels": [],
+        }
+    )
 
 
 def _make_mock_response(content: str, hidden_params=None):
@@ -355,10 +362,18 @@ class TestBuildScoreResultClamping:
     def test_confidence_above_1_is_clamped(self):
         """Confidence > 1.0 is clamped to 1.0."""
         data = {
-            "originality": 75, "info_density": 60, "reasoning_quality": 70,
-            "readability": 80, "timeliness": 50, "ai_generated_prob": 20,
-            "emotional_manipulation": 10, "advertorial_prob": 15, "scam_prob": 5,
-            "summary": "Good", "confidence": 5.0, "labels": [],
+            "originality": 75,
+            "info_density": 60,
+            "reasoning_quality": 70,
+            "readability": 80,
+            "timeliness": 50,
+            "ai_generated_prob": 20,
+            "emotional_manipulation": 10,
+            "advertorial_prob": 15,
+            "scam_prob": 5,
+            "summary": "Good",
+            "confidence": 5.0,
+            "labels": [],
         }
         result = _build_score_result(data, "test-model")
         assert result.confidence == 1.0
@@ -366,10 +381,18 @@ class TestBuildScoreResultClamping:
     def test_confidence_below_0_is_clamped(self):
         """Confidence < 0.0 is clamped to 0.0."""
         data = {
-            "originality": 75, "info_density": 60, "reasoning_quality": 70,
-            "readability": 80, "timeliness": 50, "ai_generated_prob": 20,
-            "emotional_manipulation": 10, "advertorial_prob": 15, "scam_prob": 5,
-            "summary": "Good", "confidence": -0.5, "labels": [],
+            "originality": 75,
+            "info_density": 60,
+            "reasoning_quality": 70,
+            "readability": 80,
+            "timeliness": 50,
+            "ai_generated_prob": 20,
+            "emotional_manipulation": 10,
+            "advertorial_prob": 15,
+            "scam_prob": 5,
+            "summary": "Good",
+            "confidence": -0.5,
+            "labels": [],
         }
         result = _build_score_result(data, "test-model")
         assert result.confidence == 0.0
@@ -377,10 +400,18 @@ class TestBuildScoreResultClamping:
     def test_dimension_above_100_is_clamped(self):
         """Dimension score > 100 is clamped to 100."""
         data = {
-            "originality": 150, "info_density": 60, "reasoning_quality": 70,
-            "readability": 80, "timeliness": 50, "ai_generated_prob": 20,
-            "emotional_manipulation": 10, "advertorial_prob": 15, "scam_prob": 5,
-            "summary": "Good", "confidence": 0.85, "labels": [],
+            "originality": 150,
+            "info_density": 60,
+            "reasoning_quality": 70,
+            "readability": 80,
+            "timeliness": 50,
+            "ai_generated_prob": 20,
+            "emotional_manipulation": 10,
+            "advertorial_prob": 15,
+            "scam_prob": 5,
+            "summary": "Good",
+            "confidence": 0.85,
+            "labels": [],
         }
         result = _build_score_result(data, "test-model")
         assert result.dimensions.originality == 100
@@ -388,10 +419,18 @@ class TestBuildScoreResultClamping:
     def test_dimension_below_0_is_clamped(self):
         """Dimension score < 0 is clamped to 0."""
         data = {
-            "originality": 75, "info_density": 60, "reasoning_quality": 70,
-            "readability": 80, "timeliness": -10, "ai_generated_prob": 20,
-            "emotional_manipulation": 10, "advertorial_prob": 15, "scam_prob": 5,
-            "summary": "Good", "confidence": 0.85, "labels": [],
+            "originality": 75,
+            "info_density": 60,
+            "reasoning_quality": 70,
+            "readability": 80,
+            "timeliness": -10,
+            "ai_generated_prob": 20,
+            "emotional_manipulation": 10,
+            "advertorial_prob": 15,
+            "scam_prob": 5,
+            "summary": "Good",
+            "confidence": 0.85,
+            "labels": [],
         }
         result = _build_score_result(data, "test-model")
         assert result.dimensions.timeliness == 0

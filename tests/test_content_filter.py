@@ -3,11 +3,12 @@
 Verifies that obvious violation categories are detected before LLM scoring.
 Uses parametrize to cover all violation types.
 """
+
 from __future__ import annotations
 
 import pytest
 
-from src.core.content_filter import FilterResult, check_content
+from src.core.content_filter import check_content
 
 
 class TestCheckContent:

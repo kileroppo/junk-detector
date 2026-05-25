@@ -6,15 +6,14 @@ import asyncio
 import hashlib
 import time
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
 
 from src.thunder.models import FeedItem, SourceConfig
-from src.thunder.monitor import ThunderMonitor, _MAX_SEEN_URLS
+from src.thunder.monitor import _MAX_SEEN_URLS, ThunderMonitor
 from src.thunder.sources import RSSSource, WebhookSource
-
 
 # ---------- FeedItem model tests ----------
 
@@ -231,7 +230,9 @@ class TestWebhookSource:
 class TestRSSSource:
     """Tests for the RSSSource."""
 
-    def _make_source(self, name: str = "rss-test", url: str = "https://example.com/feed.xml") -> RSSSource:
+    def _make_source(
+        self, name: str = "rss-test", url: str = "https://example.com/feed.xml"
+    ) -> RSSSource:
         config = SourceConfig(name=name, type="rss", url=url, poll_interval_seconds=60)
         return RSSSource(config)
 
@@ -331,7 +332,10 @@ class TestRSSSource:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.text = rss_xml
-        mock_response.headers = {"etag": '"new-etag"', "last-modified": "Tue, 02 Jan 2024 00:00:00 GMT"}
+        mock_response.headers = {
+            "etag": '"new-etag"',
+            "last-modified": "Tue, 02 Jan 2024 00:00:00 GMT",
+        }
         mock_response.raise_for_status = MagicMock()
 
         mock_client = AsyncMock()
@@ -375,7 +379,7 @@ class TestRSSSource:
         assert source._client is None
 
         # Mock start to track it was called, then set a mock client
-        original_start = source.start
+        _original_start = source.start
 
         async def mock_start():
             # Simulate start behavior

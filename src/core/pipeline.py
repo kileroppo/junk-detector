@@ -7,7 +7,7 @@ Each stage is a callable that transforms a PipelineContext.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable
+from typing import Any, Awaitable, Callable
 
 from src.models.score import Content, ScoreResult, ScoringConfig
 
@@ -110,11 +110,11 @@ def build_default_pipeline() -> ScoringPipeline:
         5. postprocess — apply metadata adjustments, persist results
     """
     from src.core.pipeline_stages import (
-        extract_stage,
         enrich_stage,
+        extract_stage,
+        postprocess_stage,
         preprocess_stage,
         score_stage,
-        postprocess_stage,
     )
 
     pipeline = ScoringPipeline()

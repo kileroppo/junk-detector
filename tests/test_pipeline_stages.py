@@ -3,6 +3,7 @@
 Covers extract_stage, enrich_stage, preprocess_stage, score_stage, and postprocess_stage
 with mocked dependencies to avoid actual I/O, API calls, and DB writes.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -11,7 +12,6 @@ import pytest
 
 from src.core.pipeline import PipelineContext
 from src.models.score import Content, DimensionScores, ScoreResult, ScoringConfig
-
 
 # --- Fixtures ---
 
@@ -260,9 +260,7 @@ class TestPreprocessStage:
     async def test_short_text_flags_metadata(self, text_ctx):
         from src.core.pipeline_stages import preprocess_stage
 
-        text_ctx.content = Content(
-            input_type="text", text="Short text", content_hash="h"
-        )
+        text_ctx.content = Content(input_type="text", text="Short text", content_hash="h")
 
         result = await preprocess_stage(text_ctx)
 
@@ -405,9 +403,7 @@ class TestScoreStage:
 
         await score_stage(text_ctx)
 
-        mock_score.assert_called_once_with(
-            "some text", config=text_ctx.config, language="en"
-        )
+        mock_score.assert_called_once_with("some text", config=text_ctx.config, language="en")
 
 
 # --- postprocess_stage tests ---

@@ -12,7 +12,7 @@ from datetime import datetime
 import httpx
 import litellm
 
-from src.core.prompt_loader import get_prompt_template, get_system_prompt
+from src.core.prompt_loader import get_system_prompt
 from src.models.score import DimensionScores, ScoreResult, ScoringConfig
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,9 @@ def _build_score_result(data: dict, model: str) -> ScoreResult:
         readability=_clamp_score(data["readability"], "readability"),
         timeliness=_clamp_score(data["timeliness"], "timeliness"),
         ai_generated_prob=_clamp_score(data["ai_generated_prob"], "ai_generated_prob"),
-        emotional_manipulation=_clamp_score(data["emotional_manipulation"], "emotional_manipulation"),
+        emotional_manipulation=_clamp_score(
+            data["emotional_manipulation"], "emotional_manipulation"
+        ),
         advertorial_prob=_clamp_score(data["advertorial_prob"], "advertorial_prob"),
         scam_prob=_clamp_score(data["scam_prob"], "scam_prob"),
     )
@@ -152,9 +154,7 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
             }
             # If using Ollama, pass api_base
             if model.startswith("ollama/"):
-                kwargs["api_base"] = os.environ.get(
-                    "OLLAMA_API_BASE", "http://localhost:11434"
-                )
+                kwargs["api_base"] = os.environ.get("OLLAMA_API_BASE", "http://localhost:11434")
             # Also use api_base from config if set
             elif hasattr(config, "api_base") and config.api_base:
                 kwargs["api_base"] = config.api_base
@@ -190,10 +190,7 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
         except Exception as e:
             last_error = e
             # Check if it's a timeout error - retry if attempts remain
-            is_timeout = (
-                isinstance(e, httpx.TimeoutException)
-                or "timeout" in str(e).lower()
-            )
+            is_timeout = isinstance(e, httpx.TimeoutException) or "timeout" in str(e).lower()
             if is_timeout and attempt < max_attempts - 1:
                 logger.warning(
                     "Timeout on attempt %d/%d, retrying in 1s: %s",
@@ -207,7 +204,5 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
             break
 
     # All attempts failed — return low-confidence default
-    logger.error(
-        "All attempts to score content failed. Last error: %s", last_error
-    )
+    logger.error("All attempts to score content failed. Last error: %s", last_error)
     return _default_score_result(model)
