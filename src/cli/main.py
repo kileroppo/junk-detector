@@ -937,5 +937,122 @@ def monitor_stats(
     console.print()
 
 
+@app.command()
+def feedback(
+    id: Optional[str] = typer.Option(None, "--id", help="Content hash (or prefix, at least 8 chars) to look up"),
+    verdict: Optional[str] = typer.Option(None, "--verdict", help="User verdict: junk, ok, or excellent"),
+    stats: bool = typer.Option(False, "--stats", help="Show calibration statistics"),
+    suggest: bool = typer.Option(False, "--suggest", help="Show rule update suggestions"),
+) -> None:
+    """Record feedback on scored content or view calibration stats."""
+    from src.core.calibration import (
+        VALID_VERDICTS,
+        get_calibration_stats,
+        record_feedback as cal_record_feedback,
+        suggest_rule_updates,
+    )
+
+    # Show calibration stats
+    if stats:
+        cal_stats = get_calibration_stats()
+        table = Table(title="Calibration Statistics")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", justify="right")
+        table.add_row("Total Feedback", str(cal_stats["total_feedback_count"]))
+        table.add_row("Agreement Rate", f"{cal_stats['agreement_rate']:.1f}%")
+        table.add_row("False Positives", str(cal_stats["false_positives"]))
+        table.add_row("False Negatives", str(cal_stats["false_negatives"]))
+        console.print()
+        console.print(table)
+        console.print()
+        return
+
+    # Show rule update suggestions
+    if suggest:
+        suggestions = suggest_rule_updates()
+        console.print()
+        console.print("[bold]Rule Update Suggestions[/bold]")
+        console.print("━" * 40)
+        keywords = suggestions.get("suggested_keywords", [])
+        removals = suggestions.get("suggested_removals", [])
+        if keywords:
+            console.print()
+            console.print("[green]Suggested keywords to add:[/green]")
+            for kw in keywords:
+                console.print(f"  + {kw}")
+        if removals:
+            console.print()
+            console.print("[yellow]Suggested keywords to remove:[/yellow]")
+            for kw in removals:
+                console.print(f"  - {kw}")
+        if not keywords and not removals:
+            console.print()
+            console.print("[dim]No suggestions available. Record more feedback first.[/dim]")
+        console.print()
+        return
+
+    # Record feedback mode: --id is required
+    if id is None:
+        console.print("❌ Error: --id is required when recording feedback", style="bold red")
+        raise typer.Exit(code=1)
+
+    if verdict is None:
+        console.print("❌ Error: --verdict is required when --id is provided", style="bold red")
+        raise typer.Exit(code=1)
+
+    if verdict not in VALID_VERDICTS:
+        console.print(
+            f"❌ Error: invalid verdict '{verdict}'. Must be one of: {', '.join(VALID_VERDICTS)}",
+            style="bold red",
+        )
+        raise typer.Exit(code=1)
+
+    if len(id) < 8:
+        console.print("❌ Error: --id must be at least 8 characters", style="bold red")
+        raise typer.Exit(code=1)
+
+    # Look up score by content_hash prefix
+    from src.storage.db import _ensure_initialized, _get_connection
+
+    db_path = "junk_detector.db"
+    _ensure_initialized(db_path)
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "SELECT content_hash, title, overall_score FROM scores WHERE content_hash LIKE ?",
+            (f"{id}%",),
+        )
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        console.print(f"❌ Error: no score found matching hash prefix '{id}'", style="bold red")
+        raise typer.Exit(code=1)
+
+    if len(rows) > 1:
+        console.print(
+            f"❌ Error: multiple scores match prefix '{id}'. Use a longer prefix.",
+            style="bold red",
+        )
+        raise typer.Exit(code=1)
+
+    row = rows[0]
+    content_hash = row["content_hash"]
+    title = row["title"] or "Untitled"
+    overall_score = row["overall_score"]
+
+    # Record the feedback
+    cal_record_feedback(content_hash, verdict, db_path=db_path)
+
+    console.print()
+    console.print("[green]Feedback recorded successfully![/green]")
+    console.print(f"  Content: {title}")
+    console.print(f"  Hash:    {content_hash[:16]}...")
+    console.print(f"  Score:   {overall_score:.0f}")
+    console.print(f"  Verdict: {verdict}")
+    console.print()
+
+
 if __name__ == "__main__":
     app()
