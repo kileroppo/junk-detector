@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import signal
 import socket
 import sys
@@ -136,6 +137,39 @@ def _pretty_print_result(result: ScoreResult, content: Content) -> None:
 
 
 # ---------------------------------------------------------------------------
+# API Key Validation
+# ---------------------------------------------------------------------------
+
+
+def _validate_api_key(model_name: str) -> None:
+    """Check that the required API key env var is set for the given model.
+
+    Raises typer.Exit(code=1) with a helpful message if the key is missing.
+    Models containing 'ollama' do not require an API key.
+    """
+    model_lower = model_name.lower()
+
+    if "ollama" in model_lower:
+        return
+
+    key_map: list[tuple[list[str], str]] = [
+        (["deepseek"], "DEEPSEEK_API_KEY"),
+        (["openai", "gpt"], "OPENAI_API_KEY"),
+        (["anthropic", "claude"], "ANTHROPIC_API_KEY"),
+    ]
+
+    for keywords, env_var in key_map:
+        if any(kw in model_lower for kw in keywords):
+            if not os.environ.get(env_var):
+                console.print(
+                    f"❌ {env_var} not set. Run: export {env_var}=your-key",
+                    style="bold red",
+                )
+                raise typer.Exit(code=1)
+            return
+
+
+# ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
 
@@ -174,7 +208,13 @@ def score(
         from src.core.scorer import score as do_score
 
         config = load_config(override_model=model)
+
+        # Pre-check: validate API key for the configured model
+        _validate_api_key(config.primary_model)
+
         result: ScoreResult = asyncio.run(do_score(content.text, config=config))
+    except typer.Exit:
+        raise
     except Exception as exc:
         console.print(f"❌ 评分失败: {exc}", style="bold red")
         raise typer.Exit(code=1)
