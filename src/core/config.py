@@ -13,6 +13,8 @@ import yaml
 
 from src.models.score import ScoringConfig
 
+_cached_yaml: dict | None = None
+
 
 def _find_config_file() -> Path | None:
     """Find config.yaml in cwd or project root (where pyproject.toml lives)."""
@@ -30,7 +32,15 @@ def _find_config_file() -> Path | None:
 
 
 def _load_yaml() -> dict[str, Any]:
-    """Load and parse config.yaml, returning empty dict if not found."""
+    """Load and parse config.yaml, returning empty dict if not found.
+
+    Uses a module-level cache to avoid repeated disk reads.
+    Call reload_config() to clear the cache.
+    """
+    global _cached_yaml
+    if _cached_yaml is not None:
+        return _cached_yaml
+
     config_path = _find_config_file()
     if config_path is None:
         return {}
@@ -38,7 +48,15 @@ def _load_yaml() -> dict[str, Any]:
     with open(config_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
-    return data if isinstance(data, dict) else {}
+    result = data if isinstance(data, dict) else {}
+    _cached_yaml = result
+    return result
+
+
+def reload_config() -> None:
+    """Clear the cached config, forcing a re-read from disk on next access."""
+    global _cached_yaml
+    _cached_yaml = None
 
 
 def get_model_config(override_model: str | None = None) -> dict[str, Any]:

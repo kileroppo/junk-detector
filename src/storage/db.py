@@ -68,6 +68,22 @@ def init_db(db_path: str = "junk_detector.db") -> None:
             conn.execute(_ADD_EMBEDDING_COLUMN_SQL)
             conn.commit()
 
+        # Migration: add user_id column
+        if "user_id" not in columns:
+            conn.execute("ALTER TABLE scores ADD COLUMN user_id INTEGER;")
+            conn.commit()
+
+        # Migration: add cached_at column
+        if "cached_at" not in columns:
+            conn.execute("ALTER TABLE scores ADD COLUMN cached_at TEXT;")
+            conn.commit()
+
+        # Migration: add index on source_url
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scores_source_url ON scores(source_url)"
+        )
+        conn.commit()
+
         _initialized_dbs.add(db_path)
     finally:
         conn.close()
@@ -304,5 +320,32 @@ def get_all_embeddings(db_path: str = "junk_detector.db") -> list[dict]:
                 }
             )
         return results
+    finally:
+        conn.close()
+
+
+def query_by_domain(domain: str, db_path: str = "junk_detector.db") -> list[float]:
+    """Query overall_score values for all records matching a domain.
+
+    Uses SQL LIKE to filter by domain in source_url, avoiding
+    loading all rows into Python.
+
+    Args:
+        domain: The domain to search for (e.g. "example.com").
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        List of overall_score floats for matching records.
+    """
+    _ensure_initialized(db_path)
+
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "SELECT overall_score FROM scores WHERE source_url LIKE ?",
+            (f"%{domain}%",),
+        )
+        rows = cursor.fetchall()
+        return [row["overall_score"] for row in rows]
     finally:
         conn.close()

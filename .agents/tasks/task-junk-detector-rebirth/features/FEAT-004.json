@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Phase 4 (Core Enhancements): Expand rules engine to 200+ keywords, add result caching with 7-day TTL, optimize source reputation SQL, cache config.yaml at startup, add LLM output validation, create .env.example, and improve health check endpoint.",
+  "status": "in_progress",
+  "steps": [
+    "Expand the rules engine in src/core/rules.py: Add 150+ new keywords across categories. SCAM: add cryptocurrency scam patterns (虚拟币, 币圈, 区块链投资, 数字货币, 挖矿赚钱, 合约交易), fake investment (理财课, 投资课程, 保本收益, 年化收益, 高收益零风险), MLM keywords (下线, 团队奖励, 推荐奖, 层级, 发展会员). EMOTIONAL: add more anxiety patterns (不看后悔, 太晚了, 错过就没了, 限时紧急, 最后机会), FOMO phrases (别人都在, 全网疯传, 爆款, 百万人都在用), clickbait templates (揭秘, 内幕, 真相, 惊人发现). ADVERTORIAL: add affiliate marketing (返利, 佣金, 分销, 带货, 种草, 好物推荐, 安利), influencer patterns (亲测有效, 良心推荐, 回购无数次, 闭眼入). SOURCE: add spam domain patterns for URL-based detection.",
+    "Add result caching by content_hash with 7-day TTL in src/core/scorer.py: At the start of score(), compute content_hash from content_text, check DB for existing result with scored_at within 7 days. If found, return the cached ScoreResult directly (skip all LLM calls). Use the query_by_content_hash function from db.py (added in Phase 2). Add 'cached_at' tracking to distinguish fresh vs cached results. Add a 'from_cache' field or set model_used='cache' when returning cached results.",
+    "Add schema changes to src/storage/db.py: Add migration to add 'user_id INTEGER' column, add index on source_url, add 'cached_at TEXT' column. Add these in init_db migration logic (check if columns exist before adding, same pattern as embedding_json migration).",
+    "Optimize source reputation in src/core/hydrators.py hydrate_source_reputation(): Replace the pattern of loading 1000 rows and filtering in Python with a direct SQL query. Add a new function to src/storage/db.py called query_by_domain(domain, db_path) that uses 'SELECT overall_score FROM scores WHERE source_url LIKE ?' with '%domain%' pattern. Use this in hydrate_source_reputation instead of the current load-all-filter approach. Also update source_reputation.py check_auto_blacklist() to use the same optimized query.",
+    "Cache config.yaml at startup: In src/core/config.py, add module-level _cached_config variable. Load config.yaml once on first call to _load_yaml() and cache it. Add reload_config() function that clears the cache and forces re-read from disk. Update load_config() to use the cached version.",
+    "Add output validation in src/core/scorer.py: After LLM returns result (after step 3 judge call), check if ALL dimension scores are exactly 100 (or all exactly 0) and confidence is 1.0 - this is suspicious (possible prompt injection). If detected, log a warning and return a low-confidence default result with model_used='validation_rejected'. Also check if all positive dimensions are 100 and all negative are 0 (or vice versa) as another suspicious pattern.",
+    "Create .env.example at project root documenting all env vars: DEEPSEEK_API_KEY (required if using deepseek model), OPENAI_API_KEY (optional), ANTHROPIC_API_KEY (optional), OLLAMA_API_BASE (default http://localhost:11434), JUNK_DETECTOR_MODEL (override active model preset), JWT_SECRET (for production auth). Include comments explaining each.",
+    "Improve health check in src/api/app.py: Change GET /health to ping the configured LLM API with a minimal request (litellm.acompletion with max_tokens=1, a trivial prompt). On success return {status: 'ok', llm_status: 'connected'}. On failure return {status: 'degraded', llm_status: 'unreachable', error: str}. Add a 5-second timeout for the health check LLM call. Make LLM check optional with a query param ?deep=true (default is shallow/fast check that just returns ok).",
+    "Run existing tests to verify nothing is broken: pytest tests/ -v"
+  ],
+  "acceptance_criteria": [
+    "rules.py contains 200+ total keywords across all categories (sum of all keyword lists)",
+    "Repeated scoring of same content within 7 days returns cached result without LLM call",
+    "DB schema includes user_id column, source_url index, and cached_at column",
+    "hydrate_source_reputation uses SQL WHERE clause instead of loading all rows",
+    "config.yaml is loaded once and cached; reload_config() forces re-read",
+    "Suspicious LLM outputs (all 100s) are caught and rejected with low confidence",
+    ".env.example exists with documented env vars",
+    "GET /health?deep=true attempts to ping LLM API",
+    "All existing tests still pass"
+  ],
+  "verification": [
+    "python -c 'from src.core.rules import _SCAM_KEYWORDS, _ANXIETY_PHRASES, _ADVERTORIAL_KEYWORDS; print(f\"Total keywords: {len(_SCAM_KEYWORDS) + len(_ANXIETY_PHRASES) + len(_ADVERTORIAL_KEYWORDS)}\")'",
+    "python -c 'from src.core.config import reload_config; reload_config()'",
+    "python -c 'from src.storage.db import query_by_content_hash, query_by_domain'",
+    "test -f .env.example && echo 'exists'",
+    "pytest tests/ -v --tb=short"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

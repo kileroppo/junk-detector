@@ -34,8 +34,6 @@ async def hydrate_source_reputation(
         - source_reputation: average overall_score for this domain (0-100, or None)
         - source_article_count: number of previously scored articles from this domain
     """
-    from src.storage.db import query as db_query
-
     result: dict[str, Any] = {
         "source_domain": None,
         "source_reputation": None,
@@ -65,23 +63,8 @@ async def hydrate_source_reputation(
 
     # Query all scores from this domain
     try:
-        # Get a generous limit of historical scores for this domain
-        all_scores = await asyncio.to_thread(db_query, None, 1000, db_path)
-
-        # Filter to same domain
-        domain_scores = []
-        for record in all_scores:
-            record_url = record.get("source_url", "")
-            if not record_url:
-                continue
-            try:
-                record_domain = urlparse(record_url).netloc.lower()
-                if record_domain.startswith("www."):
-                    record_domain = record_domain[4:]
-                if record_domain == domain:
-                    domain_scores.append(record["overall_score"])
-            except Exception:
-                continue
+        from src.storage.db import query_by_domain
+        domain_scores = await asyncio.to_thread(query_by_domain, domain, db_path)
 
         if domain_scores:
             result["source_reputation"] = round(

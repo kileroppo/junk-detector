@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 import yaml
 
@@ -97,8 +96,6 @@ def check_auto_blacklist(domain: str, db_path: str = "junk_detector.db", config_
 
     Does NOT modify config.yaml — this is a runtime check only.
     """
-    from src.storage.db import query as db_query
-
     sources = _load_sources_config(config_path)
     auto_config = sources.get("auto_blacklist", {})
 
@@ -114,21 +111,8 @@ def check_auto_blacklist(domain: str, db_path: str = "junk_detector.db", config_
 
     # Query all scores and filter by domain
     try:
-        all_scores = db_query(filters=None, limit=1000, db_path=db_path)
-
-        domain_scores = []
-        for record in all_scores:
-            record_url = record.get("source_url", "")
-            if not record_url:
-                continue
-            try:
-                record_domain = urlparse(record_url).netloc.lower()
-                if record_domain.startswith("www."):
-                    record_domain = record_domain[4:]
-                if record_domain == normalized:
-                    domain_scores.append(record["overall_score"])
-            except Exception:
-                continue
+        from src.storage.db import query_by_domain
+        domain_scores = query_by_domain(normalized, db_path=db_path)
 
         if len(domain_scores) >= min_articles:
             avg_score = sum(domain_scores) / len(domain_scores)

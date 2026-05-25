@@ -96,9 +96,32 @@ class ScoreRequest(BaseModel):
 
 
 @app.get("/health")
-async def health():
-    """Health check endpoint."""
-    return {"status": "ok"}
+async def health(deep: bool = False):
+    """Health check endpoint.
+
+    Args:
+        deep: If True, attempts a minimal LLM API call to verify connectivity.
+    """
+    if not deep:
+        return {"status": "ok"}
+
+    # Deep health check: ping the LLM API
+    try:
+        import litellm
+        from src.core.config import get_model_config
+
+        model_cfg = get_model_config()
+        primary_model = model_cfg["primary"]
+
+        await litellm.acompletion(
+            model=primary_model,
+            messages=[{"role": "user", "content": "hi"}],
+            max_tokens=1,
+            timeout=5.0,
+        )
+        return {"status": "ok", "llm_status": "connected"}
+    except Exception as e:
+        return {"status": "degraded", "llm_status": "unreachable", "error": str(e)}
 
 
 @app.post("/score", response_model=ScoreResult)

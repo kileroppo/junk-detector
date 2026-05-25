@@ -6,7 +6,9 @@ Implements tiered model strategy: rules → cheap model → expensive model for 
 
 from __future__ import annotations
 
+import hashlib
 import logging
+from datetime import datetime, timedelta, timezone
 
 from src.core.llm_judge import judge
 from src.core.platform_profiles import (
@@ -133,6 +135,33 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
             rule_hits=filter_result.matched_patterns,
         )
 
+    # Cache check: return cached result if scored within 7 days
+    content_hash = hashlib.sha256(content_text.encode()).hexdigest()
+    try:
+        from src.storage.db import query_by_content_hash
+        cached = query_by_content_hash(content_hash)
+        if cached:
+            scored_at_str = cached.get("scored_at", "")
+            if scored_at_str:
+                scored_at_dt = datetime.fromisoformat(scored_at_str)
+                if scored_at_dt.tzinfo is None:
+                    scored_at_dt = scored_at_dt.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
+                if now - scored_at_dt < timedelta(days=7):
+                    logger.info("Returning cached result (content_hash=%s)", content_hash[:12])
+                    return ScoreResult(
+                        overall_score=cached["overall_score"],
+                        dimensions=DimensionScores(**cached["dimensions"]),
+                        labels=cached.get("labels", []),
+                        summary=cached.get("summary", ""),
+                        confidence=cached.get("confidence", 1.0),
+                        model_used="cache",
+                        cost=0.0,
+                        rule_hits=cached.get("rule_hits", []),
+                    )
+    except Exception as e:
+        logger.debug("Cache lookup failed: %s", e)
+
     # FastClassifier pre-screen — skip LLM for high-confidence predictions
     try:
         from src.core.fast_classifier import classify_fast
@@ -233,6 +262,37 @@ async def score(content_text: str, config: ScoringConfig | None = None, source_u
                     "Fallback model confidence=%.2f, using fallback result",
                     fallback_result.confidence,
                 )
+
+        # 4.5. Output validation: detect suspicious LLM outputs
+        dims = result.dimensions
+        positive_dims = [dims.originality, dims.info_density, dims.reasoning_quality, dims.readability, dims.timeliness]
+        negative_dims = [dims.ai_generated_prob, dims.emotional_manipulation, dims.advertorial_prob, dims.scam_prob]
+        all_dims = positive_dims + negative_dims
+
+        suspicious = False
+        if all(d == 100 for d in all_dims):
+            suspicious = True
+        elif all(d == 0 for d in all_dims):
+            suspicious = True
+        elif all(d >= 98 for d in positive_dims) and all(d <= 2 for d in negative_dims):
+            suspicious = True
+
+        if suspicious:
+            logger.warning(
+                "Suspicious LLM output detected (possible prompt injection): dims=%s",
+                all_dims,
+            )
+            result = ScoreResult(
+                overall_score=50.0,
+                dimensions=result.dimensions,
+                labels=[],
+                summary="LLM输出异常，可能存在prompt注入",
+                confidence=0.1,
+                model_used="validation_rejected",
+                cost=result.cost,
+                rule_hits=[],
+            )
+            return result
 
         # 5. Apply rule overrides (high confidence rules override LLM dimensions)
         for dim, score_val in rule_result.dimension_overrides.items():
