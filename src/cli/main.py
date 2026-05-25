@@ -355,6 +355,179 @@ def quick(
 
 
 @app.command()
+def batch(
+    urls_file: Optional[str] = typer.Option(None, "--urls-file", help="Path to a file with one URL per line"),
+    stdin: bool = typer.Option(False, "--stdin", help="Read URLs from stdin"),
+    fast: bool = typer.Option(True, "--fast/--no-fast", help="Use fast 4-dimension scoring (default: True)"),
+    json_output: bool = typer.Option(False, "--json", help="Output JSON array instead of table"),
+) -> None:
+    """Batch score multiple URLs concurrently."""
+
+    # Validate: exactly one input source
+    if not urls_file and not stdin:
+        console.print("❌ 错误: 必须指定 --urls-file 或 --stdin 中的一个", style="bold red")
+        raise typer.Exit(code=1)
+    if urls_file and stdin:
+        console.print("❌ 错误: 只能指定 --urls-file 或 --stdin 中的一个", style="bold red")
+        raise typer.Exit(code=1)
+
+    # Read URLs
+    if urls_file:
+        path = Path(urls_file)
+        if not path.exists():
+            console.print(f"❌ 错误: 文件不存在: {urls_file}", style="bold red")
+            raise typer.Exit(code=1)
+        raw_lines = path.read_text(encoding="utf-8").splitlines()
+    else:
+        raw_lines = sys.stdin.read().splitlines()
+
+    # Filter empty lines and comments
+    urls = [line.strip() for line in raw_lines if line.strip() and not line.strip().startswith("#")]
+
+    if not urls:
+        console.print("📭 没有需要评分的 URL", style="dim")
+        return
+
+    # Run batch scoring
+    results = asyncio.run(_batch_score(urls, fast=fast))
+
+    # Output
+    if json_output:
+        _batch_json_output(results)
+    else:
+        _batch_table_output(results)
+
+
+async def _batch_score(urls: list[str], *, fast: bool = True) -> list[dict]:
+    """Score multiple URLs concurrently with max 3 in-flight."""
+    from src.extractors.web import extract_from_url
+
+    semaphore = asyncio.Semaphore(3)
+
+    async def _score_one(url: str) -> dict:
+        async with semaphore:
+            try:
+                content = await extract_from_url(url)
+            except Exception as exc:
+                return {"url": url, "score": None, "verdict": "ERROR", "labels": [], "summary": "", "error": str(exc)}
+
+            try:
+                if fast:
+                    from src.core.fast_scorer import score_fast
+
+                    result = await score_fast(content.text)
+                    return {
+                        "url": url,
+                        "score": result.quick_verdict,
+                        "verdict": _batch_verdict_text(result.quick_verdict),
+                        "labels": [],
+                        "summary": result.summary,
+                        "error": None,
+                    }
+                else:
+                    from src.core.scorer import score as do_score
+
+                    result = await do_score(content.text)
+                    return {
+                        "url": url,
+                        "score": result.overall_score,
+                        "verdict": _batch_verdict_text(result.overall_score),
+                        "labels": result.labels,
+                        "summary": result.summary,
+                        "error": None,
+                    }
+            except Exception as exc:
+                return {"url": url, "score": None, "verdict": "ERROR", "labels": [], "summary": "", "error": str(exc)}
+
+    tasks = [_score_one(url) for url in urls]
+    return await asyncio.gather(*tasks)
+
+
+def _batch_verdict_text(score: float) -> str:
+    """Return verdict string based on score."""
+    if score > 60:
+        return "OK"
+    elif score >= 40:
+        return "CAUTION"
+    else:
+        return "JUNK"
+
+
+def _batch_verdict_emoji(score: float) -> str:
+    """Return verdict emoji + text based on score."""
+    if score > 60:
+        return "\u2705 \u6b63\u5e38"
+    elif score >= 40:
+        return "\u26a0\ufe0f \u6ce8\u610f"
+    else:
+        return "\U0001f6a8 \u5783\u573e"
+
+
+def _batch_table_output(results: list[dict]) -> None:
+    """Print batch results as a Rich table."""
+    table = Table(title="批量评分结果", show_lines=False)
+    table.add_column("URL", max_width=40, overflow="ellipsis")
+    table.add_column("Score", justify="right", width=6)
+    table.add_column("Verdict", width=10)
+    table.add_column("Summary", max_width=30, overflow="ellipsis")
+
+    for item in results:
+        url_display = item["url"]
+        if len(url_display) > 40:
+            url_display = url_display[:37] + "..."
+
+        if item["error"]:
+            error_msg = item["error"]
+            if len(error_msg) > 30:
+                error_msg = error_msg[:27] + "..."
+            table.add_row(url_display, "--", "\u274c \u5931\u8d25", error_msg)
+        else:
+            score_val = item["score"]
+            color = _score_color(score_val)
+            score_text = Text(f"{score_val:.0f}", style=color)
+            verdict = _batch_verdict_emoji(score_val)
+            summary = item["summary"] or ""
+            if len(summary) > 30:
+                summary = summary[:27] + "..."
+            table.add_row(url_display, score_text, verdict, summary)
+
+    console.print()
+    console.print(table)
+
+    # Summary line
+    total = len(results)
+    scored = [r for r in results if r["score"] is not None]
+    avg = sum(r["score"] for r in scored) / len(scored) if scored else 0
+    junk_count = sum(1 for r in scored if r["score"] < 40)
+    caution_count = sum(1 for r in scored if 40 <= r["score"] <= 60)
+    ok_count = sum(1 for r in scored if r["score"] > 60)
+
+    console.print(
+        f"\n\u5171 {total} \u7bc7 | \u5e73\u5747\u5206: {avg:.0f} | "
+        f"\U0001f6a8 \u5783\u573e: {junk_count} | \u26a0\ufe0f \u6ce8\u610f: {caution_count} | \u2705 \u6b63\u5e38: {ok_count}"
+    )
+    console.print()
+
+
+def _batch_json_output(results: list[dict]) -> None:
+    """Print batch results as JSON array."""
+    output = []
+    for item in results:
+        entry: dict = {"url": item["url"]}
+        if item["error"]:
+            entry["score"] = None
+            entry["verdict"] = "ERROR"
+            entry["error"] = item["error"]
+        else:
+            entry["score"] = item["score"]
+            entry["verdict"] = item["verdict"]
+            entry["labels"] = item["labels"]
+            entry["summary"] = item["summary"]
+        output.append(entry)
+    typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
+
+
+@app.command()
 def history(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of records to show"),
     min_score: Optional[float] = typer.Option(None, "--min-score", help="Filter by minimum overall score"),
