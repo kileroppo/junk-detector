@@ -13,3 +13,7 @@ build/
 
 ./ai-system
 
+.agents/
+.coverage
+.python-version
+
