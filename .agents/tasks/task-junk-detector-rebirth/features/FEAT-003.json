@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Phase 3 (Test Coverage): Create 10 test files + conftest.py with 50+ test cases. All tests mock external dependencies (LiteLLM, httpx, filesystem). Use pytest-asyncio with asyncio_mode='auto' (already configured in pyproject.toml). Use parametrize for rule engine tests.",
+  "status": "completed",
+  "steps": [
+    "Create tests/conftest.py with shared fixtures: mock_llm_response (returns a dict matching DimensionScores structure), sample_junk_text (known bad: contains scam keywords), sample_good_text (high quality article), tmp_db_path (temp SQLite path using tmp_path), mock_config (ScoringConfig with test defaults). Use unittest.mock.patch or pytest-mock.",
+    "Create tests/test_rules.py: Test apply_rules() with parametrize. Test cases: (1) scam keywords (3+ triggers scam_prob>=95), (2) single scam keyword (scam_prob>=75), (3) emotional manipulation (excessive punctuation + anxiety phrases), (4) advertorial (promo keywords + links), (5) AI-generated signals, (6) clean text (no rules fire), (7) combined signals (multiple categories fire). At least 10 parametrized cases.",
+    "Create tests/test_scorer.py: Mock litellm.acompletion to return a fake JSON response. Test: (1) rules-only path (all dimensions covered skips LLM), (2) LLM is called when rules don't cover all dimensions, (3) fallback model triggered on low confidence, (4) cost accumulation is correct after fallback, (5) content_filter rejection returns score 0. At least 6 test cases.",
+    "Create tests/test_api.py: Use FastAPI TestClient (from fastapi.testclient). Test: (1) GET /health returns 200, (2) POST /score with text returns ScoreResult (mock scorer.score), (3) POST /score with empty body returns 422, (4) POST /score with text exceeding max_length returns 422, (5) GET /history returns list. Mock the scorer and DB calls. At least 5 test cases.",
+    "Create tests/test_dedup.py: Test TTLCache and should_score. Test: (1) first call returns True, (2) immediate second call returns False, (3) after TTL expires returns True again (mock time.time), (4) cache respects maxsize eviction, (5) reset_cache works. At least 5 test cases.",
+    "Create tests/test_extract.py: Mock httpx.AsyncClient.get to return fake HTML responses. Test: (1) extract_from_url parses title and body from HTML, (2) handles missing title gracefully, (3) extract_from_text creates Content with correct hash, (4) handles connection error gracefully. At least 4 test cases.",
+    "Create tests/test_content_filter.py: Test check_content(). Use parametrize. Test: (1) clean text passes, (2) gambling keywords (2+) rejected, (3) pornographic keywords rejected, (4) violence keywords rejected, (5) drug keywords rejected, (6) phishing (phrase + URL) rejected, (7) single gambling keyword passes (needs 2). At least 7 test cases.",
+    "Create tests/test_pipeline.py: Test ScoringPipeline class from src.core.pipeline. Test: (1) stages execute in order, (2) critical stage failure (extract) halts pipeline, (3) non-critical stage failure continues, (4) add_stage/remove_stage/replace_stage work, (5) context carries data between stages. Mock all stage functions. At least 5 test cases.",
+    "Create tests/test_config.py: Test load_config and get_model_config from src.core.config. Test: (1) load_config returns ScoringConfig with yaml values when config.yaml exists, (2) get_model_config returns defaults when no config file, (3) env var override for model works (JUNK_DETECTOR_MODEL), (4) missing config file returns defaults gracefully. Mock yaml loading and env vars. At least 4 test cases.",
+    "Create tests/test_fingerprint.py: Test simhash, hamming_distance, similarity_score from src.core.content_fingerprint. Test: (1) identical texts produce same fingerprint, (2) very different texts have high hamming distance, (3) similar texts (minor edits) have low hamming distance, (4) hamming_distance(x, x) == 0, (5) similarity_score ranges [0,1], (6) save_fingerprint + find_similar round-trip (use tmp DB). At least 6 test cases.",
+    "Create tests/test_rate_limit.py: Test SlidingWindowLimiter and _should_rate_limit from src.api.rate_limit. Test: (1) requests within limit are allowed, (2) requests exceeding limit are rejected, (3) after window passes, requests allowed again (mock time.time), (4) /health skips rate limiting, (5) /score is rate limited, (6) per-user isolation (different keys don't interfere). At least 6 test cases."
+  ],
+  "acceptance_criteria": [
+    "tests/conftest.py exists with reusable fixtures",
+    "10 test files exist: test_rules.py, test_scorer.py, test_api.py, test_dedup.py, test_extract.py, test_content_filter.py, test_pipeline.py, test_config.py, test_fingerprint.py, test_rate_limit.py",
+    "pytest tests/ collects 50+ test cases",
+    "All tests pass with pytest tests/ -v",
+    "No test requires real LLM API calls or network access",
+    "Tests use parametrize for rule/filter test cases"
+  ],
+  "verification": [
+    "pip install -e '.[dev]'",
+    "pytest tests/ -v --tb=short",
+    "pytest tests/ --co -q | tail -1"
+  ],
+  "blocked_reason": null,
+  "findings": "All 90 tests pass (well above 50 minimum). Tests use pytest-asyncio auto mode. The API TestClient fixture requires set_api_key fixture (sets DEEPSEEK_API_KEY env var) due to lifespan startup validation. conftest.py includes autouse reset_dedup_cache fixture to prevent cross-test interference. No real network/LLM calls needed."
+}

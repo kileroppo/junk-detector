@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Phase 2 (Bug Fixes): Fix all 8 bugs listed in PRD-REBIRTH.md Phase 2. Includes cost accumulation bug, input validation, timeouts, async SQLite, dedup behavior change, deep copy, user preferences wiring, and startup validation.",
+  "status": "completed",
+  "steps": [
+    "Fix cost accumulation bug in src/core/scorer.py: On line ~145 in the fallback model section, change 'result.cost += result.cost' (which doubles the cost incorrectly). Instead, save the primary cost before reassigning result, then set result.cost = primary_cost + fallback_result.cost.",
+    "Add max_length=50000 to ScoreRequest.text field in src/api/app.py: Change the text field to 'text: Optional[str] = Field(default=None, max_length=50000, description=\"Raw text to score\")'.",
+    "Add timeout=30.0 to LiteLLM calls in src/core/llm_judge.py: In the judge() function, add 'timeout': 30.0 to the kwargs dict passed to litellm.acompletion.",
+    "Wrap synchronous SQLite calls in asyncio.to_thread() for async contexts. In src/core/pipeline_stages.py _save_result(): wrap the db_save() call with 'await asyncio.to_thread(db_save, ctx.result, ctx.content, db_path)'. In postprocess_stage: wrap save_fingerprint call with asyncio.to_thread. For hydrate_source_reputation in src/core/hydrators.py: wrap the db_query call with 'await asyncio.to_thread(db_query, ...)'. For hydrate_article_stats: this is purely in-memory computation, no DB call needed. Add 'import asyncio' to files where needed.",
+    "Change dedup behavior in src/api/app.py: Instead of raising HTTPException(429), when should_score returns False, query the database for the cached result by content_hash. Compute content_hash from request.text or request.url, look up in DB via a new query_by_hash function (or use existing query with content_hash filter). If found, return the cached ScoreResult. If not found, proceed with scoring anyway (the dedup cache says recently scored but no DB record exists yet).",
+    "Add a query_by_content_hash function to src/storage/db.py that takes a content_hash string and returns the matching record (or None). Use 'SELECT * FROM scores WHERE content_hash = ?' query.",
+    "Fix model_copy() to use deep=True in src/core/scorer.py: At line ~104 where 'config = config.model_copy()', change to 'config = config.model_copy(deep=True)'. Also at line ~138 where 'fallback_config = config.model_copy()', change to 'fallback_config = config.model_copy(deep=True)'.",
+    "Wire user preferences into /score endpoint in src/api/app.py: After the content extraction block, if current_user is not None, call PreferencesService.build_scoring_config(current_user.id) to get a user-specific ScoringConfig, and pass it plus the user's language preference to the score() call. Import PreferencesService from src.preferences.service. Also pass source_url=request.url to scorer.score().",
+    "Add startup validation in src/api/app.py: Add a lifespan event (or @app.on_event('startup')) that checks if at least one of DEEPSEEK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY environment variables is set. If none are set and the active model is not 'ollama', log a critical warning and raise RuntimeError('No LLM API key configured'). Import os for env var checks."
+  ],
+  "acceptance_criteria": [
+    "In scorer.py, the cost accumulation correctly tracks primary_cost + fallback_cost (not result.cost += result.cost)",
+    "ScoreRequest.text has max_length=50000 validation",
+    "LiteLLM calls in llm_judge.py include timeout=30.0",
+    "Pipeline _save_result uses asyncio.to_thread for DB writes",
+    "hydrate_source_reputation uses asyncio.to_thread for DB queries",
+    "When dedup cache hits, /score returns cached result from DB instead of 429",
+    "model_copy(deep=True) is used in scorer.py to prevent config dict mutation",
+    "Authenticated users have their preferences applied to scoring config in /score endpoint",
+    "App startup fails fast if no LLM API key is configured (except for ollama)"
+  ],
+  "verification": [
+    "python -c 'from src.api.app import app; from src.core.scorer import score; from src.core.llm_judge import judge'",
+    "python -c 'from src.storage.db import query_by_content_hash'",
+    "grep -n 'timeout' src/core/llm_judge.py | grep 30",
+    "grep -n 'deep=True' src/core/scorer.py",
+    "grep -n 'max_length' src/api/app.py",
+    "grep -n 'to_thread' src/core/pipeline_stages.py",
+    "grep -n 'build_scoring_config' src/api/app.py"
+  ],
+  "blocked_reason": null,
+  "findings": "All 8 bugs fixed successfully. No tests exist in tests/ (only __init__.py). All module imports verified clean. Lifespan validation tested both paths (with key and without key). The db_query call in hydrators uses positional args (filters=None, limit=1000, db_path) to work with asyncio.to_thread."
+}

@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add tests for thunder module (models, sources, monitor) - 219 lines at 0% coverage. Tests FeedItem creation, RSSSource/WebhookSource polling, ThunderMonitor deduplication and lifecycle.",
+  "status": "completed",
+  "steps": [
+    "Create tests/test_thunder.py",
+    "Test FeedItem model: auto-generated id from URL hash, from_rss_entry class method with various entry dicts (with/without link, with/without title, with/without published_parsed)",
+    "Test SourceConfig model: defaults, validation (priority 1-10, poll_interval >= 1)",
+    "Test WebhookSource: start/stop are no-ops, receive() adds items, poll() drains internal queue and returns items, poll() returns empty list when no items",
+    "Test RSSSource: mock httpx to simulate RSS feed response, test poll() parses feedparser output into FeedItem list, test conditional request headers (ETag, If-Modified-Since), test 304 Not Modified returns empty list, test network error returns empty list gracefully",
+    "Test ThunderMonitor._deduplicate: filters already-seen URLs, respects _MAX_SEEN_URLS eviction, adds new URLs to seen set",
+    "Test ThunderMonitor lifecycle: start() creates tasks for each source, stop() cancels tasks and stops sources, stats property returns correct counts",
+    "Test ThunderMonitor._poll_source with mocked source: items are put into output_queue, deduplication prevents duplicates"
+  ],
+  "acceptance_criteria": [
+    "All tests in tests/test_thunder.py pass",
+    "src/thunder/models.py reaches 90%+ coverage",
+    "src/thunder/sources.py reaches 80%+ coverage",
+    "src/thunder/monitor.py reaches 70%+ coverage"
+  ],
+  "verification": [
+    "pytest tests/test_thunder.py -v --cov=src/thunder --cov-report=term-missing"
+  ],
+  "blocked_reason": null,
+  "findings": "All 48 tests pass. Coverage: models.py 100%, sources.py 98%, monitor.py 93%, overall 96%. pytest-asyncio auto mode works well with async def test methods in classes."
+}

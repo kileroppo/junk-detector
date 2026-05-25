@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add tests for the dispatcher module (models, retry, task_queue) - 103 lines at 0% coverage. Pure data models and algorithms with no external dependencies - easiest to test first.",
+  "status": "completed",
+  "steps": [
+    "Create tests/test_dispatcher.py",
+    "Test TaskPriority enum ordering (CRITICAL < HIGH < NORMAL < LOW < BACKGROUND)",
+    "Test TaskStatus enum values",
+    "Test TaskPayload default creation (auto-generated id, default status=PENDING, default attempt=0)",
+    "Test TaskPayload with custom values",
+    "Test TaskResult model creation",
+    "Test DispatcherStats model defaults",
+    "Test RetryPolicy dataclass defaults",
+    "Test calculate_delay function: verify exponential backoff (attempt 0, 1, 2, 3), verify delay never exceeds max_delay_seconds, verify jitter adds randomness",
+    "Test should_retry function: returns True when attempt < max_attempts, returns False when attempt >= max_attempts",
+    "Test PriorityTaskQueue: put and get single item, put multiple items and verify priority ordering (lower priority number comes first), verify FIFO for same-priority items (earlier created_at first), test empty() and qsize() methods, test drain() returns all items in order"
+  ],
+  "acceptance_criteria": [
+    "All tests in tests/test_dispatcher.py pass",
+    "src/dispatcher/models.py reaches 100% coverage",
+    "src/dispatcher/retry.py reaches 100% coverage",
+    "src/dispatcher/task_queue.py reaches 90%+ coverage"
+  ],
+  "verification": [
+    "pytest tests/test_dispatcher.py -v --cov=src/dispatcher --cov-report=term-missing"
+  ],
+  "blocked_reason": null,
+  "findings": "All 31 tests pass. Coverage: models.py 100%, retry.py 100%, task_queue.py 95%, overall 98%. Lines 86-87 in task_queue.py (QueueEmpty exception handler) are unreachable in normal testing as they guard against a race condition."
+}

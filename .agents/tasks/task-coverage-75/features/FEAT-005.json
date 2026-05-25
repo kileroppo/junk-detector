@@ -1,0 +1,23 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Add tests for pipeline_stages module - 167 lines at 0% coverage. The largest single uncovered module. Tests each stage function (extract, enrich, preprocess, score, postprocess) with mocked dependencies.",
+  "status": "completed",
+  "steps": [
+    "Create tests/test_pipeline_stages.py",
+    "Test extract_stage: with input_type='text' calls extract_from_text (mock), with input_type='url' calls smart_extract or extract_from_url (mock), with input_type='file' calls extract_from_file (mock). Verify ctx.content is set after each.",
+    "Test enrich_stage: mock hydrate_source_reputation and hydrate_article_stats, verify ctx.metadata is updated with their return values. Mock find_similar from content_fingerprint to test fingerprint_matches. Test that hydrator failures are caught and added to ctx.errors.",
+    "Test preprocess_stage: with short text (< 100 chars) sets ctx.metadata['short_content']=True, with normal text sets ctx.processed_text=text, with ctx.content=None uses ctx.raw_input. For long text with summarize_enabled, mock _summarize_text (patch litellm.acompletion) and verify summarization path. Test summarization failure fallback (truncation).",
+    "Test score_stage: mock src.core.scorer.score, verify it passes the correct text (processed_text > content.text > raw_input), verify ctx.result is set to the mock result.",
+    "Test postprocess_stage: build a ctx with result + content + metadata. Test originality penalty when max_similarity >= 0.90. Test source reputation note when source_reputation < 40. Test get_source_adjustment integration (mock it). Mock _save_result and SideEffectRunner. Verify labels are added correctly."
+  ],
+  "acceptance_criteria": [
+    "All tests in tests/test_pipeline_stages.py pass",
+    "src/core/pipeline_stages.py reaches 70%+ coverage"
+  ],
+  "verification": [
+    "pytest tests/test_pipeline_stages.py -v --cov=src/core/pipeline_stages --cov-report=term-missing"
+  ],
+  "blocked_reason": null,
+  "findings": "All 26 tests pass. Coverage of src/core/pipeline_stages.py reached 84% (167 stmts, 26 missed). Missed lines are in _save_result helper (DB/embedding persistence) which requires more complex mocking. Coverage module path needs dot notation (src.core.pipeline_stages) not slash notation."
+}
