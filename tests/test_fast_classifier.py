@@ -246,6 +246,13 @@ class TestClassifyFast:
 class TestTryMlModel:
     """Tests for _try_ml_model."""
 
+    @pytest.fixture(autouse=True)
+    def reset_loaded_model(self):
+        """Reset the global _loaded_model after each test to prevent cross-test contamination."""
+        yield
+        import src.core.fast_classifier
+        src.core.fast_classifier._loaded_model = None
+
     def test_returns_none_when_model_file_missing(self):
         """_try_ml_model returns None when no model file exists."""
         features = extract_features("Some normal text for testing.")
@@ -301,8 +308,8 @@ class TestTryMlModel:
     @patch("src.core.fast_classifier._MODEL_PATH")
     @patch("src.core.fast_classifier._loaded_model", None)
     def test_uses_cached_model_on_second_call(self, mock_path):
-        """_try_ml_model uses the cached model on subsequent calls."""
-        from unittest.mock import MagicMock
+        """_try_ml_model uses the cached model on subsequent calls without reloading."""
+        from unittest.mock import MagicMock, call
         import sys
 
         mock_path.exists.return_value = True
@@ -317,16 +324,27 @@ class TestTryMlModel:
 
         features = extract_features("Some text for testing cached model path.")
 
-        # First call loads the model
+        # First call loads the model via pickle.load
         with patch.dict(sys.modules, {"numpy": mock_np}), \
              patch("builtins.open"), \
-             patch("pickle.load", return_value=mock_model):
+             patch("pickle.load", return_value=mock_model) as mock_pickle_load:
             result1 = _try_ml_model(features)
+            assert mock_pickle_load.call_count == 1
 
-        # Second call should use cached model (we set _loaded_model)
+        assert result1 is not None
+        assert result1.category == "low"
+
+        # Reset global to simulate a fresh state, then set it to our cached model
+        # to validate that _try_ml_model skips pickle.load when _loaded_model is set
+        import src.core.fast_classifier
+        src.core.fast_classifier._loaded_model = mock_model
+
+        # Second call should use the cached global and NOT call pickle.load
         with patch.dict(sys.modules, {"numpy": mock_np}), \
-             patch("src.core.fast_classifier._loaded_model", mock_model):
+             patch("pickle.load") as mock_pickle_load_2:
             result2 = _try_ml_model(features)
+            # pickle.load must NOT be called -- the model is already cached
+            mock_pickle_load_2.assert_not_called()
 
         assert result2 is not None
         assert result2.category == "low"

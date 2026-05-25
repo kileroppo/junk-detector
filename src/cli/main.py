@@ -518,6 +518,8 @@ def monitor_start(
 ) -> None:
     """Start the real-time content monitor (runs until Ctrl+C)."""
     try:
+        # pragma: no cover -- long-running event loop that blocks until signal;
+        # cannot be exercised meaningfully in unit tests.
         asyncio.run(_run_monitor(config))  # pragma: no cover
     except KeyboardInterrupt:
         console.print("\n  [yellow]Interrupted.[/yellow]")
