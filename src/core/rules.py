@@ -469,6 +469,13 @@ _COMBO_RULES: list[ComboRule] = [
     ),
 ]
 
+# Pre-compile combo keyword patterns at module load time for consistency
+# with the word-boundary-aware matching used for individual scam keywords.
+_COMBO_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    combo.name: [_build_keyword_pattern(kw) for kw in combo.keywords]
+    for combo in _COMBO_RULES
+}
+
 
 def _check_combo_rules(
     content: str, result: RuleResult
@@ -480,7 +487,8 @@ def _check_combo_rules(
     Confidence boosts are additive and capped at 1.0.
     """
     for combo in _COMBO_RULES:
-        if all(kw in content for kw in combo.keywords):
+        patterns = _COMBO_PATTERNS[combo.name]
+        if all(pattern.search(content) for pattern in patterns):
             rule_name = f"combo_{combo.name}"
             result.matched_rules.append(rule_name)
 
@@ -530,7 +538,12 @@ def should_skip_llm(rule_result: RuleResult, content_text: str) -> tuple[bool, s
 
     # Check if we have >= 3 distinct non-combo rules with high average confidence
     if non_combo_count >= 3:
-        confidences = list(rule_result.confidence.values())
+        # Only average confidence values >= 0.7 to exclude dimensions that were
+        # only set by combo rules (combo boosts start at 0.1 confidence, so a
+        # combo-only dimension would have low confidence).
+        confidences = [
+            c for c in rule_result.confidence.values() if c >= 0.7
+        ]
         if confidences:
             avg_confidence = sum(confidences) / len(confidences)
             if avg_confidence >= 0.85:

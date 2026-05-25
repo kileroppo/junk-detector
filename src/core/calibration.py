@@ -6,6 +6,8 @@ import sqlite3
 from collections import Counter
 from datetime import datetime
 
+from src.storage.db import _get_connection
+
 _CREATE_FEEDBACK_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,13 +20,6 @@ CREATE TABLE IF NOT EXISTS feedback (
 _initialized_feedback_dbs: set[str] = set()
 
 VALID_VERDICTS = ("junk", "ok", "excellent")
-
-
-def _get_connection(db_path: str) -> sqlite3.Connection:
-    """Create a thread-safe SQLite connection with row factory."""
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 def _ensure_initialized(db_path: str) -> None:

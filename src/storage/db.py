@@ -250,6 +250,34 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 
 
 
+def lookup_by_hash_prefix(
+    hash_prefix: str, db_path: str = "junk_detector.db"
+) -> dict | None:
+    """Look up a single score record by content_hash prefix (LIKE query).
+
+    Args:
+        hash_prefix: A prefix of the content hash (at least 8 chars recommended).
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        A score record as a dictionary, or None if not found or multiple matches.
+    """
+    _ensure_initialized(db_path)
+
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "SELECT * FROM scores WHERE content_hash LIKE ?",
+            (f"{hash_prefix}%",),
+        )
+        rows = cursor.fetchall()
+        if len(rows) != 1:
+            return None
+        return _row_to_dict(rows[0])
+    finally:
+        conn.close()
+
+
 def query_by_content_hash(
     content_hash: str, db_path: str = "junk_detector.db"
 ) -> dict | None:

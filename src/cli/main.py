@@ -1012,35 +1012,39 @@ def feedback(
         raise typer.Exit(code=1)
 
     # Look up score by content_hash prefix
-    from src.storage.db import _ensure_initialized, _get_connection
+    from src.storage.db import lookup_by_hash_prefix
 
     db_path = "junk_detector.db"
-    _ensure_initialized(db_path)
-    conn = _get_connection(db_path)
-    try:
-        cursor = conn.execute(
-            "SELECT content_hash, title, overall_score FROM scores WHERE content_hash LIKE ?",
-            (f"{id}%",),
-        )
-        rows = cursor.fetchall()
-    finally:
-        conn.close()
+    record = lookup_by_hash_prefix(id, db_path=db_path)
 
-    if not rows:
-        console.print(f"❌ Error: no score found matching hash prefix '{id}'", style="bold red")
-        raise typer.Exit(code=1)
+    if record is None:
+        # Determine if it's "not found" or "multiple matches"
+        from src.storage.db import _ensure_initialized, _get_connection
 
-    if len(rows) > 1:
-        console.print(
-            f"❌ Error: multiple scores match prefix '{id}'. Use a longer prefix.",
-            style="bold red",
-        )
-        raise typer.Exit(code=1)
+        _ensure_initialized(db_path)
+        conn = _get_connection(db_path)
+        try:
+            cursor = conn.execute(
+                "SELECT COUNT(*) as cnt FROM scores WHERE content_hash LIKE ?",
+                (f"{id}%",),
+            )
+            count = cursor.fetchone()["cnt"]
+        finally:
+            conn.close()
 
-    row = rows[0]
-    content_hash = row["content_hash"]
-    title = row["title"] or "Untitled"
-    overall_score = row["overall_score"]
+        if count > 1:
+            console.print(
+                f"❌ Error: multiple scores match prefix '{id}'. Use a longer prefix.",
+                style="bold red",
+            )
+            raise typer.Exit(code=1)
+        else:
+            console.print(f"❌ Error: no score found matching hash prefix '{id}'", style="bold red")
+            raise typer.Exit(code=1)
+
+    content_hash = record["content_hash"]
+    title = record.get("title") or "Untitled"
+    overall_score = record["overall_score"]
 
     # Record the feedback
     cal_record_feedback(content_hash, verdict, db_path=db_path)
