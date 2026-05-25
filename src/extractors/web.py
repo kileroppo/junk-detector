@@ -40,6 +40,8 @@ NOISE_CLASSES = [
     "cookie",
     "banner",
     "menu",
+    "qr-code",
+    "qr",
 ]
 
 USER_AGENT = (
