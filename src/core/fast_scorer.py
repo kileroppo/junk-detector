@@ -286,7 +286,7 @@ async def score_fast(
                 )
                 await asyncio.sleep(1)
                 continue
-            logger.error("LLM API call failed in fast scorer: %s", e)
+            logger.debug("LLM API call failed in fast scorer: %s", e)
             break
 
     # All attempts failed - return low-confidence default
