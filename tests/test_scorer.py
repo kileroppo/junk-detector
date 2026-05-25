@@ -65,7 +65,7 @@ class TestScoreOrchestration:
         assert result.model_used == "content_filter"
         mock_judge.assert_not_called()
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_llm_called_when_rules_dont_cover_all_dimensions(
         self, mock_filter, mock_acompletion
@@ -80,7 +80,7 @@ class TestScoreOrchestration:
         assert mock_acompletion.called
         assert result.model_used != "rules_only"
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_fallback_model_triggered_on_low_confidence(self, mock_filter, mock_acompletion):
         """When primary model returns low confidence, fallback model is called."""
@@ -106,7 +106,7 @@ class TestScoreOrchestration:
         # Should have been called twice (primary + fallback)
         assert mock_acompletion.call_count == 2
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_cost_accumulation_after_fallback(self, mock_filter, mock_acompletion):
         """Total cost includes both primary and fallback model calls."""
@@ -132,7 +132,7 @@ class TestScoreOrchestration:
         result = await score("Cost test content", config=config)
         assert result.cost == pytest.approx(primary_cost + fallback_cost, abs=0.001)
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_rules_only_path_skips_llm(self, mock_filter, mock_acompletion):
         """When rules cover all 9 dimensions with high confidence, LLM is skipped."""
@@ -245,7 +245,7 @@ class TestScoreOrchestration:
         assert result.overall_score == 65.0
         mock_judge.assert_not_called()
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_rejects_too_perfect_positive(
         self, mock_filter, mock_acompletion
@@ -280,7 +280,7 @@ class TestScoreOrchestration:
         assert result.dimensions.originality == 50
         assert result.dimensions.scam_prob == 50
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_rejects_too_perfect_negative(
         self, mock_filter, mock_acompletion
@@ -313,7 +313,7 @@ class TestScoreOrchestration:
         assert result.dimensions.originality == 50
         assert result.dimensions.scam_prob == 50
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_cache_stale_result_triggers_llm(self, mock_filter, mock_acompletion):
         """Cached result with scored_at > 7 days old should still call LLM."""
@@ -354,7 +354,7 @@ class TestScoreOrchestration:
         assert mock_acompletion.called
         assert result.model_used != "cache"
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_cache_no_timezone_info(self, mock_filter, mock_acompletion):
         """Cached result with naive datetime (no timezone) should still work as cache hit."""
@@ -397,7 +397,7 @@ class TestScoreOrchestration:
         assert result.cost == 0.0
         mock_acompletion.assert_not_called()
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_cache_lookup_exception(self, mock_filter, mock_acompletion):
         """When cache lookup raises an exception, scorer continues to LLM."""
@@ -416,7 +416,7 @@ class TestScoreOrchestration:
         assert mock_acompletion.called
         assert result.model_used != "cache"
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_fast_classifier_logs_skip_recommendation(self, mock_filter, mock_acompletion):
         """When fast_classifier recommends skipping LLM, scorer still calls LLM (TODO path)."""
@@ -443,7 +443,7 @@ class TestScoreOrchestration:
         # LLM should still be called (the TODO says log and continue)
         assert mock_acompletion.called
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_fast_classifier_unavailable(self, mock_filter, mock_acompletion):
         """When fast_classifier raises an exception, scorer continues normally."""
@@ -462,7 +462,7 @@ class TestScoreOrchestration:
         assert mock_acompletion.called
         assert result.model_used != ""
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_platform_detection_with_source_url(self, mock_filter, mock_acompletion):
         """Passing source_url matching a known platform applies platform weights."""
@@ -480,7 +480,7 @@ class TestScoreOrchestration:
         assert mock_acompletion.called
         assert 0 <= result.overall_score <= 100
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_platform_extra_rules_boost_advertorial(self, mock_filter, mock_acompletion):
         """Platform extra rules matching keywords boost advertorial_prob and appear in rule_hits."""
@@ -527,7 +527,7 @@ class TestScoreOrchestration:
         # "可能AI生成" not in thresholds, so even if score were high it won't appear
         assert "可能AI生成" not in labels
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_rejects_all_100(self, mock_filter, mock_acompletion):
         """All dimensions at exactly 100 triggers suspicious output rejection."""
@@ -555,7 +555,7 @@ class TestScoreOrchestration:
         assert result.model_used == "validation_rejected"
         assert result.confidence == 0.1
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_rejects_all_zero(self, mock_filter, mock_acompletion):
         """All dimensions at exactly 0 triggers suspicious output rejection."""
@@ -583,7 +583,7 @@ class TestScoreOrchestration:
         assert result.model_used == "validation_rejected"
         assert result.confidence == 0.1
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_rule_overrides_applied_to_llm_result(self, mock_filter, mock_acompletion):
         """High-confidence rule overrides are applied on top of LLM dimensions."""
@@ -610,7 +610,7 @@ class TestScoreOrchestration:
         assert result.dimension_sources.get("scam_prob") == "rule"
         assert "scam_keyword_detected" in result.rule_hits
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_detects_injection_in_summary(
         self, mock_filter, mock_acompletion
@@ -643,7 +643,7 @@ class TestScoreOrchestration:
         assert result.confidence == 0.1
         assert result.overall_score == 50.0
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_detects_injection_in_labels(
         self, mock_filter, mock_acompletion
@@ -676,7 +676,7 @@ class TestScoreOrchestration:
         assert result.confidence == 0.1
         assert result.overall_score == 50.0
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_clamps_confidence_above_1(self, mock_filter, mock_acompletion):
         """Confidence > 1.0 is clamped to 1.0."""
@@ -703,7 +703,7 @@ class TestScoreOrchestration:
         result = await score("Content with high confidence")
         assert result.confidence == 1.0
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_clamps_confidence_below_0(self, mock_filter, mock_acompletion):
         """Confidence < 0.0 is clamped to 0.0."""
@@ -730,7 +730,7 @@ class TestScoreOrchestration:
         result = await score("Content with negative confidence")
         assert result.confidence == 0.0
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_detects_chinese_injection(self, mock_filter, mock_acompletion):
         """LLM response with Chinese injection phrases in summary is rejected."""
@@ -761,7 +761,7 @@ class TestScoreOrchestration:
         assert result.confidence == 0.1
         assert result.overall_score == 50.0
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_output_validation_clamps_dimension_scores(self, mock_filter, mock_acompletion):
         """Dimension scores outside 0-100 are clamped."""

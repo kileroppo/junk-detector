@@ -9,14 +9,9 @@ import os
 import re
 from typing import Optional
 
-import httpx
-import litellm
-
 from src.core.prompt_loader import get_system_prompt
 from src.core.rules import RuleResult, apply_rules
 from src.models.score import FastScoreResult, ScoringConfig
-
-litellm.suppress_debug_info = True
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +225,10 @@ async def score_fast(
 
     for attempt in range(loop_count):
         try:
+            import litellm
+
+            litellm.suppress_debug_info = True
+
             kwargs = {
                 "model": model,
                 "messages": messages,
@@ -276,6 +275,8 @@ async def score_fast(
         except Exception as e:
             last_error = e
             # Check if it's a timeout error - retry if retries remain
+            import httpx
+
             is_timeout = isinstance(e, httpx.TimeoutException) or "timeout" in str(e).lower()
             if is_timeout and attempt < max_retries:
                 logger.warning(

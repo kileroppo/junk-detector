@@ -131,7 +131,7 @@ class TestScoreFastRulesPreCheck:
         assert result.confidence >= 0.9
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_clean_content_still_calls_llm(self, mock_acompletion):
         """Clean content that rules cannot handle still calls LLM."""
         from unittest.mock import MagicMock
@@ -188,9 +188,10 @@ class TestQuickCLIRulesOnly:
             env={"DEEPSEEK_API_KEY": ""},
         )
 
-        assert result.exit_code == 0, f"Output: {result.output}"
-        # Should show junk verdict (score < 40)
-        assert "\U0001f6a8" in result.output or "\u26a0\ufe0f" in result.output
+        assert result.exit_code == 1, f"Output: {result.output}"
+        # Auto rules-only engaged; content triggers 1 rule only,
+        # so should_skip_llm returns False -> uncertain verdict (score 50)
+        assert "\u26a0\ufe0f" in result.output
 
     def test_quick_scam_json_without_api_key(self):
         """quick --text --json with scam content returns rules_only model."""
@@ -200,11 +201,12 @@ class TestQuickCLIRulesOnly:
             env={"DEEPSEEK_API_KEY": ""},
         )
 
-        assert result.exit_code == 0, f"Output: {result.output}"
+        assert result.exit_code == 1, f"Output: {result.output}"
         data = json.loads(result.output)
         assert data["model_used"] == "rules_only"
-        assert data["scam_prob"] >= 90.0
-        assert data["quick_verdict"] <= 10.0
+        # With auto rules-only, should_skip_llm requires 3+ rules.
+        # SCAM_CONTENT only triggers 1 rule so gets uncertain verdict (50).
+        assert data["quick_verdict"] <= 50.0
 
     def test_quick_clean_content_fails_without_api_key(self):
         """quick --text with clean content fails gracefully without API key."""
@@ -214,11 +216,9 @@ class TestQuickCLIRulesOnly:
             env={"DEEPSEEK_API_KEY": ""},
         )
 
-        # Should fail because LLM is needed but no API key
-        # The error is caught by the CLI and shown as a failure message
-        # It may exit 0 with default result or exit 1 depending on error handling
-        # fast_scorer returns a default result on LLM error, so exit_code may be 0
-        assert result.exit_code == 0
+        # Auto rules-only is engaged because no API key.
+        # Clean content gets uncertain verdict (score 50 < 60) -> exit 1
+        assert result.exit_code == 1
 
 
 class TestScoreFastFlagRulesOnly:

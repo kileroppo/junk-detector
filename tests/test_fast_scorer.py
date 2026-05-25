@@ -16,7 +16,7 @@ class TestPromptInjectionDefense:
     """Tests verifying prompt injection defense via system/user message separation."""
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_uses_system_user_message_split(self, mock_acompletion):
         """score_fast() should send messages with role='system' first and role='user' second."""
         mock_response = MagicMock()
@@ -44,7 +44,7 @@ class TestPromptInjectionDefense:
         assert messages[1]["role"] == "user"
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_content_wrapped_in_delimiters(self, mock_acompletion):
         """The user message should wrap content in <content_to_evaluate> delimiters."""
         mock_response = MagicMock()
@@ -72,7 +72,7 @@ class TestPromptInjectionDefense:
         assert "Test content here" in user_message
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_injection_content_isolated(self, mock_acompletion):
         """Injection text in content should only appear in user message, not system."""
         mock_response = MagicMock()
@@ -202,7 +202,7 @@ class TestScoreFast:
     """Test score_fast function with mocked LLM."""
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_valid_response(self, mock_acompletion):
         """score_fast should return a FastScoreResult on valid LLM response."""
         mock_response = MagicMock()
@@ -234,7 +234,7 @@ class TestScoreFast:
         assert result.cost == 0.001
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_with_code_fences(self, mock_acompletion):
         """score_fast should handle JSON wrapped in markdown code fences."""
         json_data = json.dumps(
@@ -259,7 +259,7 @@ class TestScoreFast:
         assert result.originality == 90.0
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_parse_error_returns_default(self, mock_acompletion):
         """score_fast should return a default result when JSON parsing fails."""
         mock_response = MagicMock()
@@ -277,7 +277,7 @@ class TestScoreFast:
         assert result.quick_verdict == 50.0
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_empty_response(self, mock_acompletion):
         """score_fast should handle empty LLM response gracefully."""
         mock_response = MagicMock()
@@ -292,7 +292,7 @@ class TestScoreFast:
         assert result.confidence == 0.1
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_api_error(self, mock_acompletion):
         """score_fast should return default result on API error."""
         mock_acompletion.side_effect = Exception("API timeout")
@@ -304,7 +304,7 @@ class TestScoreFast:
         assert result.quick_verdict == 50.0
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_uses_default_config(self, mock_acompletion):
         """score_fast should use default ScoringConfig when none provided."""
         mock_response = MagicMock()
@@ -328,7 +328,7 @@ class TestScoreFast:
         assert result.model_used == "deepseek/deepseek-chat"
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_score_fast_missing_key_retries(self, mock_acompletion):
         """score_fast should retry on KeyError (missing field in JSON)."""
         # First call returns incomplete JSON, second returns valid
@@ -439,7 +439,7 @@ class TestFastScoreValidation:
     """Tests for output validation in fast scorer."""
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_fast_score_detects_injection_in_summary(self, mock_acompletion):
         """score_fast rejects result when summary contains injection phrases."""
         mock_response = MagicMock()
@@ -465,7 +465,7 @@ class TestFastScoreValidation:
         assert result.scam_prob == 50.0
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_fast_score_detects_chinese_injection(self, mock_acompletion):
         """score_fast rejects result when summary contains Chinese injection phrases."""
         mock_response = MagicMock()
@@ -491,7 +491,7 @@ class TestFastScoreValidation:
         assert result.scam_prob == 50.0
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_fast_score_detects_extreme_scores(self, mock_acompletion):
         """score_fast rejects result when all dimension scores are extreme."""
         mock_response = MagicMock()
@@ -517,7 +517,7 @@ class TestFastScoreValidation:
         assert result.scam_prob == 50.0
 
     @pytest.mark.asyncio
-    @patch("src.core.fast_scorer.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_fast_score_allows_normal_results(self, mock_acompletion):
         """score_fast allows through results with normal scores and no injection."""
         mock_response = MagicMock()

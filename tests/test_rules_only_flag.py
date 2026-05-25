@@ -21,13 +21,13 @@ class TestQuickRulesOnlyScam:
     """Test quick --rules-only with scam content returns junk verdict."""
 
     def test_quick_rules_only_scam_text(self):
-        """quick --rules-only --text with scam content returns junk verdict (exit 0)."""
+        """quick --rules-only --text with scam content returns junk verdict (exit 1)."""
         result = runner.invoke(
             app,
             ["quick", "--rules-only", "--text", SCAM_CONTENT],
         )
 
-        assert result.exit_code == 0, f"Output: {result.output}"
+        assert result.exit_code == 1, f"Output: {result.output}"
         # Should show junk verdict (score < 40)
         assert "\U0001f6a8" in result.output or "\u26a0\ufe0f" in result.output
 
@@ -38,7 +38,7 @@ class TestQuickRulesOnlyScam:
             ["quick", "-r", "--text", SCAM_CONTENT],
         )
 
-        assert result.exit_code == 0, f"Output: {result.output}"
+        assert result.exit_code == 1, f"Output: {result.output}"
         assert "\U0001f6a8" in result.output
 
 
@@ -52,7 +52,7 @@ class TestQuickRulesOnlyNormal:
             ["quick", "--rules-only", "--text", NORMAL_CONTENT],
         )
 
-        assert result.exit_code == 0, f"Output: {result.output}"
+        assert result.exit_code == 1, f"Output: {result.output}"
         # Should show caution/uncertain verdict (score 50 maps to caution)
         assert "\u26a0\ufe0f" in result.output
 

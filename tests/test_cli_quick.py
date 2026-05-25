@@ -62,7 +62,7 @@ class TestQuickCommandJunk:
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
-        assert result.exit_code == 0, f"Output: {result.output}"
+        assert result.exit_code == 1, f"Output: {result.output}"
         assert "\U0001f6a8" in result.output
         assert "\u7591\u4f3c\u5783\u573e\u5185\u5bb9" in result.output
         assert "28" in result.output
@@ -82,7 +82,7 @@ class TestQuickCommandCaution:
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
-        assert result.exit_code == 0, f"Output: {result.output}"
+        assert result.exit_code == 1, f"Output: {result.output}"
         assert "\u26a0\ufe0f" in result.output
         assert "\u9700\u8981\u6ce8\u610f" in result.output
         assert "45" in result.output
@@ -98,12 +98,12 @@ class TestQuickCommandCaution:
             env={"DEEPSEEK_API_KEY": "test-key"},
         )
 
-        assert result.exit_code == 0, f"Output: {result.output}"
+        assert result.exit_code == 1, f"Output: {result.output}"
         assert "\u26a0\ufe0f" in result.output
 
     @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
     def test_quick_text_boundary_60(self, mock_score_fast):
-        """quick --text with score exactly 60 shows caution emoji."""
+        """quick --text with score exactly 60 shows caution emoji but exits 0."""
         mock_score_fast.return_value = _mock_fast_result(60.0)
 
         result = runner.invoke(
@@ -145,20 +145,20 @@ class TestQuickCommandValidation:
     """Test input validation for quick command."""
 
     def test_quick_no_input_error(self):
-        """quick with no options returns exit code 1."""
+        """quick with no options returns exit code 2."""
         result = runner.invoke(app, ["quick"])
 
-        assert result.exit_code == 1
+        assert result.exit_code == 2
         assert "\u5fc5\u987b\u6307\u5b9a" in result.output
 
     def test_quick_multiple_inputs_error(self):
-        """quick with multiple inputs returns exit code 1."""
+        """quick with multiple inputs returns exit code 2."""
         result = runner.invoke(
             app,
             ["quick", "--text", "x", "--url", "http://x"],
         )
 
-        assert result.exit_code == 1
+        assert result.exit_code == 2
         assert "\u53ea\u80fd\u6307\u5b9a" in result.output
 
 

@@ -35,7 +35,7 @@ async def test_score_fast_retries_on_timeout():
     mock_response._hidden_params = {}
 
     # First call raises timeout, second succeeds
-    with patch("src.core.fast_scorer.litellm.acompletion") as mock_llm:
+    with patch("litellm.acompletion") as mock_llm:
         mock_llm.side_effect = [
             httpx.TimeoutException("Connection timed out"),
             mock_response,
@@ -56,7 +56,7 @@ async def test_score_fast_retry_exhausted_returns_default():
     """score_fast should return default result when retries are exhausted."""
     from src.core.fast_scorer import score_fast
 
-    with patch("src.core.fast_scorer.litellm.acompletion") as mock_llm:
+    with patch("litellm.acompletion") as mock_llm:
         mock_llm.side_effect = httpx.TimeoutException("Connection timed out")
 
         with patch("src.core.fast_scorer.asyncio.sleep", new_callable=AsyncMock):
@@ -251,7 +251,7 @@ async def test_judge_retries_on_timeout():
     mock_response._hidden_params = {}
 
     # First call raises timeout, second succeeds
-    with patch("src.core.llm_judge.litellm.acompletion") as mock_llm:
+    with patch("litellm.acompletion") as mock_llm:
         mock_llm.side_effect = [
             httpx.TimeoutException("Request timed out"),
             mock_response,
@@ -272,7 +272,7 @@ async def test_judge_timeout_exhausted_returns_default():
     """judge() should return default result when all timeout retries are exhausted."""
     from src.core.llm_judge import judge
 
-    with patch("src.core.llm_judge.litellm.acompletion") as mock_llm:
+    with patch("litellm.acompletion") as mock_llm:
         mock_llm.side_effect = httpx.TimeoutException("Request timed out")
 
         with patch("src.core.llm_judge.asyncio.sleep", new_callable=AsyncMock):
@@ -289,7 +289,7 @@ async def test_judge_non_timeout_exception_breaks_immediately():
     """judge() should still break immediately on non-timeout exceptions."""
     from src.core.llm_judge import judge
 
-    with patch("src.core.llm_judge.litellm.acompletion") as mock_llm:
+    with patch("litellm.acompletion") as mock_llm:
         mock_llm.side_effect = RuntimeError("Some other API error")
 
         config = ScoringConfig()
@@ -321,7 +321,7 @@ async def test_score_fast_max_retries_2_retries_twice():
     mock_response._hidden_params = {}
 
     # First two calls raise timeout, third succeeds
-    with patch("src.core.fast_scorer.litellm.acompletion") as mock_llm:
+    with patch("litellm.acompletion") as mock_llm:
         mock_llm.side_effect = [
             httpx.TimeoutException("Timeout 1"),
             httpx.TimeoutException("Timeout 2"),

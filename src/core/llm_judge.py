@@ -10,7 +10,6 @@ import re
 from datetime import datetime
 
 import httpx
-import litellm
 
 from src.core.prompt_loader import get_system_prompt
 from src.models.score import DimensionScores, ScoreResult, ScoringConfig
@@ -145,6 +144,8 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
 
     for attempt in range(max_attempts):
         try:
+            import litellm
+
             kwargs = {
                 "model": model,
                 "messages": messages,

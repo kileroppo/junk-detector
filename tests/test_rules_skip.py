@@ -233,7 +233,7 @@ def _make_mock_litellm_response(content: str, cost: float = 0.001):
 class TestScorerIntegrationWithSkip:
     """Tests verifying scorer correctly skips or calls LLM based on rules skip logic."""
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_llm_skipped_when_high_confidence_multi_rule(self, mock_filter, mock_acompletion):
         """When rules produce high confidence across >= 3 categories, LLM is NOT called."""
@@ -275,7 +275,7 @@ class TestScorerIntegrationWithSkip:
         assert result.dimensions.readability == 50.0
         assert result.dimensions.timeliness == 50.0
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_llm_called_when_clean_text(self, mock_filter, mock_acompletion):
         """Clean text with no rule hits should still call LLM."""
@@ -297,7 +297,7 @@ class TestScorerIntegrationWithSkip:
         assert result.model_used != "rules_skip"
         assert result.model_used != "rules_only"
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_rules_skip_produces_valid_labels(self, mock_filter, mock_acompletion):
         """When rules skip is triggered, labels are still generated from thresholds."""
@@ -329,7 +329,7 @@ class TestScorerIntegrationWithSkip:
         assert "情绪操纵" in result.labels  # emotional_manipulation 85 > threshold 65
         assert "疑似软文" in result.labels  # advertorial_prob 80 > threshold 70
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_rules_skip_overall_score_is_valid(self, mock_filter, mock_acompletion):
         """When rules skip is triggered, overall_score is properly calculated."""
@@ -360,7 +360,7 @@ class TestScorerIntegrationWithSkip:
         # With high negative dims, overall should be low
         assert result.overall_score < 50
 
-    @patch("src.core.llm_judge.litellm.acompletion")
+    @patch("litellm.acompletion")
     @patch("src.core.content_filter.check_content")
     async def test_two_rules_does_not_trigger_skip(self, mock_filter, mock_acompletion):
         """Only 2 non-combo rules should NOT trigger skip, LLM should be called."""

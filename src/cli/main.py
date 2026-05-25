@@ -136,6 +136,31 @@ def _pretty_print_result(result: ScoreResult, content: Content) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _has_api_key(model_name: str) -> bool:
+    """Check if the required API key env var is available for the given model.
+
+    Returns True if the key is set (or not required), False otherwise.
+    Models containing 'ollama' do not require an API key.
+    """
+    model_lower = model_name.lower()
+
+    if "ollama" in model_lower:
+        return True
+
+    key_map: list[tuple[list[str], str]] = [
+        (["deepseek"], "DEEPSEEK_API_KEY"),
+        (["openai", "gpt"], "OPENAI_API_KEY"),
+        (["anthropic", "claude"], "ANTHROPIC_API_KEY"),
+    ]
+
+    for keywords, env_var in key_map:
+        if any(kw in model_lower for kw in keywords):
+            return bool(os.environ.get(env_var))
+
+    # Unknown provider - assume key is available (custom models via litellm)
+    return True
+
+
 def _validate_api_key(model_name: str) -> None:
     """Check that the required API key env var is set for the given model.
 
@@ -376,26 +401,46 @@ def quick(
     # Validate: exactly one input source
     sources = [s for s in (text, url, file) if s is not None]
     if len(sources) == 0:
-        console.print(
-            "\u274c \u9519\u8bef: \u5fc5\u987b\u6307\u5b9a --text, --url, \u6216 --file \u4e2d\u7684\u4e00\u4e2a",
-            style="bold red",
-        )
-        raise typer.Exit(code=1)
+        # Check for piped stdin
+        if not sys.stdin.isatty():
+            text = sys.stdin.read().strip()
+            if text:
+                sources = [text]
+            else:
+                console.print(
+                    "\u274c \u9519\u8bef: \u5fc5\u987b\u6307\u5b9a --text, --url, \u6216 --file \u4e2d\u7684\u4e00\u4e2a",
+                    style="bold red",
+                )
+                raise typer.Exit(code=2)
+        else:
+            console.print(
+                "\u274c \u9519\u8bef: \u5fc5\u987b\u6307\u5b9a --text, --url, \u6216 --file \u4e2d\u7684\u4e00\u4e2a",
+                style="bold red",
+            )
+            raise typer.Exit(code=2)
     if len(sources) > 1:
         console.print(
             "\u274c \u9519\u8bef: \u53ea\u80fd\u6307\u5b9a --text, --url, --file \u4e2d\u7684\u4e00\u4e2a",
             style="bold red",
         )
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=2)
 
     try:
         content = _extract_content(text=text, url=url, file=file)
     except (ValueError, FileNotFoundError, TimeoutError) as exc:
         console.print(f"\u274c \u63d0\u53d6\u5185\u5bb9\u5931\u8d25: {exc}", style="bold red")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=2)
     except Exception as exc:
         console.print(f"\u274c \u672a\u77e5\u9519\u8bef: {exc}", style="bold red")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=2)
+
+    # Auto rules-only when no API key is available
+    if not rules_only:
+        from src.core.config import load_config as _load_config_check
+
+        _config_check = _load_config_check(override_model=model)
+        if not _has_api_key(_config_check.primary_model):
+            rules_only = True
 
     # Rules-only mode: skip API key validation and LLM call
     if rules_only:
@@ -442,7 +487,7 @@ def quick(
             typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
         else:
             _print_quick_verdict(fast_result)
-        return
+        raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
 
     try:
         from src.core.config import load_config
@@ -457,13 +502,14 @@ def quick(
         raise
     except Exception as exc:
         console.print(f"\u274c \u5feb\u901f\u8bc4\u5206\u5931\u8d25: {exc}", style="bold red")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=2)
 
     if json_output:
         output = fast_result.model_dump(mode="json")
         typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
     else:
         _print_quick_verdict(fast_result)
+    raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
 
 
 @app.command()

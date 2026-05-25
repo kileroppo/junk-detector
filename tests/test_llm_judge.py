@@ -22,7 +22,7 @@ class TestPromptInjectionDefense:
     """Tests verifying prompt injection defense via system/user message separation."""
 
     @pytest.mark.asyncio
-    @patch("src.core.llm_judge.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_judge_uses_system_user_message_split(self, mock_acompletion):
         """judge() should send messages with role='system' first and role='user' second."""
         mock_response = MagicMock()
@@ -56,7 +56,7 @@ class TestPromptInjectionDefense:
         assert messages[1]["role"] == "user"
 
     @pytest.mark.asyncio
-    @patch("src.core.llm_judge.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_judge_content_wrapped_in_delimiters(self, mock_acompletion):
         """The user message should wrap content in <content_to_evaluate> delimiters."""
         mock_response = MagicMock()
@@ -90,7 +90,7 @@ class TestPromptInjectionDefense:
         assert "Test content here" in user_message
 
     @pytest.mark.asyncio
-    @patch("src.core.llm_judge.litellm.acompletion", new_callable=AsyncMock)
+    @patch("litellm.acompletion", new_callable=AsyncMock)
     async def test_judge_injection_content_isolated(self, mock_acompletion):
         """Injection text in content should only appear in user message, not system."""
         mock_response = MagicMock()
@@ -274,7 +274,7 @@ def _make_mock_response(content: str, hidden_params=None):
 
 
 @pytest.mark.asyncio
-@patch("src.core.llm_judge.litellm.acompletion", new_callable=AsyncMock)
+@patch("litellm.acompletion", new_callable=AsyncMock)
 async def test_judge_empty_response_returns_default(mock_acompletion):
     """Empty LLM response triggers retries then returns default result."""
     mock_acompletion.return_value = _make_mock_response("", hidden_params=None)
@@ -287,7 +287,7 @@ async def test_judge_empty_response_returns_default(mock_acompletion):
 
 
 @pytest.mark.asyncio
-@patch("src.core.llm_judge.litellm.acompletion", new_callable=AsyncMock)
+@patch("litellm.acompletion", new_callable=AsyncMock)
 async def test_judge_json_parse_failure_retries(mock_acompletion):
     """Garbled first response triggers retry; valid second response succeeds."""
     garbled_response = _make_mock_response("not valid json {{{", hidden_params=None)
@@ -302,7 +302,7 @@ async def test_judge_json_parse_failure_retries(mock_acompletion):
 
 
 @pytest.mark.asyncio
-@patch("src.core.llm_judge.litellm.acompletion", new_callable=AsyncMock)
+@patch("litellm.acompletion", new_callable=AsyncMock)
 async def test_judge_api_exception_breaks_loop(mock_acompletion):
     """Generic Exception breaks retry loop immediately, returns default."""
     mock_acompletion.side_effect = RuntimeError("Connection refused")
@@ -315,7 +315,7 @@ async def test_judge_api_exception_breaks_loop(mock_acompletion):
 
 
 @pytest.mark.asyncio
-@patch("src.core.llm_judge.litellm.acompletion", new_callable=AsyncMock)
+@patch("litellm.acompletion", new_callable=AsyncMock)
 async def test_judge_cost_extraction(mock_acompletion):
     """Cost extracted from response._hidden_params."""
     mock_response = _make_mock_response(
@@ -329,7 +329,7 @@ async def test_judge_cost_extraction(mock_acompletion):
 
 
 @pytest.mark.asyncio
-@patch("src.core.llm_judge.litellm.acompletion", new_callable=AsyncMock)
+@patch("litellm.acompletion", new_callable=AsyncMock)
 async def test_judge_no_hidden_params(mock_acompletion):
     """When _hidden_params is None, cost defaults to 0."""
     mock_response = _make_mock_response(
@@ -343,7 +343,7 @@ async def test_judge_no_hidden_params(mock_acompletion):
 
 
 @pytest.mark.asyncio
-@patch("src.core.llm_judge.litellm.acompletion", new_callable=AsyncMock)
+@patch("litellm.acompletion", new_callable=AsyncMock)
 async def test_judge_hidden_params_empty_dict(mock_acompletion):
     """When _hidden_params is empty dict, cost defaults to 0."""
     mock_response = _make_mock_response(
