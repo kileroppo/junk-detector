@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Phase 4 (Core Enhancements): Expand rules engine to 200+ keywords, add result caching with 7-day TTL, optimize source reputation SQL, cache config.yaml at startup, add LLM output validation, create .env.example, and improve health check endpoint.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Expand the rules engine in src/core/rules.py: Add 150+ new keywords across categories. SCAM: add cryptocurrency scam patterns (虚拟币, 币圈, 区块链投资, 数字货币, 挖矿赚钱, 合约交易), fake investment (理财课, 投资课程, 保本收益, 年化收益, 高收益零风险), MLM keywords (下线, 团队奖励, 推荐奖, 层级, 发展会员). EMOTIONAL: add more anxiety patterns (不看后悔, 太晚了, 错过就没了, 限时紧急, 最后机会), FOMO phrases (别人都在, 全网疯传, 爆款, 百万人都在用), clickbait templates (揭秘, 内幕, 真相, 惊人发现). ADVERTORIAL: add affiliate marketing (返利, 佣金, 分销, 带货, 种草, 好物推荐, 安利), influencer patterns (亲测有效, 良心推荐, 回购无数次, 闭眼入). SOURCE: add spam domain patterns for URL-based detection.",
     "Add result caching by content_hash with 7-day TTL in src/core/scorer.py: At the start of score(), compute content_hash from content_text, check DB for existing result with scored_at within 7 days. If found, return the cached ScoreResult directly (skip all LLM calls). Use the query_by_content_hash function from db.py (added in Phase 2). Add 'cached_at' tracking to distinguish fresh vs cached results. Add a 'from_cache' field or set model_used='cache' when returning cached results.",
@@ -33,5 +33,5 @@
     "pytest tests/ -v --tb=short"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 90 existing tests pass. Total keyword count: 201 (SCAM: 86, ANXIETY: 47, ADVERTORIAL: 42, AI: 26). Cache check uses hashlib.sha256 + 7-day TTL. Output validation catches all-100, all-0, and near-perfect positive/negative splits. query_by_domain uses SQL LIKE for efficient domain filtering."
 }
