@@ -23,7 +23,13 @@ models:
     primary: "claude-sonnet-4-20250514"
     fallback: "claude-sonnet-4-20250514"
 
-# Which model preset to use (one of: ollama, deepseek, openai, anthropic)
+  # Xiaomimo (Anthropic-compatible proxy, cheaper Claude access)
+  xiaomimo:
+    primary: "anthropic/claude-sonnet-4-20250514"
+    fallback: "anthropic/claude-haiku-3-20240307"
+    api_base: "https://token-plan-cn.xiaomimimo.com/anthropic"
+
+# Which model preset to use (one of: ollama, deepseek, openai, anthropic, xiaomimo)
 active_model: "deepseek"
 
 # Scoring configuration
