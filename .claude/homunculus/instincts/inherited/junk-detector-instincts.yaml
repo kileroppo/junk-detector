@@ -1,0 +1,491 @@
+# Instincts generated from https://github.com/kileroppo/junk-detector
+# Generated: 2026-05-25T15:57:23.827Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: junk-detector-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: feat, chore
+
+## Evidence
+
+- 10 commits analyzed
+- Detected conventional commit pattern
+- Examples: feat: add comprehensive tests for dispatcher module (models, retry, task_queue), chore: mark FEAT-003 completed
+
+---
+id: junk-detector-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Commit Length
+
+## Action
+
+Write moderate-length commit messages (~64 characters)
+
+## Evidence
+
+- Average commit message length: 64 chars
+- Based on 10 commits
+
+---
+id: junk-detector-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: junk-detector-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: junk-detector-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: junk-detector-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: junk-detector-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: junk-detector-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~21x per month
+- Files: **/*.test.*, **/api/**
+
+---
+id: junk-detector-workflow-feature-test-coverage-workflow
+trigger: "when doing feature test coverage workflow"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Workflow Feature Test Coverage Workflow
+
+## Action
+
+Follow the feature-test-coverage-workflow workflow:
+1. Write or update test files for the target module(s) in tests/
+2. Optionally update or create a feature JSON file in .agents/tasks/task-coverage-75/features/ (e.g., FEAT-003.json, FEAT-004.json, FEAT-006.json)
+3. Commit test files and feature JSON together
+4. In a subsequent commit, mark the feature as completed by updating the same feature JSON file
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: tests/test_*.py, .agents/tasks/task-coverage-75/features/FEAT-*.json
+
+---
+id: junk-detector-workflow-task-state-and-review-artifact-workflow
+trigger: "when doing task state and review artifact workflow"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/kileroppo/junk-detector
+---
+
+# Junk Detector Workflow Task State And Review Artifact Workflow
+
+## Action
+
+Follow the task-state-and-review-artifact-workflow workflow:
+1. Create or update context.json, task.json, and feature JSON files in the relevant .agents/tasks/ subdirectory
+2. Add or update review artifact markdown files (e.g., 2025-01-15-160000-review.md)
+3. Commit all related files together
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: .agents/tasks/*/context.json, .agents/tasks/*/task.json, .agents/tasks/*/features/FEAT-*.json
+
+---
+id: junk-detector-instinct-file-naming
+trigger: "When creating a new file in the codebase"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct File Naming
+
+## Action
+
+Name the file using snake_case
+
+## Evidence
+
+- Pattern in namingConventions.files: snake_case
+
+---
+id: junk-detector-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Function Naming
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: junk-detector-instinct-class-naming
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: junk-detector-instinct-constant-naming
+trigger: "When defining a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: junk-detector-instinct-relative-imports
+trigger: "When importing modules in Python files"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Relative Imports
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: junk-detector-instinct-named-exports
+trigger: "When exporting functions or classes"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Named Exports
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: junk-detector-instinct-test-file-location
+trigger: "When adding or updating tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Test File Location
+
+## Action
+
+Place test files in the separate tests/ directory
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation: separate
+- Files like tests/test_*.py
+
+---
+id: junk-detector-instinct-test-file-naming
+trigger: "When naming a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Test File Naming
+
+## Action
+
+Use the pattern tests/test_<module>.py
+
+## Evidence
+
+- Pattern in files: tests/test_*.py
+- Examples: tests/test_dispatcher.py
+
+---
+id: junk-detector-instinct-unit-test-type
+trigger: "When writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Unit Test Type
+
+## Action
+
+Write unit tests for modules
+
+## Evidence
+
+- Pattern in testing.testTypes: unit
+
+---
+id: junk-detector-instinct-test-coverage-config
+trigger: "When configuring tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Test Coverage Config
+
+## Action
+
+Include and update test coverage configuration
+
+## Evidence
+
+- Pattern in testing.coverageConfig: true
+
+---
+id: junk-detector-instinct-conventional-commit-prefix
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Conventional Commit Prefix
+
+## Action
+
+Start the commit message with a conventional prefix such as feat or chore
+
+## Evidence
+
+- Pattern in commits.prefixes: feat, chore
+- Examples: feat: add comprehensive tests...
+
+---
+id: junk-detector-instinct-commit-length
+trigger: "When writing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Commit Length
+
+## Action
+
+Write a concise commit message with an average length of about 64 characters
+
+## Evidence
+
+- Pattern in commits.averageLength: 64
+
+---
+id: junk-detector-instinct-feature-test-coverage-workflow
+trigger: "When improving test coverage for a feature or module and tracking its completion"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Feature Test Coverage Workflow
+
+## Action
+
+Write or update test files in tests/, optionally update/create a feature JSON in .agents/tasks/task-coverage-75/features/, commit both together, then mark the feature as completed in a subsequent commit
+
+## Evidence
+
+- Workflow: feature-test-coverage-workflow
+- Example commit sequences and files
+
+---
+id: junk-detector-instinct-task-state-review-artifact-workflow
+trigger: "When recording the state, context, and review of a task iteration"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: kileroppo/junk-detector
+---
+
+# Junk Detector Instinct Task State Review Artifact Workflow
+
+## Action
+
+Create or update context.json, task.json, feature JSON, and review artifact markdown in the relevant .agents/tasks/ subdirectory, and commit all together
+
+## Evidence
+
+- Workflow: task-state-and-review-artifact-workflow
+- Example commit sequences and files
+

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Junk Detector"
+  short_description: "Repo-specific patterns and workflows for junk-detector"
+  default_prompt: "Use the junk-detector repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
