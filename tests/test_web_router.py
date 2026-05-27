@@ -320,6 +320,29 @@ class TestScoreSubmit:
         assert "text/html" in response.headers["content-type"]
 
 
+class TestScoreSubmitSaveError:
+    """Tests for score-submit when save() raises."""
+
+    @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.storage.db.save")
+    @patch("src.extractors.text.extract_from_text")
+    def test_submit_save_raises_still_returns_200(
+        self, mock_extract, mock_save, mock_score, web_client
+    ):
+        """POST /score-submit still returns 200 when save() raises."""
+        mock_extract.return_value = _make_content()
+        mock_score.return_value = _make_score_result()
+        mock_save.side_effect = RuntimeError("DB write failed")
+
+        response = web_client.post(
+            "/score-submit",
+            data={"input_type": "text", "text": "Some text"},
+        )
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
 class TestResultDetailEdgeCases:
     """Edge case tests for GET /result/{id}."""
 
@@ -360,3 +383,77 @@ class TestHistoryPageFilters:
         # page=2 means offset_limit = 2*20 = 40
         call_args = mock_query.call_args
         assert call_args[1]["limit"] == 40
+
+
+class TestSettingsRoute:
+    """Tests for GET /settings endpoint."""
+
+    def test_settings_page_returns_200(self, web_client):
+        """GET /settings returns 200 with HTML."""
+        response = web_client.get("/settings")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
+class TestToastPartial:
+    """Tests for GET /partials/toast endpoint."""
+
+    def test_toast_default_message(self, web_client):
+        """GET /partials/toast returns 200 with default message."""
+        response = web_client.get("/partials/toast")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_toast_custom_success(self, web_client):
+        """GET /partials/toast?message=Success&type=success returns 200."""
+        response = web_client.get("/partials/toast?message=Success&type=success")
+        assert response.status_code == 200
+        assert "Success" in response.text
+
+    def test_toast_error_type(self, web_client):
+        """GET /partials/toast?message=Failed&type=error returns error icon."""
+        response = web_client.get("/partials/toast?message=Failed&type=error")
+        assert response.status_code == 200
+        assert "Failed" in response.text
+
+
+class TestDashboardExceptionHandling:
+    """Tests for dashboard when get_history raises."""
+
+    @patch("src.web.router.get_history")
+    def test_dashboard_get_history_raises(self, mock_history, web_client):
+        """Dashboard returns 200 with zero stats when get_history raises."""
+        mock_history.side_effect = RuntimeError("DB connection failed")
+
+        response = web_client.get("/dashboard")
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
+class TestHistoryPageExceptionHandling:
+    """Tests for history page when query raises."""
+
+    @patch("src.web.router.query")
+    def test_history_page_query_raises(self, mock_query, web_client):
+        """History page returns 200 with empty results when query raises."""
+        mock_query.side_effect = RuntimeError("DB connection failed")
+
+        response = web_client.get("/history-page")
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+
+class TestRecentScoresExceptionHandling:
+    """Tests for partials/recent-scores when get_history raises."""
+
+    @patch("src.web.router.get_history")
+    def test_recent_scores_get_history_raises(self, mock_history, web_client):
+        """Recent scores partial returns 200 when get_history raises."""
+        mock_history.side_effect = RuntimeError("DB connection failed")
+
+        response = web_client.get("/partials/recent-scores")
+
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
