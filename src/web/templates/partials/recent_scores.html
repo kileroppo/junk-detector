@@ -2,39 +2,39 @@
 <div class="overflow-x-auto">
     <table class="w-full text-sm">
         <thead>
-            <tr class="border-b border-gray-700">
+            <tr class="border-b border-navy-700">
                 <th class="text-left px-4 py-3 text-gray-400 font-medium">时间</th>
                 <th class="text-left px-4 py-3 text-gray-400 font-medium">来源/标题</th>
                 <th class="text-center px-4 py-3 text-gray-400 font-medium">评分</th>
                 <th class="text-left px-4 py-3 text-gray-400 font-medium">标签</th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-gray-700">
+        <tbody class="divide-y divide-navy-700">
             {% if scores %}
                 {% for item in scores %}
-                <tr class="hover:bg-gray-750 cursor-pointer transition-colors"
+                <tr class="hover:bg-surface-raised cursor-pointer transition-colors"
                     onclick="window.location='/result/{{ item.id }}'">
                     <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
-                        {{ item.scored_at[:16] if item.scored_at else '—' }}
+                        {{ item.scored_at[:16] if item.scored_at else '-' }}
                     </td>
                     <td class="px-4 py-3 max-w-xs truncate">
                         {{ item.title or item.source_url or '无标题' }}
                     </td>
                     <td class="px-4 py-3 text-center">
                         <span class="inline-flex items-center justify-center w-9 h-9 rounded-full text-xs font-bold
-                                    {% if item.overall_score > 70 %}bg-green-900 text-green-300
-                                    {% elif item.overall_score > 40 %}bg-yellow-900 text-yellow-300
-                                    {% else %}bg-red-900 text-red-300{% endif %}">
+                                    {% if item.overall_score > 70 %}bg-green-900/50 text-green-300
+                                    {% elif item.overall_score > 40 %}bg-amber-900/50 text-amber-300
+                                    {% else %}bg-red-900/50 text-red-300{% endif %}">
                             {{ "%.0f"|format(item.overall_score) }}
                         </span>
                     </td>
                     <td class="px-4 py-3">
                         <div class="flex flex-wrap gap-1">
                             {% for label in item.labels or [] %}
-                            <span class="px-2 py-0.5 rounded text-xs
-                                        {% if '高质量' in label or '原创' in label %}bg-green-900 text-green-300
-                                        {% elif '骗' in label %}bg-red-900 text-red-300
-                                        {% else %}bg-gray-700 text-gray-300{% endif %}">
+                            <span class="px-2 py-0.5 rounded-full text-xs
+                                        {% if '高质量' in label or '原创' in label %}bg-green-900/50 text-green-300
+                                        {% elif '骗' in label %}bg-red-900/50 text-red-300
+                                        {% else %}bg-navy-700 text-gray-300{% endif %}">
                                 {{ label }}
                             </span>
                             {% endfor %}
