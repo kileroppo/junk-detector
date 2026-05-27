@@ -1,37 +1,52 @@
 {% extends "base.html" %}
 
-{% block title %}评分结果 — Junk Detector{% endblock %}
+{% block title %}评分结果 - Junk Detector{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl mx-auto space-y-6">
     <!-- Back Navigation -->
-    <a href="/history-page" class="inline-flex items-center text-sm text-gray-400 hover:text-indigo-400 transition-colors">
-        ← 返回历史记录
+    <a href="/history-page" class="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-indigo-400 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        返回历史记录
     </a>
 
-    <!-- Overall Score -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 text-center">
+    <!-- Overall Score with SVG Ring -->
+    <div class="bg-[#1e293b] rounded-xl p-6 border border-[#334155] text-center">
         <h1 class="text-lg font-medium text-gray-400 mb-4">综合评分</h1>
-        <div class="inline-flex items-center justify-center w-32 h-32 rounded-full border-4
-                    {% if result.overall_score > 70 %}border-green-500{% elif result.overall_score > 40 %}border-yellow-500{% else %}border-red-500{% endif %}">
-            <span class="text-4xl font-bold {% if result.overall_score > 70 %}score-high{% elif result.overall_score > 40 %}score-mid{% else %}score-low{% endif %}">
+        <div class="inline-flex items-center justify-center relative">
+            <svg width="140" height="140" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#334155" stroke-width="6"/>
+                <circle cx="50" cy="50" r="45" fill="none"
+                        stroke="{% if result.overall_score > 70 %}#10b981{% elif result.overall_score > 40 %}#f59e0b{% else %}#ef4444{% endif %}"
+                        stroke-width="6" stroke-linecap="round"
+                        stroke-dasharray="282.7"
+                        stroke-dashoffset="{{ 282.7 - (282.7 * result.overall_score / 100) }}"
+                        class="score-ring-circle"/>
+            </svg>
+            <span class="absolute text-4xl font-bold {% if result.overall_score > 70 %}score-high{% elif result.overall_score > 40 %}score-mid{% else %}score-low{% endif %}">
                 {{ "%.0f"|format(result.overall_score) }}
             </span>
         </div>
         {% if result.title %}
         <h2 class="mt-4 text-xl font-semibold">{{ result.title }}</h2>
         {% endif %}
-        <p class="mt-3 text-gray-300 max-w-2xl mx-auto">{{ result.summary }}</p>
+
+        <!-- Summary as quote -->
+        {% if result.summary %}
+        <div class="mt-4 max-w-2xl mx-auto bg-[#0f172a] rounded-lg p-4 border-l-4 border-indigo-500">
+            <p class="text-gray-300 text-sm italic">{{ result.summary }}</p>
+        </div>
+        {% endif %}
 
         <!-- Labels -->
         {% if result.labels %}
         <div class="flex flex-wrap justify-center gap-2 mt-4">
             {% for label in result.labels %}
             <span class="px-3 py-1 rounded-full text-xs font-medium
-                         {% if '高质量' in label or '原创' in label %}bg-green-900 text-green-300 border border-green-700
-                         {% elif '骗' in label or '韭菜' in label %}bg-red-900 text-red-300 border border-red-700
-                         {% elif 'AI' in label %}bg-purple-900 text-purple-300 border border-purple-700
-                         {% else %}bg-yellow-900 text-yellow-300 border border-yellow-700{% endif %}">
+                         {% if '高质量' in label or '原创' in label %}bg-green-900/50 text-green-300 border border-green-700/50
+                         {% elif '骗' in label or '韭菜' in label %}bg-red-900/50 text-red-300 border border-red-700/50
+                         {% elif 'AI' in label %}bg-purple-900/50 text-purple-300 border border-purple-700/50
+                         {% else %}bg-amber-900/50 text-amber-300 border border-amber-700/50{% endif %}">
                 {{ label }}
             </span>
             {% endfor %}
@@ -40,17 +55,20 @@
     </div>
 
     <!-- Dimension Breakdown -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+    <div class="bg-[#1e293b] rounded-xl p-6 border border-[#334155]">
         <h2 class="text-lg font-semibold mb-5">9维度详细分析</h2>
 
         <!-- Positive Dimensions -->
         <div class="mb-6">
-            <h3 class="text-sm font-medium text-green-400 mb-3">✅ 正面维度</h3>
+            <h3 class="text-sm font-medium text-emerald-400 mb-3 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                正面维度
+            </h3>
             <div class="space-y-3">
                 {% for dim_name, dim_label in [('originality', '原创性'), ('info_density', '信息密度'), ('reasoning_quality', '论证质量'), ('readability', '可读性'), ('timeliness', '时效性')] %}
                 <div class="flex items-center gap-3">
                     <span class="text-sm text-gray-400 w-20 shrink-0">{{ dim_label }}</span>
-                    <div class="flex-1 bg-gray-700 rounded-full h-5 overflow-hidden">
+                    <div class="flex-1 bg-[#0f172a] rounded-full h-5 overflow-hidden">
                         <div class="dimension-bar dimension-bar-positive h-full flex items-center justify-end pr-2"
                              style="width: {{ result.dimensions[dim_name] }}%">
                             {% if result.dimensions[dim_name] > 15 %}
@@ -68,12 +86,15 @@
 
         <!-- Negative Dimensions -->
         <div>
-            <h3 class="text-sm font-medium text-red-400 mb-3">⚠️ 风险维度</h3>
+            <h3 class="text-sm font-medium text-red-400 mb-3 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+                风险维度
+            </h3>
             <div class="space-y-3">
                 {% for dim_name, dim_label in [('ai_generated_prob', 'AI生成概率'), ('emotional_manipulation', '情绪操纵'), ('advertorial_prob', '软文概率'), ('scam_prob', '骗局概率')] %}
                 <div class="flex items-center gap-3">
                     <span class="text-sm text-gray-400 w-20 shrink-0">{{ dim_label }}</span>
-                    <div class="flex-1 bg-gray-700 rounded-full h-5 overflow-hidden">
+                    <div class="flex-1 bg-[#0f172a] rounded-full h-5 overflow-hidden">
                         <div class="dimension-bar dimension-bar-negative h-full flex items-center justify-end pr-2"
                              style="width: {{ result.dimensions[dim_name] }}%">
                             {% if result.dimensions[dim_name] > 15 %}
@@ -90,35 +111,48 @@
         </div>
     </div>
 
-    <!-- Metadata -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-lg font-semibold mb-4">元数据</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-                <p class="text-xs text-gray-500 uppercase">模型</p>
-                <p class="text-sm font-medium mt-0.5">{{ result.model_used or '未知' }}</p>
+    <!-- Metadata (collapsible) -->
+    <details class="bg-[#1e293b] rounded-xl border border-[#334155] overflow-hidden">
+        <summary class="px-6 py-4 cursor-pointer text-lg font-semibold hover:bg-[#253348] transition-colors flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            元数据
+        </summary>
+        <div class="px-6 pb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase">模型</p>
+                    <p class="text-sm font-medium mt-0.5">{{ result.model_used or '未知' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 uppercase">成本</p>
+                    <p class="text-sm font-medium mt-0.5">${{ "%.4f"|format(result.cost or 0) }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 uppercase">置信度</p>
+                    <p class="text-sm font-medium mt-0.5">{{ "%.0f"|format((result.confidence or 1) * 100) }}%</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 uppercase">评分时间</p>
+                    <p class="text-sm font-medium mt-0.5">{{ result.scored_at }}</p>
+                </div>
             </div>
-            <div>
-                <p class="text-xs text-gray-500 uppercase">成本</p>
-                <p class="text-sm font-medium mt-0.5">${{ "%.4f"|format(result.cost or 0) }}</p>
+            {% if result.source_url %}
+            <div class="mt-4 pt-4 border-t border-[#334155]">
+                <p class="text-xs text-gray-500 uppercase">来源 URL</p>
+                <a href="{{ result.source_url }}" target="_blank" class="text-sm text-indigo-400 hover:underline break-all">
+                    {{ result.source_url }}
+                </a>
             </div>
-            <div>
-                <p class="text-xs text-gray-500 uppercase">置信度</p>
-                <p class="text-sm font-medium mt-0.5">{{ "%.0f"|format((result.confidence or 1) * 100) }}%</p>
-            </div>
-            <div>
-                <p class="text-xs text-gray-500 uppercase">评分时间</p>
-                <p class="text-sm font-medium mt-0.5">{{ result.scored_at }}</p>
-            </div>
+            {% endif %}
         </div>
-        {% if result.source_url %}
-        <div class="mt-4 pt-4 border-t border-gray-700">
-            <p class="text-xs text-gray-500 uppercase">来源 URL</p>
-            <a href="{{ result.source_url }}" target="_blank" class="text-sm text-indigo-400 hover:underline break-all">
-                {{ result.source_url }}
-            </a>
-        </div>
-        {% endif %}
+    </details>
+
+    <!-- Action buttons -->
+    <div class="flex gap-3">
+        <a href="/score-form" class="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            再次评分
+        </a>
     </div>
 </div>
 {% endblock %}

@@ -249,6 +249,12 @@ async def monitor_status(request: Request):
     return templates.TemplateResponse(request, "monitor.html")
 
 
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    """Settings page with model config, scoring preferences, and theme."""
+    return templates.TemplateResponse(request, "settings.html")
+
+
 # ---------------------------------------------------------------------------
 # HTMX partial endpoints (return HTML fragments)
 # ---------------------------------------------------------------------------
@@ -269,4 +275,15 @@ async def partials_recent_scores(request: Request):
     )
 
 
-
+@router.get("/partials/toast", response_class=HTMLResponse)
+async def partials_toast(
+    request: Request,
+    message: str = "操作完成",
+    type: str = "info",
+):
+    """Return a toast notification fragment for HTMX."""
+    return templates.TemplateResponse(
+        request,
+        "partials/toast.html",
+        {"message": message, "type": type},
+    )
