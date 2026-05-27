@@ -139,10 +139,11 @@ class TestWebRoutes:
         response = web_client.get("/partials/recent-scores")
         assert response.status_code == 200
 
-    def test_partials_monitor_stats_removed(self, web_client):
-        """GET /partials/monitor-stats returns 404 (endpoint removed)."""
+    def test_partials_monitor_stats_returns_200(self, web_client):
+        """GET /partials/monitor-stats returns 200 with stats fragment."""
         response = web_client.get("/partials/monitor-stats")
-        assert response.status_code == 404
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
 
     @patch("src.web.router.query")
     def test_result_detail_not_found(self, mock_query, web_client):
@@ -394,6 +395,46 @@ class TestSettingsRoute:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
+    def test_settings_shows_api_key_configured(self, web_client):
+        """GET /settings shows '已配置' when DEEPSEEK_API_KEY is set."""
+        response = web_client.get("/settings")
+        assert response.status_code == 200
+        assert "已配置" in response.text
+
+    @patch.dict("os.environ", {"DEEPSEEK_API_KEY": ""}, clear=False)
+    def test_settings_shows_api_key_not_configured(self, web_client):
+        """GET /settings shows '未配置' when DEEPSEEK_API_KEY is empty."""
+        import os
+
+        os.environ["DEEPSEEK_API_KEY"] = ""
+        response = web_client.get("/settings")
+        assert response.status_code == 200
+        assert "未配置" in response.text
+
+    def test_settings_shows_model_name(self, web_client):
+        """GET /settings shows model name from config."""
+        response = web_client.get("/settings")
+        assert response.status_code == 200
+        assert "deepseek" in response.text.lower()
+
+
+class TestMonitorStatsPartial:
+    """Tests for GET /partials/monitor-stats endpoint."""
+
+    def test_monitor_stats_returns_200(self, web_client):
+        """GET /partials/monitor-stats returns 200 with HTML fragment."""
+        response = web_client.get("/partials/monitor-stats")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_monitor_stats_contains_expected_sections(self, web_client):
+        """GET /partials/monitor-stats contains thunder and dispatcher sections."""
+        response = web_client.get("/partials/monitor-stats")
+        assert response.status_code == 200
+        assert "Thunder" in response.text
+        assert "Dispatcher" in response.text
+        assert "监控已停止" in response.text
+
 
 class TestToastPartial:
     """Tests for GET /partials/toast endpoint."""
@@ -415,6 +456,14 @@ class TestToastPartial:
         response = web_client.get("/partials/toast?message=Failed&type=error")
         assert response.status_code == 200
         assert "Failed" in response.text
+
+    def test_toast_invalid_type_falls_back_to_info(self, web_client):
+        """GET /partials/toast?type=invalid falls back to info type."""
+        response = web_client.get("/partials/toast?type=invalid&message=Test")
+        assert response.status_code == 200
+        assert "Test" in response.text
+        # Should render the info icon (indigo-400), not error or success
+        assert "text-indigo-400" in response.text
 
 
 class TestDashboardExceptionHandling:

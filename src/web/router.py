@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +10,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from src.core.config import get_model_config
 from src.storage.db import get_history, query
 
 # Template and static directories (relative to this file)
@@ -252,7 +254,17 @@ async def monitor_status(request: Request):
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     """Settings page with model config, scoring preferences, and theme."""
-    return templates.TemplateResponse(request, "settings.html")
+    api_key_configured = bool(os.environ.get("DEEPSEEK_API_KEY"))
+    try:
+        model_cfg = get_model_config()
+        model_name = model_cfg.get("primary", "deepseek/deepseek-chat")
+    except Exception:
+        model_name = "deepseek/deepseek-chat"
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {"api_key_configured": api_key_configured, "model_name": model_name},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -282,8 +294,34 @@ async def partials_toast(
     type: str = "info",
 ):
     """Return a toast notification fragment for HTMX."""
+    valid_types = ("success", "error", "info")
+    if type not in valid_types:
+        type = "info"
     return templates.TemplateResponse(
         request,
         "partials/toast.html",
         {"message": message, "type": type},
+    )
+
+
+@router.get("/partials/monitor-stats", response_class=HTMLResponse)
+async def partials_monitor_stats(request: Request):
+    """Return monitor stats fragment for HTMX polling."""
+    thunder = {
+        "sources_count": 0,
+        "items_discovered": 0,
+        "seen_urls_count": 0,
+    }
+    dispatcher = {
+        "in_flight": 0,
+        "max_in_flight": 10,
+        "queue_size": 0,
+        "total_scored": 0,
+        "total_failed": 0,
+        "total_retried": 0,
+    }
+    return templates.TemplateResponse(
+        request,
+        "partials/monitor_stats.html",
+        {"thunder": thunder, "dispatcher": dispatcher, "is_running": False},
     )

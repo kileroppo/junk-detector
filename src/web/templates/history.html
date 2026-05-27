@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
 {% block title %}历史记录 - Junk Detector{% endblock %}
-{% block nav_history %}text-indigo-400 bg-[#334155]{% endblock %}
+{% block nav_history %}text-indigo-400 bg-navy-700{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
     <h1 class="text-2xl font-bold">评分历史</h1>
 
     <!-- Filter Bar -->
-    <div class="bg-[#1e293b] rounded-xl p-4 border border-[#334155]">
+    <div class="bg-surface rounded-xl p-4 border border-navy-700">
         <form method="get" action="/history-page" class="flex flex-col sm:flex-row gap-3 items-end">
             <div class="flex-1">
                 <label class="block text-xs text-gray-400 mb-1">最低分数</label>
@@ -22,7 +22,7 @@
             </div>
             <div class="w-full sm:w-48">
                 <label class="block text-xs text-gray-400 mb-1">标签筛选</label>
-                <select name="label" class="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <select name="label" class="w-full bg-navy-900 border border-navy-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     <option value="">全部</option>
                     <option value="可能AI生成" {% if filters.label == '可能AI生成' %}selected{% endif %}>可能AI生成</option>
                     <option value="情绪操纵" {% if filters.label == '情绪操纵' %}selected{% endif %}>情绪操纵</option>
@@ -35,7 +35,7 @@
             <div class="w-full sm:w-40">
                 <label class="block text-xs text-gray-400 mb-1">起始日期</label>
                 <input type="date" name="date_from" value="{{ filters.date_from or '' }}"
-                       class="w-full bg-[#0f172a] border border-[#334155] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                       class="w-full bg-navy-900 border border-navy-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             </div>
             <button type="submit"
                     class="bg-indigo-600 hover:bg-indigo-700 px-6 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
@@ -47,11 +47,11 @@
     <!-- Results -->
     {% if results %}
     <!-- Desktop Table View -->
-    <div class="bg-[#1e293b] rounded-xl border border-[#334155] overflow-hidden hidden sm:block">
+    <div class="bg-surface rounded-xl border border-navy-700 overflow-hidden hidden sm:block">
         <div class="overflow-x-auto">
             <table class="w-full text-sm">
                 <thead>
-                    <tr class="border-b border-[#334155]">
+                    <tr class="border-b border-navy-700">
                         <th class="text-left px-4 py-3 text-gray-400 font-medium">时间</th>
                         <th class="text-left px-4 py-3 text-gray-400 font-medium">来源/标题</th>
                         <th class="text-center px-4 py-3 text-gray-400 font-medium">评分</th>
@@ -59,9 +59,9 @@
                         <th class="text-left px-4 py-3 text-gray-400 font-medium">摘要</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-[#334155]">
+                <tbody class="divide-y divide-navy-700">
                     {% for item in results %}
-                    <tr class="hover:bg-[#253348] cursor-pointer transition-colors"
+                    <tr class="hover:bg-surface-raised cursor-pointer transition-colors"
                         onclick="window.location='/result/{{ item.id }}'">
                         <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                             {{ item.scored_at[:16] if item.scored_at else '-' }}
@@ -83,7 +83,7 @@
                                 <span class="px-2 py-0.5 rounded-full text-xs
                                             {% if '高质量' in label or '原创' in label %}bg-green-900/50 text-green-300
                                             {% elif '骗' in label %}bg-red-900/50 text-red-300
-                                            {% else %}bg-[#334155] text-gray-300{% endif %}">
+                                            {% else %}bg-navy-700 text-gray-300{% endif %}">
                                     {{ label }}
                                 </span>
                                 {% endfor %}
@@ -102,7 +102,7 @@
     <!-- Mobile Card View -->
     <div class="sm:hidden space-y-3">
         {% for item in results %}
-        <a href="/result/{{ item.id }}" class="block bg-[#1e293b] rounded-xl p-4 border border-[#334155] hover:bg-[#253348] transition-colors">
+        <a href="/result/{{ item.id }}" class="block bg-surface rounded-xl p-4 border border-navy-700 hover:bg-surface-raised transition-colors">
             <div class="flex items-start justify-between gap-3">
                 <div class="flex-1 min-w-0">
                     <p class="font-medium truncate">{{ item.title or item.source_url or '无标题' }}</p>
@@ -121,7 +121,7 @@
                 <span class="px-2 py-0.5 rounded-full text-xs
                             {% if '高质量' in label or '原创' in label %}bg-green-900/50 text-green-300
                             {% elif '骗' in label %}bg-red-900/50 text-red-300
-                            {% else %}bg-[#334155] text-gray-300{% endif %}">
+                            {% else %}bg-navy-700 text-gray-300{% endif %}">
                     {{ label }}
                 </span>
                 {% endfor %}
@@ -137,19 +137,19 @@
         <div class="flex gap-2">
             {% if page > 1 %}
             <a href="/history-page?page={{ page - 1 }}&min_score={{ filters.min_score or 0 }}&label={{ filters.label or '' }}&date_from={{ filters.date_from or '' }}"
-               class="px-3 py-1.5 rounded-lg bg-[#1e293b] border border-[#334155] text-sm hover:bg-[#253348] transition-colors">上一页</a>
+               class="px-3 py-1.5 rounded-lg bg-surface border border-navy-700 text-sm hover:bg-surface-raised transition-colors">上一页</a>
             {% endif %}
             <span class="px-3 py-1.5 text-sm text-gray-400">第 {{ page }} 页</span>
             {% if results|length >= 20 %}
             <a href="/history-page?page={{ page + 1 }}&min_score={{ filters.min_score or 0 }}&label={{ filters.label or '' }}&date_from={{ filters.date_from or '' }}"
-               class="px-3 py-1.5 rounded-lg bg-[#1e293b] border border-[#334155] text-sm hover:bg-[#253348] transition-colors">下一页</a>
+               class="px-3 py-1.5 rounded-lg bg-surface border border-navy-700 text-sm hover:bg-surface-raised transition-colors">下一页</a>
             {% endif %}
         </div>
     </div>
 
     {% else %}
     <!-- Empty State -->
-    <div class="bg-[#1e293b] rounded-xl border border-[#334155] p-12 text-center">
+    <div class="bg-surface rounded-xl border border-navy-700 p-12 text-center">
         <svg class="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         <p class="text-gray-400 mb-4">暂无评分记录</p>
         <a href="/score-form" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">

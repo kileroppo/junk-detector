@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}仪表盘 - Junk Detector{% endblock %}
-{% block nav_dashboard %}text-indigo-400 bg-[#334155]{% endblock %}
+{% block nav_dashboard %}text-indigo-400 bg-navy-700{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -17,7 +17,7 @@
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- Total Scored -->
-        <div class="bg-[#1e293b] rounded-xl p-5 border border-[#334155] card-hover card-gradient-primary">
+        <div class="bg-surface rounded-xl p-5 border border-navy-700 card-hover card-gradient-primary">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm text-gray-400">总评分数</p>
@@ -30,7 +30,7 @@
         </div>
 
         <!-- Average Score -->
-        <div class="bg-[#1e293b] rounded-xl p-5 border border-[#334155] card-hover card-gradient-success">
+        <div class="bg-surface rounded-xl p-5 border border-navy-700 card-hover card-gradient-success">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm text-gray-400">平均分数</p>
@@ -45,7 +45,7 @@
         </div>
 
         <!-- Junk Detected -->
-        <div class="bg-[#1e293b] rounded-xl p-5 border border-[#334155] card-hover card-gradient-danger">
+        <div class="bg-surface rounded-xl p-5 border border-navy-700 card-hover card-gradient-danger">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm text-gray-400">低质量内容</p>
@@ -59,7 +59,7 @@
         </div>
 
         <!-- High Quality -->
-        <div class="bg-[#1e293b] rounded-xl p-5 border border-[#334155] card-hover card-gradient-success">
+        <div class="bg-surface rounded-xl p-5 border border-navy-700 card-hover card-gradient-success">
             <div class="flex items-center justify-between">
                 <div>
                     <p class="text-sm text-gray-400">高质量内容</p>
@@ -74,14 +74,14 @@
     </div>
 
     <!-- Quick Score Form -->
-    <div class="bg-[#1e293b] rounded-xl p-5 border border-[#334155]">
+    <div class="bg-surface rounded-xl p-5 border border-navy-700">
         <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
             <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             快速评分
         </h2>
         <form action="/score-submit" method="post" class="flex flex-col sm:flex-row gap-3">
             <input type="text" name="text" placeholder="输入文本或 URL 进行评分..."
-                   class="flex-1 bg-[#0f172a] border border-[#334155] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-500">
+                   class="flex-1 bg-navy-900 border border-navy-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-500">
             <button type="submit"
                     class="bg-indigo-600 hover:bg-indigo-700 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
                 评分
@@ -91,9 +91,9 @@
 
     <!-- Quality Distribution -->
     {% if stats.total > 0 %}
-    <div class="bg-[#1e293b] rounded-xl p-5 border border-[#334155]">
+    <div class="bg-surface rounded-xl p-5 border border-navy-700">
         <h2 class="text-lg font-semibold mb-3">质量分布</h2>
-        <div class="flex h-4 rounded-full overflow-hidden bg-[#0f172a]">
+        <div class="flex h-4 rounded-full overflow-hidden bg-navy-900">
             {% set high_pct = (stats.high_quality_count / stats.total * 100) if stats.total > 0 else 0 %}
             {% set low_pct = (stats.junk_count / stats.total * 100) if stats.total > 0 else 0 %}
             {% set mid_pct = 100 - high_pct - low_pct %}
@@ -110,8 +110,8 @@
     {% endif %}
 
     <!-- Recent Scores Table -->
-    <div class="bg-[#1e293b] rounded-xl border border-[#334155] overflow-hidden">
-        <div class="px-5 py-4 border-b border-[#334155] flex items-center justify-between">
+    <div class="bg-surface rounded-xl border border-navy-700 overflow-hidden">
+        <div class="px-5 py-4 border-b border-navy-700 flex items-center justify-between">
             <h2 class="text-lg font-semibold">最近评分</h2>
             <span class="text-xs text-gray-500">每10秒自动刷新</span>
         </div>

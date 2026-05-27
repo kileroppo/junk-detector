@@ -2,17 +2,17 @@
 <div class="overflow-x-auto">
     <table class="w-full text-sm">
         <thead>
-            <tr class="border-b border-[#334155]">
+            <tr class="border-b border-navy-700">
                 <th class="text-left px-4 py-3 text-gray-400 font-medium">时间</th>
                 <th class="text-left px-4 py-3 text-gray-400 font-medium">来源/标题</th>
                 <th class="text-center px-4 py-3 text-gray-400 font-medium">评分</th>
                 <th class="text-left px-4 py-3 text-gray-400 font-medium">标签</th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-[#334155]">
+        <tbody class="divide-y divide-navy-700">
             {% if scores %}
                 {% for item in scores %}
-                <tr class="hover:bg-[#253348] cursor-pointer transition-colors"
+                <tr class="hover:bg-surface-raised cursor-pointer transition-colors"
                     onclick="window.location='/result/{{ item.id }}'">
                     <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                         {{ item.scored_at[:16] if item.scored_at else '-' }}
@@ -34,7 +34,7 @@
                             <span class="px-2 py-0.5 rounded-full text-xs
                                         {% if '高质量' in label or '原创' in label %}bg-green-900/50 text-green-300
                                         {% elif '骗' in label %}bg-red-900/50 text-red-300
-                                        {% else %}bg-[#334155] text-gray-300{% endif %}">
+                                        {% else %}bg-navy-700 text-gray-300{% endif %}">
                                 {{ label }}
                             </span>
                             {% endfor %}
