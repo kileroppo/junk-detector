@@ -133,6 +133,39 @@ async def score_submit(
         except Exception:
             pass
 
+        # Compute dual-score: rule_score vs llm_score (overall)
+        from src.core.rules import apply_rules
+        from src.core.scorer import _calculate_overall
+        from src.models.score import DimensionScores
+
+        rule_result = apply_rules(content.text)
+
+        # Build rule-only dimensions
+        rule_dims_dict: dict[str, float] = {}
+        for dim in ["originality", "info_density", "reasoning_quality", "readability", "timeliness"]:
+            rule_dims_dict[dim] = rule_result.dimension_overrides.get(dim, 50.0)
+        for dim in ["ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob"]:
+            rule_dims_dict[dim] = rule_result.dimension_overrides.get(dim, 0.0)
+
+        rule_dimensions = DimensionScores(**rule_dims_dict)
+        try:
+            from src.core.config import load_config as _load_cfg
+
+            _cfg = _load_cfg()
+        except Exception:
+            _cfg = None
+
+        if _cfg:
+            rule_only_score = _calculate_overall(rule_dimensions, _cfg)
+        else:
+            rule_only_score = 50.0
+
+        llm_score = result.overall_score
+        score_divergence = abs(rule_only_score - llm_score)
+        # Only show dual rings if rules actually fired (rule_score != default ~73)
+        rules_fired = bool(rule_result.matched_rules)
+        divergence_warning = score_divergence > 20 and rules_fired
+
         # Generate focus guide if content is likely AI-generated or low quality
         # Widen gate so the inner function's own guard handles "definitely good" case
         focus_guide = None
@@ -158,6 +191,11 @@ async def score_submit(
             "focus_guide": focus_guide,
             "rule_hits": result.rule_hits,
             "dimension_sources": result.dimension_sources,
+            "rule_score": rule_only_score,
+            "llm_score": llm_score,
+            "score_divergence": score_divergence,
+            "divergence_warning": divergence_warning,
+            "rules_fired": rules_fired,
         }
 
         # Source reputation warning
@@ -525,6 +563,9 @@ async def partials_monitor_stats(request: Request):
             "thunder": stats["thunder"],
             "dispatcher": stats["dispatcher"],
             "is_running": service.is_running,
+            "recent_items": stats.get("recent_items", []),
+            "feeds": stats.get("feeds", []),
+            "last_fetch_time": stats.get("last_fetch_time"),
         },
     )
 

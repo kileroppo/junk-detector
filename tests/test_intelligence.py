@@ -386,13 +386,13 @@ class TestRuleExplanation:
                         )
 
         assert response.status_code == 200
-        # Check that the "Why This Score" section is present
-        assert "为什么是这个分数" in response.text
+        # Check that the "判定依据" (Judgment Basis) section is present
+        assert "判定依据" in response.text
         # Check that rule hits are shown
         assert "scam_keywords" in response.text
         assert "emotional_manipulation_high" in response.text
-        # Check dimension sources
-        assert "rule" in response.text
+        # Check dimension sources are shown (rule displayed as Chinese label)
+        assert "规则" in response.text
 
 
 # ---------------------------------------------------------------------------
