@@ -1149,5 +1149,71 @@ def feedback(
     console.print()
 
 
+@app.command()
+def rules(
+    list_rules: bool = typer.Option(False, "--list", "-l", help="List all active rules (built-in + custom)"),
+    init: bool = typer.Option(False, "--init", help="Create template .junk-rules.yaml in current directory"),
+    validate: Optional[str] = typer.Option(None, "--validate", help="Validate a custom rules YAML file"),
+) -> None:
+    """Manage detection rules (built-in + custom)."""
+    from src.core.custom_rules import (
+        generate_template,
+        load_custom_rules,
+        validate_rules_file,
+    )
+    from src.core.rules import (
+        _ADVERTORIAL_KEYWORDS,
+        _AI_HEDGING_PHRASES,
+        _ANXIETY_PHRASES,
+        _COMBO_RULES,
+        _SCAM_KEYWORDS,
+    )
+
+    if init:
+        target = Path.cwd() / ".junk-rules.yaml"
+        if target.exists():
+            console.print(f"[yellow].junk-rules.yaml already exists at {target}[/yellow]")
+            raise typer.Exit(code=1)
+        target.write_text(generate_template(), encoding="utf-8")
+        console.print(f"[green]Created .junk-rules.yaml at {target}[/green]")
+        return
+
+    if validate is not None:
+        is_valid, errors = validate_rules_file(validate)
+        if is_valid:
+            console.print(f"[green]OK: {validate} is valid[/green]")
+        else:
+            console.print(f"[red]INVALID: {validate}[/red]")
+            for err in errors:
+                console.print(f"  - {err}")
+            raise typer.Exit(code=1)
+        return
+
+    if list_rules:
+        console.print()
+        console.print("[bold]Built-in Rules[/bold]")
+        console.print("-" * 40)
+        console.print(f"  Scam keywords: {len(_SCAM_KEYWORDS)}")
+        console.print(f"  Anxiety phrases: {len(_ANXIETY_PHRASES)}")
+        console.print(f"  Advertorial keywords: {len(_ADVERTORIAL_KEYWORDS)}")
+        console.print(f"  AI hedging phrases: {len(_AI_HEDGING_PHRASES)}")
+        console.print(f"  Combo rules: {len(_COMBO_RULES)}")
+
+        custom = load_custom_rules()
+        console.print()
+        console.print("[bold]Custom Rules[/bold]")
+        console.print("-" * 40)
+        if custom:
+            for rule in custom:
+                console.print(f"  {rule.name} -> {rule.target_dimension}")
+        else:
+            console.print("  (none)")
+        console.print()
+        return
+
+    # Default: show help hint
+    console.print("Use --list, --init, or --validate. Run 'junk-detector rules --help' for details.")
+
+
 if __name__ == "__main__":
     app()
