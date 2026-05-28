@@ -169,6 +169,10 @@ def save(
             ),
         )
         conn.commit()
+    except Exception as e:
+        from src.core.exceptions import StorageError
+
+        raise StorageError(str(e)) from e
     finally:
         conn.close()
 

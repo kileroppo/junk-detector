@@ -197,7 +197,7 @@ async def score_submit(
 
     except Exception as e:
         logger.exception("score_submit failed")
-        error_html = f'<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">评分失败: {str(e)}</div>'
+        error_html = '<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">评分失败，请稍后重试</div>'
         return HTMLResponse(content=error_html, status_code=500)
 
 
@@ -449,7 +449,7 @@ async def compare_submit(
 
     except Exception as e:
         logger.exception("compare_submit failed")
-        error_html = f'<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">对比评分失败: {str(e)}</div>'
+        error_html = '<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">对比评分失败，请稍后重试</div>'
         return HTMLResponse(content=error_html, status_code=500)
 
 

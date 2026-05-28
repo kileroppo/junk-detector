@@ -36,7 +36,7 @@ class TestHealthEndpoint:
 
     @patch("litellm.acompletion", new_callable=AsyncMock)
     def test_deep_health_check_does_not_leak_errors(self, mock_acompletion, client):
-        """Deep health check returns 503 with degraded status, error truncated."""
+        """Deep health check returns 503 with degraded status, error shows only type name."""
         mock_acompletion.side_effect = Exception(
             "Invalid API key: sk-secret-key-here, base_url: https://internal.api.com"
         )
@@ -46,7 +46,9 @@ class TestHealthEndpoint:
         assert data["status"] == "degraded"
         assert data["llm_reachable"] is False
         assert "error" in data
-        assert len(data["error"]) <= 200
+        assert data["error"] == "Exception"
+        assert "sk-secret" not in data["error"]
+        assert "internal.api.com" not in data["error"]
 
 
 class TestScoreEndpoint:

@@ -75,7 +75,7 @@ class TestDeepHealth:
         assert data["status"] == "degraded"
         assert data["llm_reachable"] is False
         assert "error" in data
-        assert "Connection refused" in data["error"]
+        assert data["error"] == "Exception"
 
     def test_deep_health_cache_hit(self, health_client):
         """Second call within 60s returns cached result without calling LLM."""
@@ -133,8 +133,8 @@ class TestDeepHealth:
         # LLM should be called twice
         assert mock_llm.call_count == 2
 
-    def test_deep_health_error_truncated(self, health_client):
-        """Long error messages are truncated to 200 chars."""
+    def test_deep_health_error_shows_type_only(self, health_client):
+        """Error field shows only exception type name, not full message."""
         long_error = "x" * 500
 
         with patch("litellm.acompletion", new_callable=AsyncMock, side_effect=Exception(long_error)):
@@ -143,4 +143,4 @@ class TestDeepHealth:
 
         assert response.status_code == 503
         data = response.json()
-        assert len(data["error"]) <= 200
+        assert data["error"] == "Exception"

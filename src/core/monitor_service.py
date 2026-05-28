@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -39,12 +40,13 @@ class MonitorService:
         self._initialized = True
         self._running = False
         self._feeds: list[dict[str, str]] = []
-        self._seen_urls: set[str] = set()
+        self._seen_urls: OrderedDict[str, None] = OrderedDict()
         self._recent_items: list[dict[str, Any]] = []
         self._task: asyncio.Task | None = None
         self._fetch_interval: int = 300
         self._auto_score: bool = True
         self._last_fetch_time: str | None = None
+        self._full_score_semaphore = asyncio.Semaphore(5)  # Max 5 concurrent full scores
         self._thunder: dict = {
             "sources_count": 0,
             "items_discovered": 0,
@@ -52,7 +54,7 @@ class MonitorService:
         }
         self._dispatcher: dict = {
             "in_flight": 0,
-            "max_in_flight": 10,
+            "max_in_flight": 5,
             "queue_size": 0,
             "total_scored": 0,
             "total_failed": 0,
@@ -86,7 +88,7 @@ class MonitorService:
         }
         self._dispatcher = {
             "in_flight": 0,
-            "max_in_flight": 10,
+            "max_in_flight": 5,
             "queue_size": 0,
             "total_scored": 0,
             "total_failed": 0,
@@ -150,12 +152,10 @@ class MonitorService:
                         if not link or link in self._seen_urls:
                             continue
 
-                        self._seen_urls.add(link)
-                        # Cap _seen_urls to prevent unbounded memory growth
-                        if len(self._seen_urls) > self._SEEN_URLS_MAX:
-                            # Discard roughly half to amortize the cost of trimming
-                            to_keep = list(self._seen_urls)[self._SEEN_URLS_MAX // 2:]
-                            self._seen_urls = set(to_keep)
+                        self._seen_urls[link] = None
+                        # Evict oldest entries when over cap
+                        while len(self._seen_urls) > self._SEEN_URLS_MAX:
+                            self._seen_urls.popitem(last=False)  # Remove oldest
                         self._thunder["items_discovered"] += 1
                         self._thunder["seen_urls_count"] = len(self._seen_urls)
 
@@ -222,32 +222,34 @@ class MonitorService:
         """Background task: extract URL content and run full scoring.
 
         Updates item in _recent_items from 'quick_scored' to 'fully_scored'.
+        Bounded by _full_score_semaphore to limit concurrency.
         """
-        link = item_data.get("link", "")
-        if not link:
-            return
+        async with self._full_score_semaphore:
+            link = item_data.get("link", "")
+            if not link:
+                return
 
-        try:
-            item_data["status"] = "scoring_full"
+            try:
+                item_data["status"] = "scoring_full"
 
-            from src.extractors.web import extract_from_url
+                from src.extractors.web import extract_from_url
 
-            content = await extract_from_url(link)
+                content = await extract_from_url(link)
 
-            from src.core.scorer import score
+                from src.core.scorer import score
 
-            result = await score(content.text)
+                result = await score(content.text)
 
-            item_data["full_score"] = result.overall_score
-            item_data["score"] = result.overall_score
-            item_data["status"] = "fully_scored"
-            self._dispatcher["total_scored"] += 1
+                item_data["full_score"] = result.overall_score
+                item_data["score"] = result.overall_score
+                item_data["status"] = "fully_scored"
+                self._dispatcher["total_scored"] += 1
 
-        except Exception as e:
-            logger.debug("Full scoring failed for %s: %s", link, e)
-            # Keep quick_scored status, don't update score
-            item_data["status"] = "quick_scored"
-            self._dispatcher["total_failed"] += 1
+            except Exception as e:
+                logger.debug("Full scoring failed for %s: %s", link, e)
+                # Keep quick_scored status, don't update score
+                item_data["status"] = "quick_scored"
+                self._dispatcher["total_failed"] += 1
 
     def add_feed(self, name: str, url: str) -> None:
         """Add a new feed to the internal feeds list.

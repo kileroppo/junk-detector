@@ -147,28 +147,21 @@ async def score(
     # Cache check: return cached result if scored within 7 days
     content_hash = hashlib.sha256(content_text.encode()).hexdigest()
     try:
-        from src.storage.db import query_by_content_hash
+        from src.storage.db import get_cached_score
 
-        cached = query_by_content_hash(content_hash)
+        cached = get_cached_score(content_hash, max_age_days=7)
         if cached:
-            scored_at_str = cached.get("scored_at", "")
-            if scored_at_str:
-                scored_at_dt = datetime.fromisoformat(scored_at_str)
-                if scored_at_dt.tzinfo is None:
-                    scored_at_dt = scored_at_dt.replace(tzinfo=timezone.utc)
-                now = datetime.now(timezone.utc)
-                if now - scored_at_dt < timedelta(days=7):
-                    logger.info("Returning cached result (content_hash=%s)", content_hash[:12])
-                    return ScoreResult(
-                        overall_score=cached["overall_score"],
-                        dimensions=DimensionScores(**cached["dimensions"]),
-                        labels=cached.get("labels", []),
-                        summary=cached.get("summary", ""),
-                        confidence=cached.get("confidence", 1.0),
-                        model_used="cache",
-                        cost=0.0,
-                        rule_hits=cached.get("rule_hits", []),
-                    )
+            logger.info("Returning cached result (content_hash=%s)", content_hash[:12])
+            return ScoreResult(
+                overall_score=cached["overall_score"],
+                dimensions=DimensionScores(**cached["dimensions"]),
+                labels=cached.get("labels", []),
+                summary=cached.get("summary", ""),
+                confidence=cached.get("confidence", 1.0),
+                model_used="cache",
+                cost=0.0,
+                rule_hits=cached.get("rule_hits", []),
+            )
     except Exception as e:
         logger.debug("Cache lookup failed: %s", e)
 

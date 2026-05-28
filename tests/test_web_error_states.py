@@ -49,7 +49,7 @@ class TestScoreSubmitErrors:
     def test_submit_scorer_raises_returns_500_with_message(
         self, mock_extract, mock_score, web_client
     ):
-        """POST /score-submit returns 500 HTML containing the error message."""
+        """POST /score-submit returns 500 HTML with generic error message."""
         from src.models.score import Content, InputType
 
         mock_extract.return_value = Content(
@@ -67,7 +67,9 @@ class TestScoreSubmitErrors:
 
         assert response.status_code == 500
         assert "text/html" in response.headers["content-type"]
-        assert "API rate limit exceeded" in response.text
+        assert "评分失败，请稍后重试" in response.text
+        # Raw error message should NOT leak to user
+        assert "API rate limit exceeded" not in response.text
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.extractors.text.extract_from_text")
@@ -93,7 +95,9 @@ class TestScoreSubmitErrors:
 
         assert response.status_code == 500
         assert "text/html" in response.headers["content-type"]
-        assert "Connection timeout" in response.text
+        assert "评分失败，请稍后重试" in response.text
+        # Raw error message should NOT leak to user
+        assert "Connection timeout" not in response.text
         # Should be a fragment (div), not a full HTML page
         assert "<!DOCTYPE html>" not in response.text
 
@@ -112,7 +116,9 @@ class TestScoreSubmitErrors:
 
         assert response.status_code == 500
         assert "text/html" in response.headers["content-type"]
-        assert "Failed to fetch URL" in response.text
+        assert "评分失败，请稍后重试" in response.text
+        # Raw error message should NOT leak to user
+        assert "Failed to fetch URL" not in response.text
 
 
 class TestResultDetailErrors:

@@ -65,7 +65,7 @@ app.add_middleware(RateLimitMiddleware, config=RateLimitConfig())
 # ---------------------------------------------------------------------------
 # Exception handlers
 # ---------------------------------------------------------------------------
-from src.core.exceptions import ScoringError
+from src.core.exceptions import ExtractionError, ScoringError
 
 
 @app.exception_handler(ScoringError)
@@ -76,6 +76,17 @@ async def scoring_error_handler(request, exc: ScoringError):
     return JSONResponse(
         status_code=500,
         content={"error": "scoring_failed", "detail": str(exc)},
+    )
+
+
+@app.exception_handler(ExtractionError)
+async def extraction_error_handler(request, exc: ExtractionError):
+    """Return a JSON error for ExtractionError."""
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        status_code=422,
+        content={"error": "extraction_failed", "detail": str(exc)},
     )
 
 # ---------------------------------------------------------------------------
@@ -168,7 +179,7 @@ async def health(deep: bool = False):
         result = {
             "status": "degraded",
             "llm_reachable": False,
-            "error": str(e)[:200],
+            "error": type(e).__name__,
         }
         _health_cache["result"] = result
         _health_cache["timestamp"] = now
@@ -207,6 +218,8 @@ async def score_content(
     should_score_content(content_key)  # record in TTL cache for stats
 
     # Extract content
+    from src.core.exceptions import ExtractionError
+
     try:
         if request.url:
             content = await extract_from_url(request.url)
@@ -216,6 +229,8 @@ async def score_content(
         raise HTTPException(status_code=400, detail=str(e))
     except TimeoutError as e:
         raise HTTPException(status_code=504, detail=str(e))
+    except Exception as e:
+        raise ExtractionError(str(e)) from e
 
     # Score the content
     # Apply user preferences if authenticated
@@ -229,12 +244,15 @@ async def score_content(
         user_prefs = PreferencesService.get_preferences(current_user.id)
         language = user_prefs.language or "zh"
 
-    if user_config is not None:
-        result = await score(
-            content.text, config=user_config, source_url=request.url, language=language
-        )
-    else:
-        result = await score(content.text, source_url=request.url)
+    try:
+        if user_config is not None:
+            result = await score(
+                content.text, config=user_config, source_url=request.url, language=language
+            )
+        else:
+            result = await score(content.text, source_url=request.url)
+    except Exception as e:
+        raise ScoringError(str(e)) from e
 
     # Save to storage (user_id available if authenticated)
     try:
