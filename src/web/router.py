@@ -124,6 +124,15 @@ async def score_submit(
         except Exception:
             pass
 
+        # Generate focus guide if content is likely AI-generated or low quality
+        focus_guide = None
+        if result.overall_score < 50 or result.dimensions.ai_generated_prob > 50:
+            from src.core.focus_guide import generate_focus_guide
+
+            guide = generate_focus_guide(content.text, result)
+            if guide:
+                focus_guide = guide.model_dump()
+
         # Build result dict for template
         result_data = {
             "overall_score": result.overall_score,
@@ -136,6 +145,7 @@ async def score_submit(
             "scored_at": result.scored_at.isoformat()[:19],
             "title": content.title,
             "source_url": content.source_url,
+            "focus_guide": focus_guide,
         }
 
         # Check if HTMX request

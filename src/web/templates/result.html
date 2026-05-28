@@ -54,6 +54,11 @@
         {% endif %}
     </div>
 
+    <!-- Focus Guide (shown only when content is flagged) -->
+    {% if result.focus_guide %}
+    {% include "partials/focus_guide.html" %}
+    {% endif %}
+
     <!-- Dimension Breakdown -->
     <div class="bg-surface rounded-xl p-6 border border-navy-700">
         <h2 class="text-lg font-semibold mb-5">9维度详细分析</h2>
