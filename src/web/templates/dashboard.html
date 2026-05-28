@@ -14,6 +14,33 @@
         </span>
     </div>
 
+    {% if stats.total == 0 %}
+    <!-- Empty State for First-time Users -->
+    <div id="dashboard-empty-state" class="bg-surface rounded-xl border border-navy-700 p-12 text-center">
+        <svg class="w-20 h-20 mx-auto text-indigo-400/60 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        <p class="text-lg font-medium text-gray-200 mb-2">还没有评分记录，试试评分第一篇内容吧！</p>
+        <p class="text-sm text-gray-400 mb-6">AI 从9个维度分析内容质量，帮你识别低质量信息。</p>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <a href="/score-form" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-6 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                开始评分
+            </a>
+            <button type="button"
+                    hx-post="/score-submit"
+                    hx-target="#empty-state-result"
+                    hx-swap="innerHTML"
+                    hx-vals='{"input_type": "text", "text": "近日，某科技公司发布了一款号称能治百病的智能手环，售价仅99元。该产品宣称通过量子波动技术，可以检测并治疗高血压、糖尿病等慢性疾病。专家表示，目前没有任何科学证据支持这类说法。", "title": "示例：疑似虚假宣传内容"}'
+                    class="inline-flex items-center gap-2 bg-navy-700 hover:bg-navy-600 px-6 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors border border-navy-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                试试示例
+            </button>
+        </div>
+        <div id="empty-state-result" class="mt-6"></div>
+    </div>
+    {% endif %}
+
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
         <!-- Total Scored -->
@@ -81,9 +108,9 @@
         </h2>
         <form action="/score-submit" method="post" class="flex flex-col sm:flex-row gap-3">
             <input type="text" name="text" placeholder="输入文本或 URL 进行评分..."
-                   class="flex-1 bg-navy-900 border border-navy-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-500">
+                   class="flex-1 bg-navy-900 border border-navy-700 rounded-lg px-4 py-3 min-h-[44px] text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-500">
             <button type="submit"
-                    class="bg-indigo-600 hover:bg-indigo-700 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+                    class="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
                 评分
             </button>
         </form>

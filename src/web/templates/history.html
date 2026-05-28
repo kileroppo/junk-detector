@@ -102,7 +102,13 @@
     <!-- Mobile Card View -->
     <div class="sm:hidden space-y-3 stagger-children">
         {% for item in results %}
-        <div class="history-swipe-container relative overflow-hidden rounded-xl">
+        <div class="history-swipe-container relative overflow-hidden rounded-xl{% if loop.first %} first-swipe-card{% endif %}">
+            {% if loop.first %}
+            <!-- Swipe hint for first card -->
+            <div class="swipe-hint absolute inset-0 z-20 flex items-center justify-center pointer-events-none opacity-0 animate-swipe-hint">
+                <span class="text-xs text-gray-400 bg-navy-900/80 px-3 py-1 rounded-full">&larr; 滑动操作 &rarr;</span>
+            </div>
+            {% endif %}
             <!-- Swipe action panels (behind the card) -->
             <div class="swipe-action-right absolute inset-y-0 left-0 w-20 bg-emerald-700 flex items-center justify-center rounded-l-xl">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
@@ -111,7 +117,7 @@
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </div>
             <!-- Card (swipeable) -->
-            <a href="/result/{{ item.id }}" class="history-swipe-card block bg-surface p-4 border border-navy-700 hover:bg-surface-raised transition-transform rounded-xl relative z-10"
+            <a href="/result/{{ item.id }}" class="history-swipe-card block bg-surface p-4 border border-navy-700 hover:bg-surface-raised transition-transform rounded-xl relative z-10 min-h-[44px]"
                data-score-id="{{ item.id }}" data-content-hash="{{ item.content_hash or '' }}">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
@@ -174,6 +180,14 @@
 <script>
 // Mobile swipe gestures on history cards
 (function() {
+    // Show swipe hint on first card briefly
+    var hintEl = document.querySelector('.swipe-hint');
+    if (hintEl && !localStorage.getItem('swipe_hint_shown')) {
+        hintEl.style.opacity = '1';
+        setTimeout(function() { hintEl.style.opacity = '0'; }, 3000);
+        localStorage.setItem('swipe_hint_shown', 'true');
+    }
+
     var cards = document.querySelectorAll('.history-swipe-card');
     cards.forEach(function(card) {
         var startX = 0;
