@@ -64,6 +64,10 @@ class ScoreResult(BaseModel):
         default_factory=dict, description="每个维度的来源: 'rule' or 'llm'"
     )
     tokens_used: int = Field(default=0, ge=0, description="Total tokens used in LLM call")
+    content_type: Optional[str] = Field(default=None, description="Classified content type")
+    content_type_label: Optional[str] = Field(
+        default=None, description="Chinese label for content type"
+    )
 
 
 class FastScoreResult(BaseModel):

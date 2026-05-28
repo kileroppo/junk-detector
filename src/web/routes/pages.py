@@ -169,6 +169,8 @@ async def score_submit(
             "divergence_warning": report.divergence_warning,
             "rules_fired": report.rules_fired,
             "source_warning": report.source_warning,
+            "content_type": report.result.content_type,
+            "content_type_label": report.result.content_type_label,
         }
 
         # Check if HTMX request
@@ -459,15 +461,39 @@ async def monitor_status(request: Request):
 
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
-    """Settings page with model config, scoring preferences, and theme."""
+    """Settings page with model config, scoring preferences, theme, and savings report."""
     api_key_configured = bool(os.environ.get("DEEPSEEK_API_KEY"))
     try:
         model_cfg = get_model_config()
         model_name = model_cfg.get("primary", "deepseek/deepseek-chat")
     except Exception:
         model_name = "deepseek/deepseek-chat"
+
+    # Get savings report data
+    try:
+        from src.core.savings_report import get_savings_report
+
+        savings = get_savings_report(days=30)
+    except Exception:
+        savings = {
+            "total_scores": 0,
+            "rules_only_count": 0,
+            "cached_count": 0,
+            "total_tokens_used": 0,
+            "estimated_tokens_if_no_optimization": 0,
+            "token_savings_percent": 0.0,
+            "estimated_cost_saved_yuan": 0.0,
+            "avg_response_time_ms": 0,
+            "estimated_time_if_manual": 0,
+            "time_saved_minutes": 0.0,
+        }
+
     return templates.TemplateResponse(
         request,
         "settings.html",
-        {"api_key_configured": api_key_configured, "model_name": model_name},
+        {
+            "api_key_configured": api_key_configured,
+            "model_name": model_name,
+            "savings": savings,
+        },
     )

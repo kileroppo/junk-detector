@@ -194,6 +194,27 @@ async def score(
     # 1. Apply rules first
     rule_result = apply_rules(content_text)
 
+    # 1.1. Content type classification for dynamic weight adjustment
+    content_classification = None
+    try:
+        from src.core.content_classifier import classify_content
+
+        content_classification = classify_content(content_text)
+        if content_classification.weight_adjustments:
+            adjusted_weights = dict(config.weights)
+            for dim, multiplier in content_classification.weight_adjustments.items():
+                if dim in adjusted_weights:
+                    adjusted_weights[dim] = adjusted_weights[dim] * multiplier
+            config = config.model_copy(deep=True)
+            config.weights = adjusted_weights
+            logger.info(
+                "Content classified as %s (confidence=%.2f), weights adjusted",
+                content_classification.primary_type.value,
+                content_classification.confidence,
+            )
+    except Exception as e:
+        logger.debug("Content classification failed: %s", e)
+
     # 1.5. Check platform-specific extra rules and boost signals if matched
     platform_rule_hits = check_platform_extra_rules(content_text, platform)
     if platform_rule_hits:
@@ -262,6 +283,11 @@ async def score(
             increment_rules_only()
         except Exception as e:
             logger.debug("Failed to increment rules_only stats: %s", e)
+
+        # Attach content classification info
+        if content_classification and content_classification.primary_type.value != "unknown":
+            result.content_type = content_classification.primary_type.value
+            result.content_type_label = content_classification.type_label_zh
 
         return result
 
@@ -523,5 +549,10 @@ async def score(
                 )
         except Exception as e:
             logger.debug("Failed to track ROI: %s", e)
+
+    # 9. Attach content classification info
+    if content_classification and content_classification.primary_type.value != "unknown":
+        result.content_type = content_classification.primary_type.value
+        result.content_type_label = content_classification.type_label_zh
 
     return result
