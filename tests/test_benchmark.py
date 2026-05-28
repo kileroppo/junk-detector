@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-
 DATASET_PATH = Path(__file__).parent.parent / "benchmark" / "dataset" / "labeled_500.jsonl"
 
 VALID_LABELS = {"junk", "quality"}

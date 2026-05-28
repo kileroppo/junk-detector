@@ -7,11 +7,14 @@ dimension score overrides with associated confidence levels.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class RuleResult(BaseModel):
@@ -680,7 +683,7 @@ def apply_rules(content: str) -> RuleResult:
             for dim, conf in custom_result.confidence.items():
                 current = result.confidence.get(dim, 0)
                 result.confidence[dim] = max(current, conf)
-    except Exception:
-        pass  # Custom rules should never break built-in functionality
+    except (ImportError, OSError, ValueError) as e:
+        logger.warning("Failed to load/apply custom rules: %s", e)
 
     return result
