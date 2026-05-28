@@ -218,6 +218,11 @@ def _build_filter_clause(filters: dict | None) -> tuple[str, list]:
             sql += " AND scored_at <= ?"
             params.append(filters["date_to"])
 
+        if "search" in filters:
+            sql += " AND (title LIKE ? OR summary LIKE ?)"
+            params.append(f"%{filters['search']}%")
+            params.append(f"%{filters['search']}%")
+
     return sql, params
 
 

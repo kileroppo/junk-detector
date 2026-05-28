@@ -360,6 +360,7 @@ async def history_page(
     label: Optional[str] = None,
     date_from: Optional[str] = None,
     sort: Optional[str] = None,
+    search: Optional[str] = None,
 ):
     """Full history page with filters and pagination."""
     filters: dict = {}
@@ -369,6 +370,8 @@ async def history_page(
         filters["label"] = label
     if date_from:
         filters["date_from"] = date_from
+    if search:
+        filters["search"] = search
 
     per_page = 20
     offset = (page - 1) * per_page
@@ -388,6 +391,7 @@ async def history_page(
         "min_score": min_score,
         "label": label or "",
         "date_from": date_from or "",
+        "search": search or "",
     }
 
     return templates.TemplateResponse(

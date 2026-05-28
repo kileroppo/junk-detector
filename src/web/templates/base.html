@@ -23,6 +23,9 @@
         body.simple-mode .detail-section { display: none !important; }
         body.simple-mode .simple-hidden { display: none !important; }
         body.simple-mode .simple-only { display: block !important; }
+        /* Font size classes */
+        html.font-large { font-size: 18px; }
+        html.font-xl { font-size: 20px; }
     </style>
     <link rel="stylesheet" href="/static/style.css">
     <script>
@@ -38,6 +41,14 @@
             if (meta) {
                 meta.setAttribute('content', theme === 'dark' ? '#0f172a' : '#ffffff');
             }
+            // Font size initialization
+            var fontSize = localStorage.getItem('font_size') || 'normal';
+            document.documentElement.classList.remove('font-large', 'font-xl');
+            if (fontSize === 'large') {
+                document.documentElement.classList.add('font-large');
+            } else if (fontSize === 'xl') {
+                document.documentElement.classList.add('font-xl');
+            }
             // Simple mode initialization
             if (localStorage.getItem('simple_mode') === 'true') {
                 document.body && document.body.classList.add('simple-mode');
@@ -50,6 +61,13 @@
                 document.body.classList.add('simple-mode');
                 var btn = document.getElementById('simple-mode-btn');
                 if (btn) btn.classList.add('active');
+            }
+            // Font size button state
+            var fontSize = localStorage.getItem('font_size') || 'normal';
+            var fontBtn = document.getElementById('font-size-btn');
+            if (fontBtn) {
+                fontBtn.textContent = fontSize === 'normal' ? 'A' : (fontSize === 'large' ? 'A+' : 'A++');
+                fontBtn.title = fontSize === 'normal' ? '字体: 标准' : (fontSize === 'large' ? '字体: 大' : '字体: 特大');
             }
         });
 
@@ -98,6 +116,23 @@
             }
             if (desc) {
                 desc.textContent = isDark ? '\u5F53\u524D\u4E3A\u6DF1\u8272\u4E3B\u9898' : '\u5F53\u524D\u4E3A\u6D45\u8272\u4E3B\u9898';
+            }
+        }
+
+        function cycleFontSize() {
+            var current = localStorage.getItem('font_size') || 'normal';
+            var next = 'normal';
+            if (current === 'normal') next = 'large';
+            else if (current === 'large') next = 'xl';
+            else next = 'normal';
+            localStorage.setItem('font_size', next);
+            document.documentElement.classList.remove('font-large', 'font-xl');
+            if (next === 'large') document.documentElement.classList.add('font-large');
+            else if (next === 'xl') document.documentElement.classList.add('font-xl');
+            var btn = document.getElementById('font-size-btn');
+            if (btn) {
+                btn.textContent = next === 'normal' ? 'A' : (next === 'large' ? 'A+' : 'A++');
+                btn.title = next === 'normal' ? '字体: 标准' : (next === 'large' ? '字体: 大' : '字体: 特大');
             }
         }
     </script>
@@ -172,6 +207,9 @@
                     <button id="simple-mode-btn" onclick="toggleSimpleMode()" class="px-3 py-1.5 rounded-lg text-xs font-medium border border-navy-700 hover:bg-navy-700 transition-colors" title="极简模式" aria-label="极简模式 - 切换简洁界面">
                         极简
                     </button>
+                    <button id="font-size-btn" onclick="cycleFontSize()" class="px-3 py-1.5 rounded-lg text-xs font-bold border border-navy-700 hover:bg-navy-700 transition-colors" title="字体: 标准" aria-label="切换字体大小">
+                        A
+                    </button>
                     <a href="/settings" aria-label="设置 - 配置API密钥和偏好" class="px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-navy-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors {% block nav_settings %}{% endblock %}">
                         <span class="inline-flex items-center gap-1.5">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -183,7 +221,7 @@
                 <!-- Mobile menu button -->
                 <div class="md:hidden">
                     <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
-                            class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-navy-700" aria-label="打开菜单">
+                            class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-navy-700 min-w-[44px] min-h-[44px]" aria-label="打开菜单">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                         </svg>
@@ -235,7 +273,7 @@
     <footer class="bg-white dark:bg-surface border-t border-gray-200 dark:border-navy-700 py-4">
         <div class="max-w-7xl mx-auto px-4 text-center text-sm text-gray-500 flex items-center justify-center gap-3">
             <span>Junk Detector v0.1 - AI 内容质量评分系统</span>
-            <button id="shortcut-help-btn" onclick="toggleShortcutOverlay()" class="w-6 h-6 rounded-full bg-navy-700 text-gray-400 text-xs font-bold hover:bg-indigo-600 hover:text-white transition-colors" title="键盘快捷键">?</button>
+            <button id="shortcut-help-btn" onclick="toggleShortcutOverlay()" class="w-11 h-11 rounded-full bg-navy-700 text-gray-400 text-xs font-bold hover:bg-indigo-600 hover:text-white transition-colors" title="键盘快捷键">?</button>
         </div>
     </footer>
 
@@ -246,6 +284,7 @@
             <div class="grid grid-cols-2 gap-3 text-sm">
                 <div class="flex items-center gap-2"><kbd class="px-2 py-1 bg-navy-900 rounded text-xs font-mono border border-navy-700">/</kbd><span class="text-gray-300">聚焦输入框</span></div>
                 <div class="flex items-center gap-2"><kbd class="px-2 py-1 bg-navy-900 rounded text-xs font-mono border border-navy-700">N</kbd><span class="text-gray-300">新建评分</span></div>
+                <div class="flex items-center gap-2"><kbd class="px-2 py-1 bg-navy-900 rounded text-xs font-mono border border-navy-700">S</kbd><span class="text-gray-300">搜索历史</span></div>
                 <div class="flex items-center gap-2"><kbd class="px-2 py-1 bg-navy-900 rounded text-xs font-mono border border-navy-700">Esc</kbd><span class="text-gray-300">关闭菜单/面板</span></div>
                 <div class="flex items-center gap-2"><kbd class="px-2 py-1 bg-navy-900 rounded text-xs font-mono border border-navy-700">J</kbd><span class="text-gray-300">下一条记录</span></div>
                 <div class="flex items-center gap-2"><kbd class="px-2 py-1 bg-navy-900 rounded text-xs font-mono border border-navy-700">K</kbd><span class="text-gray-300">上一条记录</span></div>
@@ -285,6 +324,9 @@
             navigateHistoryItem(1);
         } else if (e.key === 'k' || e.key === 'K') {
             navigateHistoryItem(-1);
+        } else if (e.key === 's' || e.key === 'S') {
+            var searchInput = document.querySelector('input[name="search"]');
+            if (searchInput) { e.preventDefault(); searchInput.focus(); }
         } else if (e.key === '?') {
             toggleShortcutOverlay();
         }
