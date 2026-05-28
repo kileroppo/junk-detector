@@ -307,21 +307,47 @@ async def partials_toast(
 @router.get("/partials/monitor-stats", response_class=HTMLResponse)
 async def partials_monitor_stats(request: Request):
     """Return monitor stats fragment for HTMX polling."""
-    thunder = {
-        "sources_count": 0,
-        "items_discovered": 0,
-        "seen_urls_count": 0,
-    }
-    dispatcher = {
-        "in_flight": 0,
-        "max_in_flight": 10,
-        "queue_size": 0,
-        "total_scored": 0,
-        "total_failed": 0,
-        "total_retried": 0,
-    }
+    from src.core.monitor_service import MonitorService
+
+    service = MonitorService()
+    stats = service.get_stats()
     return templates.TemplateResponse(
         request,
         "partials/monitor_stats.html",
-        {"thunder": thunder, "dispatcher": dispatcher, "is_running": False},
+        {
+            "thunder": stats["thunder"],
+            "dispatcher": stats["dispatcher"],
+            "is_running": service.is_running,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Monitor API endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/monitor/start", response_class=HTMLResponse)
+async def api_monitor_start(request: Request):
+    """Start the Thunder monitor."""
+    from src.core.monitor_service import MonitorService
+
+    service = MonitorService()
+    service.start()
+    return HTMLResponse(
+        content="",
+        headers={"HX-Trigger": '{"showToast": {"message": "Monitor started", "type": "success"}}'},
+    )
+
+
+@router.post("/api/monitor/stop", response_class=HTMLResponse)
+async def api_monitor_stop(request: Request):
+    """Stop the Thunder monitor."""
+    from src.core.monitor_service import MonitorService
+
+    service = MonitorService()
+    service.stop()
+    return HTMLResponse(
+        content="",
+        headers={"HX-Trigger": '{"showToast": {"message": "Monitor stopped", "type": "info"}}'},
     )
