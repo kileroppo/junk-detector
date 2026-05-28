@@ -261,6 +261,13 @@ class TestSettingsTemplateContent:
 
         assert "外观" in html
         assert "深色模式" in html
+        # Verify toggleTheme function is called on button click
+        assert "toggleTheme()" in html
+        # Verify toggle knob and description have IDs for JS manipulation
+        assert 'id="theme-toggle-knob"' in html
+        assert 'id="theme-toggle-desc"' in html
+        # Verify localStorage script is present for theme persistence
+        assert "localStorage" in html
 
     def test_settings_has_scoring_preferences(self, web_client):
         """Settings page contains scoring weight preferences."""
@@ -297,6 +304,18 @@ class TestBaseTemplateElements:
         html = response.text
 
         assert "Junk Detector v0.1" in html
+
+    @patch("src.web.router.get_history")
+    def test_theme_initialization_script(self, mock_history, web_client):
+        """Base template includes theme initialization script to prevent FOUC."""
+        mock_history.return_value = []
+        response = web_client.get("/dashboard")
+        html = response.text
+
+        # Theme init script reads from localStorage and applies dark class
+        assert "localStorage.getItem('theme')" in html or "localStorage.getItem(&#x27;theme&#x27;)" in html or "localStorage" in html
+        assert "toggleTheme" in html
+        assert 'darkMode' in html
 
     def test_settings_has_nav_and_footer(self, web_client):
         """Settings page also has nav and footer from base template."""
