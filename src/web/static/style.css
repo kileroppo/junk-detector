@@ -241,6 +241,17 @@ body {
     transform-origin: center;
 }
 
+/* Score value counter animation */
+@keyframes score-count-up {
+    from { opacity: 0; transform: scale(0.5); }
+    50% { opacity: 1; transform: scale(1.1); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.score-value-animate {
+    animation: score-count-up 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+}
+
 /* ==========================================================================
    Loading & Spinner Animations
    ========================================================================== */
@@ -351,6 +362,22 @@ html.dark .spinner {
     box-shadow: var(--shadow-lg);
 }
 
+.card-interactive {
+    transition: transform var(--transition-spring), box-shadow var(--transition-base), border-color var(--transition-base);
+    will-change: transform;
+}
+
+.card-interactive:hover {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow: var(--shadow-xl);
+    border-color: var(--color-primary-light);
+}
+
+.card-interactive:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: var(--shadow-sm);
+}
+
 /* Gradient card backgrounds */
 .card-gradient-primary {
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%);
@@ -370,6 +397,24 @@ html.dark .spinner {
 .card-gradient-danger {
     background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
     border-color: rgba(239, 68, 68, 0.2);
+}
+
+/* ==========================================================================
+   Button Micro-Interactions
+   ========================================================================== */
+.btn, button[class*="bg-"] {
+    transition: transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow var(--transition-fast),
+                background-color var(--transition-fast);
+}
+
+.btn:active, button[class*="bg-"]:active {
+    transform: scale(0.97);
+}
+
+.btn:focus-visible, button[class*="bg-"]:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
 }
 
 /* ==========================================================================
@@ -393,21 +438,41 @@ html.dark .spinner {
     animation: slideIn 0.3s ease-out;
 }
 
+/* Staggered children entrance */
+.stagger-children > * {
+    opacity: 0;
+    transform: translateY(12px);
+    animation: stagger-fade-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 420ms; }
+
+@keyframes stagger-fade-in {
+    to { opacity: 1; transform: translateY(0); }
+}
+
 /* ==========================================================================
    Toast Notifications
    ========================================================================== */
 @keyframes toast-enter {
-    from { opacity: 0; transform: translateY(-10px) scale(0.95); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from { opacity: 0; transform: translateX(20px) scale(0.9); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 @keyframes toast-exit {
-    from { opacity: 1; transform: translateY(0) scale(1); }
-    to { opacity: 0; transform: translateY(-10px) scale(0.95); }
+    from { opacity: 1; transform: translateX(0) scale(1); }
+    to { opacity: 0; transform: translateX(20px) scale(0.9); }
 }
 
 .toast-enter {
-    animation: toast-enter 0.3s ease-out forwards;
+    animation: toast-enter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .toast-exit {
@@ -444,6 +509,30 @@ html.dark .spinner {
     border-radius: 1px;
 }
 
+/* Nav link hover/active with smooth indicator */
+nav a {
+    position: relative;
+    transition: color var(--transition-base), background-color var(--transition-base);
+}
+
+nav a::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    right: 50%;
+    height: 2px;
+    background: var(--color-primary);
+    transition: left var(--transition-spring), right var(--transition-spring);
+    border-radius: 1px;
+}
+
+nav a:hover::after,
+nav a.active::after {
+    left: 0.5rem;
+    right: 0.5rem;
+}
+
 /* ==========================================================================
    Quality Distribution Bar Chart (CSS-only)
    ========================================================================== */
@@ -477,5 +566,35 @@ html.dark .spinner {
 @media (min-width: 641px) {
     .show-mobile-only {
         display: none;
+    }
+}
+
+/* ==========================================================================
+   Smooth Scroll & Scroll-Triggered Animations
+   ========================================================================== */
+html {
+    scroll-behavior: smooth;
+}
+
+.animate-on-scroll {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.animate-on-scroll.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ==========================================================================
+   Accessibility: Reduced Motion
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }

@@ -23,7 +23,7 @@
                         stroke-dashoffset="{{ 282.7 - (282.7 * result.overall_score / 100) }}"
                         class="score-ring-circle"/>
             </svg>
-            <span class="absolute text-4xl font-bold {% if result.overall_score > 70 %}score-high{% elif result.overall_score > 40 %}score-mid{% else %}score-low{% endif %}">
+            <span class="absolute text-4xl font-bold score-value-animate {% if result.overall_score > 70 %}score-high{% elif result.overall_score > 40 %}score-mid{% else %}score-low{% endif %}">
                 {{ "%.0f"|format(result.overall_score) }}
             </span>
         </div>
