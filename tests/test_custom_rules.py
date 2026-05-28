@@ -3,15 +3,25 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from src.core.custom_rules import (
     CustomRule,
     apply_custom_rules,
+    clear_rules_cache,
     generate_template,
     load_custom_rules,
     validate_rules_file,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    """Clear rules cache before and after each test for isolation."""
+    clear_rules_cache()
+    yield
+    clear_rules_cache()
 
 
 def test_load_custom_rules_valid_yaml(tmp_path: Path) -> None:
@@ -336,3 +346,115 @@ def test_load_custom_rules_auto_discovery_returns_empty_when_no_file(
     monkeypatch.chdir(tmp_path)
     rules = load_custom_rules()
     assert rules == []
+
+
+def test_load_custom_rules_caching(tmp_path: Path) -> None:
+    """Test that loading the same unchanged file uses cached result."""
+    rules_file = tmp_path / "rules.yaml"
+    rules_file.write_text(
+        """
+rules:
+  - name: cached_rule
+    keywords:
+      - "test"
+    target_dimension: scam_prob
+""",
+        encoding="utf-8",
+    )
+
+    # First load - should parse
+    rules1 = load_custom_rules(path=rules_file)
+    assert len(rules1) == 1
+    assert rules1[0].name == "cached_rule"
+
+    # Second load - should return cached (same object)
+    rules2 = load_custom_rules(path=rules_file)
+    assert rules2 is rules1
+
+    # After clearing cache, should re-parse
+    clear_rules_cache()
+    rules3 = load_custom_rules(path=rules_file)
+    assert len(rules3) == 1
+    assert rules3 is not rules1
+
+
+def test_load_custom_rules_cache_invalidated_on_mtime_change(tmp_path: Path) -> None:
+    """Test that cache is invalidated when file mtime changes."""
+    import os
+    import time
+
+    rules_file = tmp_path / "rules.yaml"
+    rules_file.write_text(
+        """
+rules:
+  - name: original_rule
+    keywords:
+      - "original"
+    target_dimension: scam_prob
+""",
+        encoding="utf-8",
+    )
+
+    rules1 = load_custom_rules(path=rules_file)
+    assert len(rules1) == 1
+    assert rules1[0].name == "original_rule"
+
+    # Modify the file with a different mtime
+    time.sleep(0.05)
+    rules_file.write_text(
+        """
+rules:
+  - name: updated_rule
+    keywords:
+      - "updated"
+    target_dimension: advertorial_prob
+""",
+        encoding="utf-8",
+    )
+    # Ensure mtime is different
+    os.utime(rules_file, (time.time() + 1, time.time() + 1))
+
+    rules2 = load_custom_rules(path=rules_file)
+    assert len(rules2) == 1
+    assert rules2[0].name == "updated_rule"
+
+
+def test_load_custom_rules_logs_warning_on_invalid_yaml(tmp_path: Path, caplog) -> None:
+    """Test that invalid YAML produces a warning log message."""
+    import logging
+
+    rules_file = tmp_path / "bad.yaml"
+    rules_file.write_text("{{invalid yaml: [", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="src.core.custom_rules"):
+        rules = load_custom_rules(path=rules_file)
+
+    assert rules == []
+    assert "Failed to parse custom rules file" in caplog.text
+
+
+def test_load_custom_rules_logs_warning_on_invalid_rule_entry(tmp_path: Path, caplog) -> None:
+    """Test that invalid rule entries produce warning log messages."""
+    import logging
+
+    rules_file = tmp_path / "mixed.yaml"
+    rules_file.write_text(
+        """
+rules:
+  - name: valid_rule
+    keywords:
+      - "test"
+    target_dimension: scam_prob
+  - name: invalid_rule
+    keywords:
+      - "test"
+    target_dimension: invalid_dimension
+""",
+        encoding="utf-8",
+    )
+
+    with caplog.at_level(logging.WARNING, logger="src.core.custom_rules"):
+        rules = load_custom_rules(path=rules_file)
+
+    assert len(rules) == 1
+    assert "Skipping invalid custom rule at index 1" in caplog.text

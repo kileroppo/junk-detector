@@ -463,7 +463,7 @@ def suggest_new_rules(min_count: int = 3, db_path: str = "junk_detector.db") -> 
                 continue
 
             # Infer target dimension from keywords
-            dimension = _infer_dimension(group_keywords)
+            dimension, is_confident = _infer_dimension(group_keywords)
 
             # Calculate coverage: fraction of false negatives containing any keyword
             coverage = 0
@@ -472,6 +472,10 @@ def suggest_new_rules(min_count: int = 3, db_path: str = "junk_detector.db") -> 
                     coverage += 1
             confidence = round(min(1.0, coverage / total_fn), 2)
 
+            # Reduce confidence when dimension inference had no indicator match
+            if not is_confident:
+                confidence = round(min(confidence, 0.5), 2)
+
             # Scale score_contribution by max TF-IDF score in group
             max_tfidf = max(tfidf_scores.get(kw, 0) for kw in group_keywords)
             # Normalize: map tfidf to 15-50 range for score_contribution
@@ -479,13 +483,16 @@ def suggest_new_rules(min_count: int = 3, db_path: str = "junk_detector.db") -> 
 
             # Generate name from the top keyword
             name_suffix = dimension.replace("_prob", "").replace("_", "")
-            rules.append({
+            rule_data: dict[str, Any] = {
                 "name": f"auto_rule_{rule_index:03d}_{name_suffix}",
                 "keywords": group_keywords[:5],
                 "target_dimension": dimension,
                 "score_contribution": score_contribution,
                 "confidence": confidence,
-            })
+            }
+            if not is_confident:
+                rule_data["needs_review"] = True
+            rules.append(rule_data)
             rule_index += 1
 
             if rule_index >= 5:
@@ -553,7 +560,7 @@ def _group_by_cooccurrence(
     return groups
 
 
-def _infer_dimension(keywords: list[str]) -> str:
+def _infer_dimension(keywords: list[str]) -> tuple[str, bool]:
     """Infer the target dimension based on keyword content.
 
     Checks for overlap with known indicator terms for each dimension.
@@ -562,7 +569,8 @@ def _infer_dimension(keywords: list[str]) -> str:
         keywords: List of keywords to classify.
 
     Returns:
-        One of: scam_prob, advertorial_prob, emotional_manipulation, ai_generated_prob
+        Tuple of (dimension_name, is_confident) where is_confident is False
+        when no indicators matched and the default was used.
     """
     scam_indicators = ["赚钱", "暴富", "免费", "中奖", "转账", "加微", "私聊", "投资", "收益", "翻倍"]
     advertorial_indicators = ["推荐", "好用", "种草", "链接", "优惠", "折扣", "下单", "购买", "代购"]
@@ -586,8 +594,8 @@ def _infer_dimension(keywords: list[str]) -> str:
         if any(ind in kw for ind in ai_indicators):
             scores["ai_generated_prob"] += 1
 
-    # Return dimension with highest score, default to scam_prob
     best = max(scores, key=lambda k: scores[k])
     if scores[best] == 0:
-        return "scam_prob"
-    return best
+        # No indicators matched - default to scam_prob with low confidence
+        return ("scam_prob", False)
+    return (best, True)

@@ -1,6 +1,7 @@
 """Custom rules loader and validator for user-defined detection rules."""
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import Optional
@@ -9,6 +10,8 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 from src.core.rules import RuleResult
+
+logger = logging.getLogger(__name__)
 
 
 class CustomRule(BaseModel):
@@ -53,8 +56,11 @@ def _find_rules_file() -> Optional[Path]:
     return None
 
 
+_rules_cache: dict[str, tuple[float, list[CustomRule]]] = {}
+
+
 def load_custom_rules(path: Optional[Path] = None) -> list[CustomRule]:
-    """Load custom rules from YAML file.
+    """Load custom rules from YAML file with mtime-based caching.
 
     If path is None, auto-discovers from default locations.
     Returns empty list if no file found.
@@ -64,23 +70,46 @@ def load_custom_rules(path: Optional[Path] = None) -> list[CustomRule]:
     if path is None:
         return []
 
+    path_str = str(path)
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return []
+
+    # Return cached if file hasn't changed
+    if path_str in _rules_cache:
+        cached_mtime, cached_rules = _rules_cache[path_str]
+        if cached_mtime == mtime:
+            return cached_rules
+
+    # Parse and cache
     try:
         content = path.read_text(encoding="utf-8")
         data = yaml.safe_load(content)
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to parse custom rules file %s: %s", path, e)
         return []
 
     if not isinstance(data, dict) or "rules" not in data:
+        logger.warning("Custom rules file %s missing 'rules' key", path)
         return []
 
     rules = []
-    for item in data["rules"]:
+    for i, item in enumerate(data["rules"]):
         try:
             rule = CustomRule(**item)
             rules.append(rule)
-        except Exception:
+        except Exception as e:
+            logger.warning("Skipping invalid custom rule at index %d in %s: %s", i, path, e)
             continue
+
+    _rules_cache[path_str] = (mtime, rules)
     return rules
+
+
+def clear_rules_cache() -> None:
+    """Clear the custom rules cache (useful for testing)."""
+    _rules_cache.clear()
 
 
 def apply_custom_rules(content: str, rules: list[CustomRule]) -> RuleResult:
