@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from src.core.focus_guide import (
     _count_filler_phrases,
     _count_transitions,
@@ -21,7 +19,6 @@ from src.core.focus_guide import (
 )
 from src.models.focus_guide import FocusGuide
 from src.models.score import DimensionScores, ScoreResult
-
 
 # ---------------------------------------------------------------------------
 # Test fixtures

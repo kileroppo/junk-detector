@@ -109,6 +109,55 @@
     </div>
     {% endif %}
 
+    <!-- Scoring Trends Chart -->
+    {% if trends and trends|length > 1 %}
+    <div class="bg-surface rounded-xl p-5 border border-navy-700">
+        <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            评分趋势（近28天）
+        </h2>
+        <div class="overflow-x-auto">
+            <svg viewBox="0 0 400 200" class="w-full h-48" xmlns="http://www.w3.org/2000/svg">
+                <!-- Grid lines -->
+                <line x1="40" y1="20" x2="40" y2="170" stroke="#334155" stroke-width="0.5"/>
+                <line x1="40" y1="170" x2="390" y2="170" stroke="#334155" stroke-width="0.5"/>
+                <line x1="40" y1="95" x2="390" y2="95" stroke="#334155" stroke-width="0.3" stroke-dasharray="4"/>
+                <line x1="40" y1="20" x2="390" y2="20" stroke="#334155" stroke-width="0.3" stroke-dasharray="4"/>
+                <!-- Y-axis labels -->
+                <text x="35" y="175" fill="#94a3b8" font-size="8" text-anchor="end">0</text>
+                <text x="35" y="100" fill="#94a3b8" font-size="8" text-anchor="end">50</text>
+                <text x="35" y="25" fill="#94a3b8" font-size="8" text-anchor="end">100</text>
+                <!-- Average score polyline (indigo) -->
+                {% set ns = namespace(points='') %}
+                {% for t in trends %}
+                    {% set x = 40 + (loop.index0 * (350 / (trends|length - 1))) if trends|length > 1 else 215 %}
+                    {% set y = 170 - (t.avg_score / 100 * 150) %}
+                    {% set ns.points = ns.points ~ x|round(1)|string ~ ',' ~ y|round(1)|string ~ ' ' %}
+                {% endfor %}
+                <polyline points="{{ ns.points }}" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- Junk rate polyline (red) -->
+                {% set ns2 = namespace(points='') %}
+                {% for t in trends %}
+                    {% set junk_rate = (t.junk_count / t.count * 100) if t.count > 0 else 0 %}
+                    {% set x = 40 + (loop.index0 * (350 / (trends|length - 1))) if trends|length > 1 else 215 %}
+                    {% set y = 170 - (junk_rate / 100 * 150) %}
+                    {% set ns2.points = ns2.points ~ x|round(1)|string ~ ',' ~ y|round(1)|string ~ ' ' %}
+                {% endfor %}
+                <polyline points="{{ ns2.points }}" fill="none" stroke="#f87171" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4,2"/>
+                <!-- X-axis date labels (first & last) -->
+                {% if trends|length > 0 %}
+                <text x="40" y="185" fill="#94a3b8" font-size="7" text-anchor="start">{{ trends[0].date[5:] }}</text>
+                <text x="390" y="185" fill="#94a3b8" font-size="7" text-anchor="end">{{ trends[-1].date[5:] }}</text>
+                {% endif %}
+            </svg>
+        </div>
+        <div class="flex gap-4 mt-2 text-xs text-gray-400">
+            <span class="inline-flex items-center gap-1"><span class="w-3 h-0.5 bg-indigo-400 inline-block"></span> 平均分</span>
+            <span class="inline-flex items-center gap-1"><span class="w-3 h-0.5 bg-red-400 inline-block" style="border-top: 1px dashed"></span> 低质量率</span>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Recent Scores Table -->
     <div class="bg-surface rounded-xl border border-navy-700 overflow-hidden">
         <div class="px-5 py-4 border-b border-navy-700 flex items-center justify-between">

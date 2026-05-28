@@ -20,6 +20,7 @@ dependencies = [
     "passlib[bcrypt]>=1.7.0",
     "PyJWT>=2.8.0",
     "python-multipart>=0.0.29",
+    "feedparser>=6.0.0",
 ]
 
 [project.optional-dependencies]

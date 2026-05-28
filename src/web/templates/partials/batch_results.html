@@ -1,0 +1,26 @@
+<!-- Batch scoring results - HTMX partial (no extends) -->
+<div class="space-y-3">
+    <h3 class="text-lg font-semibold text-gray-200">批量评分结果（{{ results|length }} 条）</h3>
+    {% for item in results %}
+    <div class="bg-surface rounded-xl p-4 border border-navy-700 flex items-start gap-4">
+        <!-- Score badge -->
+        <span class="inline-flex items-center justify-center w-12 h-12 rounded-full text-sm font-bold shrink-0
+                    {% if item.success and item.overall_score > 70 %}bg-green-900/50 text-green-300
+                    {% elif item.success and item.overall_score > 40 %}bg-amber-900/50 text-amber-300
+                    {% elif item.success %}bg-red-900/50 text-red-300
+                    {% else %}bg-gray-900/50 text-gray-400{% endif %}">
+            {% if item.success %}{{ "%.0f"|format(item.overall_score) }}{% else %}--{% endif %}
+        </span>
+        <div class="flex-1 min-w-0">
+            <p class="font-medium truncate text-gray-200">{{ item.title }}</p>
+            <p class="text-xs text-gray-500 truncate mt-0.5">{{ item.url }}</p>
+            {% if item.summary %}
+            <p class="text-sm text-gray-400 mt-1 line-clamp-2">{{ item.summary[:120] }}</p>
+            {% endif %}
+            {% if not item.success %}
+            <p class="text-xs text-red-400 mt-1">评分失败: {{ item.summary[:80] }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>

@@ -1,5 +1,29 @@
 <!-- HTMX partial: monitor stats -->
 <div class="space-y-6">
+    <!-- Configured Feeds -->
+    {% if feeds %}
+    <div>
+        <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 11-2 0 1 1 0 012 0z"/></svg>
+            RSS 信源
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {% for feed in feeds %}
+            <div class="bg-surface rounded-lg p-3 border border-navy-700 flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full {% if is_running %}bg-emerald-500{% else %}bg-gray-500{% endif %}"></span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">{{ feed.name or feed.url }}</p>
+                    <p class="text-xs text-gray-500 truncate">{{ feed.url }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% if last_fetch_time %}
+        <p class="text-xs text-gray-500 mt-2">上次抓取: {{ last_fetch_time }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Thunder Source Stats -->
     <div>
         <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -49,6 +73,53 @@
             </div>
         </div>
     </div>
+
+    <!-- Recent Items Table -->
+    {% if recent_items %}
+    <div>
+        <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            最近抓取
+        </h2>
+        <div class="bg-surface rounded-xl border border-navy-700 overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-navy-700 text-gray-400">
+                        <th class="px-4 py-2 text-left">标题</th>
+                        <th class="px-4 py-2 text-left">来源</th>
+                        <th class="px-4 py-2 text-center">评分</th>
+                        <th class="px-4 py-2 text-right">时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in recent_items[:10] %}
+                    <tr class="border-b border-navy-800 last:border-0">
+                        <td class="px-4 py-2">
+                            <a href="{{ item.link }}" target="_blank" class="text-indigo-400 hover:underline truncate block max-w-xs">
+                                {{ item.title[:50] }}{% if item.title|length > 50 %}...{% endif %}
+                            </a>
+                        </td>
+                        <td class="px-4 py-2 text-gray-400">{{ item.source }}</td>
+                        <td class="px-4 py-2 text-center">
+                            {% if item.score is not none %}
+                            <span class="px-2 py-0.5 rounded text-xs font-medium
+                                         {% if item.score > 70 %}bg-emerald-900/30 text-emerald-300
+                                         {% elif item.score > 40 %}bg-amber-900/30 text-amber-300
+                                         {% else %}bg-red-900/30 text-red-300{% endif %}">
+                                {{ "%.0f"|format(item.score) }}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-500">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-2 text-right text-gray-500 text-xs">{{ item.fetched_at }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Status Indicator -->
     <div class="bg-surface rounded-xl p-4 border border-navy-700 flex items-center gap-3">

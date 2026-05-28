@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Optional
@@ -9,9 +10,10 @@ from typing import Optional
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.responses import StreamingResponse
 
 from src.core.config import get_model_config
-from src.storage.db import get_history, query
+from src.storage.db import count_records, get_history, get_trends, query
 
 # Template and static directories (relative to this file)
 _BASE_DIR = Path(__file__).parent
@@ -67,10 +69,17 @@ async def dashboard(request: Request):
         records = []
 
     stats = _compute_stats(records)
+
+    # Get trend data for chart
+    try:
+        trends = get_trends(days=28)
+    except Exception:
+        trends = []
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"stats": stats},
+        {"stats": stats, "trends": trends},
     )
 
 
@@ -115,14 +124,64 @@ async def score_submit(
                 status_code=422,
             )
 
-        # Score the content
-        result = await score(content.text)
+        # Score the content (with adaptive weights from user feedback)
+        from src.core.adaptive_weights import get_adjusted_weights
+
+        adjusted_weights = get_adjusted_weights(user_id="anonymous")
+        # Build a ScoringConfig with adjusted weights if feedback has modified them
+        scoring_config = None
+        if adjusted_weights:
+            try:
+                from src.core.config import load_config as _load_scoring_cfg
+
+                base_cfg = _load_scoring_cfg()
+                # Only customize if adjustments differ from base
+                if adjusted_weights != base_cfg.weights:
+                    scoring_config = base_cfg.model_copy(deep=True)
+                    scoring_config.weights = adjusted_weights
+            except Exception:
+                pass
+
+        result = await score(content.text, config=scoring_config)
 
         # Save to storage
         try:
             save(result, content)
         except Exception:
             pass
+
+        # Compute dual-score: rule_score vs llm_score (overall)
+        from src.core.rules import apply_rules
+        from src.core.scorer import _calculate_overall
+        from src.models.score import DimensionScores
+
+        rule_result = apply_rules(content.text)
+
+        # Build rule-only dimensions
+        rule_dims_dict: dict[str, float] = {}
+        for dim in ["originality", "info_density", "reasoning_quality", "readability", "timeliness"]:
+            rule_dims_dict[dim] = rule_result.dimension_overrides.get(dim, 50.0)
+        for dim in ["ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob"]:
+            rule_dims_dict[dim] = rule_result.dimension_overrides.get(dim, 0.0)
+
+        rule_dimensions = DimensionScores(**rule_dims_dict)
+        try:
+            from src.core.config import load_config as _load_cfg
+
+            _cfg = _load_cfg()
+        except Exception:
+            _cfg = None
+
+        if _cfg:
+            rule_only_score = _calculate_overall(rule_dimensions, _cfg)
+        else:
+            rule_only_score = 50.0
+
+        llm_score = result.overall_score
+        score_divergence = abs(rule_only_score - llm_score)
+        # Only show dual rings if rules actually fired (rule_score != default ~73)
+        rules_fired = bool(rule_result.matched_rules)
+        divergence_warning = score_divergence > 20 and rules_fired
 
         # Generate focus guide if content is likely AI-generated or low quality
         # Widen gate so the inner function's own guard handles "definitely good" case
@@ -147,7 +206,43 @@ async def score_submit(
             "title": content.title,
             "source_url": content.source_url,
             "focus_guide": focus_guide,
+            "rule_hits": result.rule_hits,
+            "dimension_sources": result.dimension_sources,
+            "rule_score": rule_only_score,
+            "llm_score": llm_score,
+            "score_divergence": score_divergence,
+            "divergence_warning": divergence_warning,
+            "rules_fired": rules_fired,
         }
+
+        # Source reputation warning
+        source_warning = None
+        if content.source_url:
+            from urllib.parse import urlparse
+
+            from src.core.source_reputation import check_auto_blacklist, is_blacklisted
+
+            try:
+                parsed = urlparse(content.source_url)
+                domain = parsed.netloc or ""
+                if domain.startswith("www."):
+                    domain = domain[4:]
+
+                if domain:
+                    if is_blacklisted(domain):
+                        source_warning = {
+                            "level": "blacklisted",
+                            "message": "来源已列入黑名单",
+                        }
+                    elif check_auto_blacklist(domain):
+                        source_warning = {
+                            "level": "low_reputation",
+                            "message": "该来源历史评分较低",
+                        }
+            except Exception:
+                pass
+
+        result_data["source_warning"] = source_warning
 
         # Check if HTMX request
         is_htmx = request.headers.get("HX-Request") == "true"
@@ -208,6 +303,122 @@ async def result_detail(request: Request, record_id: int):
     )
 
 
+@router.post("/score-stream")
+async def score_stream(
+    request: Request,
+    input_type: Optional[str] = Form(default="text"),
+    text: Optional[str] = Form(default=None),
+    url: Optional[str] = Form(default=None),
+    title: Optional[str] = Form(default=None),
+):
+    """SSE streaming endpoint for progressive scoring.
+
+    First event: immediate rule-engine results.
+    Second event: full LLM scoring result.
+    """
+    import asyncio
+    import logging
+
+    from src.core.rules import apply_rules
+    from src.core.scorer import _calculate_overall, score
+    from src.extractors.text import extract_from_text
+    from src.extractors.web import extract_from_url
+    from src.models.score import DimensionScores
+
+    _sse_logger = logging.getLogger(__name__)
+
+    async def event_generator():
+        try:
+            # Determine input
+            if input_type == "url" and url:
+                content = await extract_from_url(url)
+            elif text:
+                if text.startswith(("http://", "https://")) and not url:
+                    content = await extract_from_url(text)
+                else:
+                    content = extract_from_text(text, title=title)
+            else:
+                error_data = json.dumps({"error": "请输入文本或 URL"}, ensure_ascii=False)
+                yield f"event: error\ndata: {error_data}\n\n"
+                return
+
+            # Step 1: immediate rule-engine results
+            rule_result = apply_rules(content.text)
+
+            # Build partial dimensions from rules
+            positive_default = 50.0
+            negative_default = 0.0
+            dims_dict: dict[str, float] = {}
+            for dim in ["originality", "info_density", "reasoning_quality", "readability", "timeliness"]:
+                dims_dict[dim] = rule_result.dimension_overrides.get(dim, positive_default)
+            for dim in ["ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob"]:
+                dims_dict[dim] = rule_result.dimension_overrides.get(dim, negative_default)
+
+            dimensions = DimensionScores(**dims_dict)
+            config = None
+            try:
+                from src.core.config import load_config
+                config = load_config()
+            except Exception:
+                pass
+
+            if config:
+                overall = _calculate_overall(dimensions, config)
+            else:
+                overall = 50.0
+
+            rules_data = {
+                "type": "rules_result",
+                "overall_score": overall,
+                "dimensions": dims_dict,
+                "matched_rules": rule_result.matched_rules,
+                "title": content.title,
+            }
+            yield f"event: rules_result\ndata: {json.dumps(rules_data, ensure_ascii=False)}\n\n"
+
+            # Step 2: full LLM scoring (with timeout to prevent indefinite blocking)
+            try:
+                result = await asyncio.wait_for(score(content.text), timeout=60.0)
+            except asyncio.TimeoutError:
+                _sse_logger.error("LLM scoring timed out after 60s")
+                error_data = json.dumps({"error": "LLM 分析超时，请稍后重试"}, ensure_ascii=False)
+                yield f"event: error\ndata: {error_data}\n\n"
+                return
+
+            # Save to storage
+            try:
+                from src.storage.db import save
+                save(result, content)
+            except Exception:
+                pass
+
+            final_data = {
+                "type": "final_result",
+                "overall_score": result.overall_score,
+                "dimensions": result.dimensions.model_dump(),
+                "labels": result.labels,
+                "summary": result.summary,
+                "model_used": result.model_used,
+                "cost": result.cost,
+                "confidence": result.confidence,
+                "scored_at": result.scored_at.isoformat()[:19],
+                "title": content.title,
+                "source_url": content.source_url,
+            }
+            yield f"event: final_result\ndata: {json.dumps(final_data, ensure_ascii=False)}\n\n"
+
+        except Exception:
+            _sse_logger.exception("SSE score-stream error")
+            error_data = json.dumps({"error": "评分过程出错，请稍后重试"}, ensure_ascii=False)
+            yield f"event: error\ndata: {error_data}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
+
+
 @router.get("/history-page", response_class=HTMLResponse)
 async def history_page(
     request: Request,
@@ -226,18 +437,19 @@ async def history_page(
     if date_from:
         filters["date_from"] = date_from
 
-    # Pagination: fetch one extra page worth to determine if there's a next page
-    offset_limit = page * 20
+    per_page = 20
+    offset = (page - 1) * per_page
+
     try:
-        all_results = query(
+        total = count_records(filters=filters if filters else None)
+        results = query(
             filters=filters if filters else None,
-            limit=offset_limit,
+            limit=per_page,
+            offset=offset,
         )
-        # Slice for current page
-        start_idx = (page - 1) * 20
-        results = all_results[start_idx : start_idx + 20]
     except Exception:
         results = []
+        total = 0
 
     filter_context = {
         "min_score": min_score,
@@ -252,8 +464,59 @@ async def history_page(
             "results": results,
             "filters": filter_context,
             "page": page,
+            "total": total,
+            "per_page": per_page,
         },
     )
+
+
+@router.get("/compare", response_class=HTMLResponse)
+async def compare_page(request: Request):
+    """Comparison mode page with two side-by-side inputs."""
+    return templates.TemplateResponse(request, "compare.html")
+
+
+@router.post("/compare-submit", response_class=HTMLResponse)
+async def compare_submit(
+    request: Request,
+    text_a: Optional[str] = Form(default=None),
+    text_b: Optional[str] = Form(default=None),
+):
+    """Score two texts and return side-by-side comparison results."""
+    from src.core.scorer import score
+
+    if not text_a or not text_b:
+        return HTMLResponse(
+            content='<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">请输入两段文本进行对比</div>',
+            status_code=422,
+        )
+
+    try:
+        result_a = await score(text_a)
+        result_b = await score(text_b)
+
+        result_data_a = {
+            "overall_score": result_a.overall_score,
+            "dimensions": result_a.dimensions.model_dump(),
+            "labels": result_a.labels,
+            "summary": result_a.summary,
+        }
+        result_data_b = {
+            "overall_score": result_b.overall_score,
+            "dimensions": result_b.dimensions.model_dump(),
+            "labels": result_b.labels,
+            "summary": result_b.summary,
+        }
+
+        return templates.TemplateResponse(
+            request,
+            "partials/compare_result.html",
+            {"result_a": result_data_a, "result_b": result_data_b},
+        )
+
+    except Exception as e:
+        error_html = f'<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">对比评分失败: {str(e)}</div>'
+        return HTMLResponse(content=error_html, status_code=500)
 
 
 @router.get("/monitor-status", response_class=HTMLResponse)
@@ -329,6 +592,9 @@ async def partials_monitor_stats(request: Request):
             "thunder": stats["thunder"],
             "dispatcher": stats["dispatcher"],
             "is_running": service.is_running,
+            "recent_items": stats.get("recent_items", []),
+            "feeds": stats.get("feeds", []),
+            "last_fetch_time": stats.get("last_fetch_time"),
         },
     )
 
@@ -362,3 +628,154 @@ async def api_monitor_stop(request: Request):
         content="",
         headers={"HX-Trigger": '{"showToast": {"message": "Monitor stopped", "type": "info"}}'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Batch scoring endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.post("/score-batch", response_class=HTMLResponse)
+async def score_batch(
+    request: Request,
+    urls: str = Form(default=""),
+):
+    """Batch score multiple URLs (one per line).
+
+    Accepts newline-separated URLs, validates each one, scores them
+    sequentially, and returns results as a list of cards.
+    """
+    from src.core.scorer import score
+    from src.extractors.web import extract_from_url
+    from src.storage.db import save
+
+    raw_urls = [u.strip() for u in urls.strip().splitlines() if u.strip()]
+
+    if not raw_urls:
+        return HTMLResponse(
+            content='<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">请输入至少一个 URL</div>',
+            status_code=422,
+        )
+
+    # Validate URLs
+    valid_urls = []
+    for u in raw_urls:
+        if u.startswith(("http://", "https://")):
+            valid_urls.append(u)
+
+    if not valid_urls:
+        return HTMLResponse(
+            content='<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">未找到有效的 URL（需以 http:// 或 https:// 开头）</div>',
+            status_code=422,
+        )
+
+    results = []
+    for url in valid_urls:
+        try:
+            content = await extract_from_url(url)
+            result = await score(content.text)
+            try:
+                save(result, content)
+            except Exception:
+                pass
+            results.append({
+                "url": url,
+                "title": content.title or url,
+                "overall_score": result.overall_score,
+                "summary": result.summary,
+                "success": True,
+            })
+        except Exception as e:
+            results.append({
+                "url": url,
+                "title": url,
+                "overall_score": 0,
+                "summary": str(e),
+                "success": False,
+            })
+
+    return templates.TemplateResponse(
+        request,
+        "partials/batch_results.html",
+        {"results": results},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Trends API endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/trends")
+async def api_trends(request: Request, days: int = 28):
+    """Return daily score trend data as JSON for the last N days."""
+    from fastapi.responses import JSONResponse
+
+    trends = get_trends(days=days)
+    return JSONResponse(content={"trends": trends})
+
+
+# ---------------------------------------------------------------------------
+# Feedback endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/feedback")
+async def api_feedback(request: Request):
+    """Store user feedback (wrong/correct) for a scoring result.
+
+    Auth note: This endpoint has no authentication by design. The application
+    is intended for personal/single-user deployment (single-worker uvicorn).
+    If multi-user deployment is needed in the future, add JWT auth middleware.
+    """
+    from fastapi.responses import JSONResponse
+
+    from src.core.adaptive_weights import (
+        compute_feedback_adjustments,
+        save_weight_adjustment,
+    )
+    from src.storage.db import save_feedback
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(content={"error": "Invalid JSON"}, status_code=400)
+
+    score_id = body.get("score_id")
+    verdict = body.get("verdict")
+
+    if score_id is None or verdict not in ("wrong", "correct"):
+        return JSONResponse(
+            content={"error": "score_id and verdict (wrong/correct) required"},
+            status_code=422,
+        )
+
+    # Validate that score_id references an existing record
+    score_id_int = int(score_id)
+    from src.storage.db import query as _query_records
+
+    existing = _query_records(filters=None, limit=1000)
+    record = next((r for r in existing if r.get("id") == score_id_int), None)
+    if record is None:
+        return JSONResponse(
+            content={"error": "score_id not found"},
+            status_code=404,
+        )
+
+    save_feedback(
+        score_id=score_id_int,
+        content_hash=body.get("content_hash", ""),
+        verdict=verdict,
+    )
+
+    # Compute and store adaptive weight adjustments
+    overall_score = body.get("overall_score")
+    dimensions = body.get("dimensions")
+    user_id = body.get("user_id", "anonymous")
+
+    if verdict == "wrong" and overall_score is not None and dimensions:
+        adjustments = compute_feedback_adjustments(verdict, overall_score, dimensions)
+        for dim, adj in adjustments.items():
+            save_weight_adjustment(user_id=user_id, dimension=dim, adjustment=adj)
+
+    return JSONResponse(content={"status": "ok"})

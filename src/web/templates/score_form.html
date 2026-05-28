@@ -23,6 +23,12 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
                 URL
             </button>
+            <button onclick="switchTab('batch')"
+                    id="tab-batch"
+                    class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                batch (批量)
+            </button>
         </div>
     </div>
 
@@ -83,6 +89,34 @@
 
     <!-- Result Container (HTMX will inject result here) -->
     <div id="result-container"></div>
+
+    <!-- Batch Tab Content -->
+    <div id="content-batch" class="tab-content">
+        <form hx-post="/score-batch"
+              hx-target="#result-container"
+              hx-swap="innerHTML"
+              hx-indicator="#loading-indicator-batch"
+              class="space-y-4"
+              data-use-htmx="true">
+            <div>
+                <label for="batch-urls" class="block text-sm font-medium text-gray-300 mb-1">URL 列表（每行一个）</label>
+                <textarea id="batch-urls" name="urls" rows="8" placeholder="https://example.com/article1&#10;https://example.com/article2&#10;https://example.com/article3"
+                          class="w-full bg-navy-900 border border-navy-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 resize-y"
+                          required></textarea>
+            </div>
+            <!-- Drop zone -->
+            <div id="batch-drop-zone"
+                 class="border-2 border-dashed border-navy-700 rounded-lg p-6 text-center text-gray-500 hover:border-indigo-500 hover:text-indigo-400 transition-colors cursor-pointer">
+                <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                <p class="text-sm">拖放包含 URL 的文本文件到此处</p>
+            </div>
+            <button type="submit"
+                    class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 px-8 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+                <span>批量评分</span>
+                <span id="loading-indicator-batch" class="htmx-indicator spinner"></span>
+            </button>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -97,6 +131,144 @@ document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         var activeForm = document.querySelector('.tab-content.active form');
         if (activeForm) activeForm.requestSubmit();
+    }
+});
+
+// SSE Streaming scoring
+function startStreamScoring(formData) {
+    var container = document.getElementById('result-container');
+    container.innerHTML = '<div class="scoring-progress"><div class="scoring-progress-stages"><span class="stage active">规则检测</span><span class="stage">LLM 分析</span><span class="stage">生成结果</span></div></div>';
+
+    fetch('/score-stream', {
+        method: 'POST',
+        body: formData
+    }).then(function(response) {
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = '';
+
+        function processChunk(chunk) {
+            buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done });
+            var lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            var eventType = '';
+            var dataLines = [];
+
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                if (line.startsWith('event: ')) {
+                    eventType = line.substring(7);
+                } else if (line.startsWith('data: ')) {
+                    dataLines.push(line.substring(6));
+                } else if (line === '' && eventType && dataLines.length > 0) {
+                    handleSSEEvent(eventType, dataLines.join('\n'));
+                    eventType = '';
+                    dataLines = [];
+                }
+            }
+        }
+
+        function read() {
+            reader.read().then(function(chunk) {
+                processChunk(chunk);
+                if (!chunk.done) read();
+            });
+        }
+        read();
+    }).catch(function(err) {
+        container.innerHTML = '<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">流式评分失败: ' + err.message + '</div>';
+    });
+}
+
+function handleSSEEvent(eventType, dataStr) {
+    var container = document.getElementById('result-container');
+    try {
+        var data = JSON.parse(dataStr);
+    } catch(e) { return; }
+
+    if (eventType === 'rules_result') {
+        // Show partial rules-only result with indicator
+        var scoreColor = data.overall_score > 70 ? '#10b981' : (data.overall_score > 40 ? '#f59e0b' : '#ef4444');
+        var html = '<div class="bg-surface rounded-xl p-6 border border-navy-700">';
+        html += '<div class="flex items-center gap-2 mb-3"><span class="px-2 py-0.5 rounded-full text-xs bg-amber-900/50 text-amber-300 border border-amber-700/50">规则预览</span></div>';
+        html += '<div class="text-center"><span class="text-3xl font-bold" style="color:' + scoreColor + '">' + Math.round(data.overall_score) + '</span><span class="text-gray-400 text-sm ml-1">/ 100</span></div>';
+        if (data.matched_rules && data.matched_rules.length > 0) {
+            html += '<div class="mt-3 flex flex-wrap gap-1">';
+            data.matched_rules.forEach(function(rule) {
+                html += '<span class="px-2 py-0.5 rounded-full text-xs bg-navy-700 text-gray-300">' + rule + '</span>';
+            });
+            html += '</div>';
+        }
+        html += '<div class="scoring-progress mt-4"><div class="scoring-progress-stages"><span class="stage done">规则检测</span><span class="stage active">LLM 分析</span><span class="stage">生成结果</span></div></div>';
+        html += '</div>';
+        container.innerHTML = html;
+    } else if (eventType === 'final_result') {
+        // Replace with full result
+        var scoreColor = data.overall_score > 70 ? '#10b981' : (data.overall_score > 40 ? '#f59e0b' : '#ef4444');
+        var colorClass = data.overall_score > 70 ? 'score-high' : (data.overall_score > 40 ? 'score-mid' : 'score-low');
+        var html = '<div class="bg-surface rounded-xl p-6 border border-navy-700 text-center">';
+        html += '<h2 class="text-lg font-medium text-gray-400 mb-4">综合评分</h2>';
+        html += '<div class="inline-flex items-center justify-center relative">';
+        html += '<svg width="140" height="140" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#334155" stroke-width="6"/>';
+        var offset = 282.7 - (282.7 * data.overall_score / 100);
+        html += '<circle cx="50" cy="50" r="45" fill="none" stroke="' + scoreColor + '" stroke-width="6" stroke-linecap="round" stroke-dasharray="282.7" stroke-dashoffset="' + offset + '" class="score-ring-circle"/>';
+        html += '</svg>';
+        html += '<span class="absolute text-4xl font-bold score-value-animate ' + colorClass + '">' + Math.round(data.overall_score) + '</span></div>';
+        if (data.summary) {
+            html += '<div class="mt-4 max-w-2xl mx-auto bg-navy-900 rounded-lg p-4 border-l-4 border-indigo-500"><p class="text-gray-300 text-sm italic">' + data.summary + '</p></div>';
+        }
+        if (data.labels && data.labels.length > 0) {
+            html += '<div class="flex flex-wrap justify-center gap-2 mt-4">';
+            data.labels.forEach(function(label) {
+                html += '<span class="px-3 py-1 rounded-full text-xs font-medium bg-amber-900/50 text-amber-300 border border-amber-700/50">' + label + '</span>';
+            });
+            html += '</div>';
+        }
+        html += '</div>';
+        container.innerHTML = html;
+    } else if (eventType === 'error') {
+        container.innerHTML = '<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">评分失败: ' + (data.error || '未知错误') + '</div>';
+    }
+}
+
+// Intercept form submissions to use SSE streaming
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.tab-content form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            // Only intercept if not a fallback HTMX submission
+            if (!e.target.hasAttribute('data-use-htmx')) {
+                e.preventDefault();
+                var formData = new FormData(e.target);
+                startStreamScoring(formData);
+            }
+        });
+    });
+
+    // Batch drop zone
+    var dropZone = document.getElementById('batch-drop-zone');
+    if (dropZone) {
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.classList.add('border-indigo-500', 'text-indigo-400');
+        });
+        dropZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('border-indigo-500', 'text-indigo-400');
+        });
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('border-indigo-500', 'text-indigo-400');
+            var files = e.dataTransfer.files;
+            if (files.length > 0) {
+                var reader = new FileReader();
+                reader.onload = function(evt) {
+                    var textarea = document.getElementById('batch-urls');
+                    if (textarea) textarea.value = evt.target.result;
+                };
+                reader.readAsText(files[0]);
+            }
+        });
     }
 });
 </script>

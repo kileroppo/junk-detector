@@ -1,0 +1,107 @@
+<!-- Compare result partial: side-by-side results with radar chart -->
+<div class="space-y-6">
+    <!-- Side-by-side scores -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Result A -->
+        <div class="bg-surface rounded-xl p-6 border border-navy-700 text-center">
+            <h3 class="text-sm font-medium text-gray-400 mb-3">文本 A</h3>
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full
+                        {% if result_a.overall_score > 70 %}bg-green-900/50 text-green-300
+                        {% elif result_a.overall_score > 40 %}bg-amber-900/50 text-amber-300
+                        {% else %}bg-red-900/50 text-red-300{% endif %}">
+                <span class="text-2xl font-bold">{{ "%.0f"|format(result_a.overall_score) }}</span>
+            </div>
+            {% if result_a.summary %}
+            <p class="mt-3 text-sm text-gray-400 italic">{{ result_a.summary }}</p>
+            {% endif %}
+            {% if result_a.labels %}
+            <div class="flex flex-wrap justify-center gap-1 mt-3">
+                {% for label in result_a.labels %}
+                <span class="px-2 py-0.5 rounded-full text-xs bg-navy-700 text-gray-300">{{ label }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        <!-- Result B -->
+        <div class="bg-surface rounded-xl p-6 border border-navy-700 text-center">
+            <h3 class="text-sm font-medium text-gray-400 mb-3">文本 B</h3>
+            <div class="inline-flex items-center justify-center w-20 h-20 rounded-full
+                        {% if result_b.overall_score > 70 %}bg-green-900/50 text-green-300
+                        {% elif result_b.overall_score > 40 %}bg-amber-900/50 text-amber-300
+                        {% else %}bg-red-900/50 text-red-300{% endif %}">
+                <span class="text-2xl font-bold">{{ "%.0f"|format(result_b.overall_score) }}</span>
+            </div>
+            {% if result_b.summary %}
+            <p class="mt-3 text-sm text-gray-400 italic">{{ result_b.summary }}</p>
+            {% endif %}
+            {% if result_b.labels %}
+            <div class="flex flex-wrap justify-center gap-1 mt-3">
+                {% for label in result_b.labels %}
+                <span class="px-2 py-0.5 rounded-full text-xs bg-navy-700 text-gray-300">{{ label }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Radar Chart (SVG) comparing 9 dimensions -->
+    <div class="bg-surface rounded-xl p-6 border border-navy-700">
+        <h3 class="text-lg font-semibold mb-4 text-center">9维度雷达对比</h3>
+        <div class="radar-chart">
+            {# Pre-computed axis positions for 9 points on a circle (center=200,200, radius=150)
+               Angles: i*40 - 90 degrees for i=0..8
+               i=0: -90deg (0, -1)     -> 200, 50
+               i=1: -50deg (0.643, -0.766) -> 296.4, 85.1
+               i=2: -10deg (0.985, -0.174) -> 347.7, 173.9
+               i=3:  30deg (0.866, 0.5)    -> 329.9, 275.0
+               i=4:  70deg (0.342, 0.940)  -> 251.3, 341.0
+               i=5: 110deg (-0.342, 0.940) -> 148.7, 341.0
+               i=6: 150deg (-0.866, 0.5)   -> 70.1, 275.0
+               i=7: 190deg (-0.985, -0.174)-> 52.3, 173.9
+               i=8: 230deg (-0.643, -0.766)-> 103.6, 85.1
+            #}
+            {% set axes = [
+                {"dx": 0, "dy": -1, "label": "原创性", "dim": "originality"},
+                {"dx": 0.643, "dy": -0.766, "label": "信息密度", "dim": "info_density"},
+                {"dx": 0.985, "dy": -0.174, "label": "论证质量", "dim": "reasoning_quality"},
+                {"dx": 0.866, "dy": 0.5, "label": "可读性", "dim": "readability"},
+                {"dx": 0.342, "dy": 0.940, "label": "时效性", "dim": "timeliness"},
+                {"dx": -0.342, "dy": 0.940, "label": "AI概率", "dim": "ai_generated_prob"},
+                {"dx": -0.866, "dy": 0.5, "label": "情绪操纵", "dim": "emotional_manipulation"},
+                {"dx": -0.985, "dy": -0.174, "label": "软文概率", "dim": "advertorial_prob"},
+                {"dx": -0.643, "dy": -0.766, "label": "骗局概率", "dim": "scam_prob"}
+            ] %}
+            {% set cx = 200 %}
+            {% set cy = 200 %}
+            {% set r = 150 %}
+            <svg viewBox="0 0 400 400" class="w-full">
+                <!-- Grid circles -->
+                <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r }}" fill="none" stroke="#334155" stroke-width="0.5"/>
+                <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r * 0.66 }}" fill="none" stroke="#334155" stroke-width="0.5"/>
+                <circle cx="{{ cx }}" cy="{{ cy }}" r="{{ r * 0.33 }}" fill="none" stroke="#334155" stroke-width="0.5"/>
+
+                <!-- Axis lines -->
+                {% for axis in axes %}
+                <line x1="{{ cx }}" y1="{{ cy }}" x2="{{ cx + r * axis.dx }}" y2="{{ cy + r * axis.dy }}" stroke="#334155" stroke-width="0.5"/>
+                {% endfor %}
+
+                <!-- Data polygon A (indigo) -->
+                <polygon fill="rgba(99, 102, 241, 0.2)" stroke="#6366f1" stroke-width="2"
+                         points="{% for axis in axes %}{{ cx + (r * (result_a.dimensions[axis.dim]|default(0)) / 100) * axis.dx }},{{ cy + (r * (result_a.dimensions[axis.dim]|default(0)) / 100) * axis.dy }} {% endfor %}"/>
+
+                <!-- Data polygon B (emerald) -->
+                <polygon fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" stroke-width="2"
+                         points="{% for axis in axes %}{{ cx + (r * (result_b.dimensions[axis.dim]|default(0)) / 100) * axis.dx }},{{ cy + (r * (result_b.dimensions[axis.dim]|default(0)) / 100) * axis.dy }} {% endfor %}"/>
+
+                <!-- Axis labels -->
+                {% for axis in axes %}
+                <text x="{{ cx + (r + 25) * axis.dx }}" y="{{ cy + (r + 25) * axis.dy }}" text-anchor="middle" dominant-baseline="middle" fill="#94a3b8" font-size="10">{{ axis.label }}</text>
+                {% endfor %}
+            </svg>
+            <div class="flex justify-center gap-4 mt-2 text-xs">
+                <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-indigo-500"></span> 文本 A</span>
+                <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> 文本 B</span>
+            </div>
+        </div>
+    </div>
+</div>
