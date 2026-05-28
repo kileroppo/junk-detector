@@ -268,32 +268,30 @@ class TestSimpleMode:
 
     def test_result_template_has_simple_only_section(self, web_client):
         """Result template includes simple-only view section."""
-        with patch("src.web.router.query") as mock_query:
-            mock_query.return_value = [
-                {
-                    "id": 1,
-                    "overall_score": 72.5,
-                    "dimensions": {
-                        "originality": 80,
-                        "info_density": 70,
-                        "reasoning_quality": 75,
-                        "readability": 85,
-                        "timeliness": 60,
-                        "ai_generated_prob": 15,
-                        "emotional_manipulation": 10,
-                        "advertorial_prob": 20,
-                        "scam_prob": 5,
-                    },
-                    "labels": [],
-                    "summary": "Good content",
-                    "model_used": "test",
-                    "cost": 0.0,
-                    "confidence": 0.9,
-                    "scored_at": "2024-01-01T12:00:00",
-                    "title": "Test",
-                    "source_url": None,
-                }
-            ]
+        with patch("src.storage.db.get_by_id") as mock_get_by_id:
+            mock_get_by_id.return_value = {
+                "id": 1,
+                "overall_score": 72.5,
+                "dimensions": {
+                    "originality": 80,
+                    "info_density": 70,
+                    "reasoning_quality": 75,
+                    "readability": 85,
+                    "timeliness": 60,
+                    "ai_generated_prob": 15,
+                    "emotional_manipulation": 10,
+                    "advertorial_prob": 20,
+                    "scam_prob": 5,
+                },
+                "labels": [],
+                "summary": "Good content",
+                "model_used": "test",
+                "cost": 0.0,
+                "confidence": 0.9,
+                "scored_at": "2024-01-01T12:00:00",
+                "title": "Test",
+                "source_url": None,
+            }
             response = web_client.get("/result/1")
             assert response.status_code == 200
             assert "simple-only" in response.text

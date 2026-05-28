@@ -247,8 +247,8 @@ class TestFeedbackDB:
 class TestSwipeInHistory:
     """Verify touch handler script in history.html."""
 
-    @patch("src.web.router.count_records", return_value=1)
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.count_records", return_value=1)
+    @patch("src.web.routes.pages.query")
     def test_swipe_in_history_template(self, mock_query, mock_count, web_client):
         """history.html contains touch event handlers for swipe gestures."""
         mock_query.return_value = [

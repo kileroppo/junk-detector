@@ -25,9 +25,9 @@ _initialized_roi_dbs: set[str] = set()
 
 def _get_connection(db_path: str) -> sqlite3.Connection:
     """Create a thread-safe SQLite connection with row factory."""
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+    from src.storage.engine import get_db_connection
+
+    return get_db_connection(db_path)
 
 
 def _ensure_roi_table(db_path: str) -> None:

@@ -24,7 +24,7 @@ def web_client(set_api_key):
 class TestDashboardTemplateContent:
     """Verify dashboard HTML contains expected structural elements."""
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.pages.get_history")
     def test_dashboard_has_stat_cards(self, mock_history, web_client):
         """Dashboard contains summary stat cards."""
         mock_history.return_value = [
@@ -40,7 +40,7 @@ class TestDashboardTemplateContent:
         assert "低质量内容" in html
         assert "高质量内容" in html
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.pages.get_history")
     def test_dashboard_has_quick_score_form(self, mock_history, web_client):
         """Dashboard contains quick score form."""
         mock_history.return_value = []
@@ -51,7 +51,7 @@ class TestDashboardTemplateContent:
         assert 'action="/score-submit"' in html
         assert 'method="post"' in html
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.pages.get_history")
     def test_dashboard_has_recent_scores_container(self, mock_history, web_client):
         """Dashboard has recent-scores container with HTMX polling."""
         mock_history.return_value = []
@@ -110,34 +110,32 @@ class TestScoreFormTemplateContent:
 class TestResultTemplateContent:
     """Verify result page HTML contains expected elements."""
 
-    @patch("src.web.router.query")
-    def test_result_has_score_display(self, mock_query, web_client):
+    @patch("src.storage.db.get_by_id")
+    def test_result_has_score_display(self, mock_get_by_id, web_client):
         """Result page displays overall score in SVG ring."""
-        mock_query.return_value = [
-            {
-                "id": 1,
-                "overall_score": 72.5,
-                "dimensions": {
-                    "originality": 80,
-                    "info_density": 70,
-                    "reasoning_quality": 75,
-                    "readability": 85,
-                    "timeliness": 60,
-                    "ai_generated_prob": 15,
-                    "emotional_manipulation": 10,
-                    "advertorial_prob": 20,
-                    "scam_prob": 5,
-                },
-                "labels": [],
-                "summary": "Good content",
-                "model_used": "test-model",
-                "cost": 0.001,
-                "confidence": 0.9,
-                "scored_at": "2024-01-01T12:00:00",
-                "title": "Test Article",
-                "source_url": "https://example.com",
-            }
-        ]
+        mock_get_by_id.return_value = {
+            "id": 1,
+            "overall_score": 72.5,
+            "dimensions": {
+                "originality": 80,
+                "info_density": 70,
+                "reasoning_quality": 75,
+                "readability": 85,
+                "timeliness": 60,
+                "ai_generated_prob": 15,
+                "emotional_manipulation": 10,
+                "advertorial_prob": 20,
+                "scam_prob": 5,
+            },
+            "labels": [],
+            "summary": "Good content",
+            "model_used": "test-model",
+            "cost": 0.001,
+            "confidence": 0.9,
+            "scored_at": "2024-01-01T12:00:00",
+            "title": "Test Article",
+            "source_url": "https://example.com",
+        }
         response = web_client.get("/result/1")
         html = response.text
 
@@ -147,34 +145,32 @@ class TestResultTemplateContent:
         # Score value displayed
         assert "72" in html or "73" in html
 
-    @patch("src.web.router.query")
-    def test_result_has_dimension_bars(self, mock_query, web_client):
+    @patch("src.storage.db.get_by_id")
+    def test_result_has_dimension_bars(self, mock_get_by_id, web_client):
         """Result page shows dimension progress bars for all 9 dimensions."""
-        mock_query.return_value = [
-            {
-                "id": 1,
-                "overall_score": 72.5,
-                "dimensions": {
-                    "originality": 80,
-                    "info_density": 70,
-                    "reasoning_quality": 75,
-                    "readability": 85,
-                    "timeliness": 60,
-                    "ai_generated_prob": 15,
-                    "emotional_manipulation": 10,
-                    "advertorial_prob": 20,
-                    "scam_prob": 5,
-                },
-                "labels": ["高质量原创"],
-                "summary": "Good content",
-                "model_used": "test-model",
-                "cost": 0.001,
-                "confidence": 0.9,
-                "scored_at": "2024-01-01T12:00:00",
-                "title": "Test Article",
-                "source_url": "https://example.com",
-            }
-        ]
+        mock_get_by_id.return_value = {
+            "id": 1,
+            "overall_score": 72.5,
+            "dimensions": {
+                "originality": 80,
+                "info_density": 70,
+                "reasoning_quality": 75,
+                "readability": 85,
+                "timeliness": 60,
+                "ai_generated_prob": 15,
+                "emotional_manipulation": 10,
+                "advertorial_prob": 20,
+                "scam_prob": 5,
+            },
+            "labels": ["高质量原创"],
+            "summary": "Good content",
+            "model_used": "test-model",
+            "cost": 0.001,
+            "confidence": 0.9,
+            "scored_at": "2024-01-01T12:00:00",
+            "title": "Test Article",
+            "source_url": "https://example.com",
+        }
         response = web_client.get("/result/1")
         html = response.text
 
@@ -196,7 +192,7 @@ class TestResultTemplateContent:
 class TestHistoryTemplateContent:
     """Verify history page HTML contains filter form and table elements."""
 
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.query")
     def test_history_has_filter_form(self, mock_query, web_client):
         """History page has filter form with expected inputs."""
         mock_query.return_value = []
@@ -209,7 +205,7 @@ class TestHistoryTemplateContent:
         assert 'name="date_from"' in html
         assert "筛选" in html
 
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.query")
     def test_history_has_table_headers(self, mock_query, web_client):
         """History page has table with proper column headers."""
         mock_query.return_value = [
@@ -232,7 +228,7 @@ class TestHistoryTemplateContent:
         assert "标签" in html
         assert "摘要" in html
 
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.query")
     def test_history_empty_state(self, mock_query, web_client):
         """History page shows empty state when no results."""
         mock_query.return_value = []
@@ -282,7 +278,7 @@ class TestSettingsTemplateContent:
 class TestBaseTemplateElements:
     """Verify base template elements appear across pages."""
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.pages.get_history")
     def test_navigation_links_present(self, mock_history, web_client):
         """All pages include navigation links to all sections."""
         mock_history.return_value = []
@@ -296,7 +292,7 @@ class TestBaseTemplateElements:
         assert 'href="/monitor-status"' in html
         assert 'href="/settings"' in html
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.pages.get_history")
     def test_footer_present(self, mock_history, web_client):
         """All pages include footer."""
         mock_history.return_value = []
@@ -305,7 +301,7 @@ class TestBaseTemplateElements:
 
         assert "Junk Detector v0.1" in html
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.pages.get_history")
     def test_theme_initialization_script(self, mock_history, web_client):
         """Base template includes theme initialization script to prevent FOUC."""
         mock_history.return_value = []

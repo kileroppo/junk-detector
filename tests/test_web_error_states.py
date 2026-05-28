@@ -118,19 +118,19 @@ class TestScoreSubmitErrors:
 class TestResultDetailErrors:
     """Tests for GET /result/{id} error handling."""
 
-    @patch("src.web.router.query")
-    def test_result_nonexistent_id_returns_404(self, mock_query, web_client):
+    @patch("src.storage.db.get_by_id")
+    def test_result_nonexistent_id_returns_404(self, mock_get_by_id, web_client):
         """GET /result/999999 returns 404."""
-        mock_query.return_value = []
+        mock_get_by_id.return_value = None
 
         response = web_client.get("/result/999999")
 
         assert response.status_code == 404
 
-    @patch("src.web.router.query")
-    def test_result_query_exception_returns_404(self, mock_query, web_client):
+    @patch("src.storage.db.get_by_id")
+    def test_result_query_exception_returns_404(self, mock_get_by_id, web_client):
         """GET /result/{id} returns 404 when database query raises."""
-        mock_query.side_effect = RuntimeError("Database error")
+        mock_get_by_id.side_effect = RuntimeError("Database error")
 
         response = web_client.get("/result/1")
 
@@ -140,7 +140,7 @@ class TestResultDetailErrors:
 class TestHistoryFilterCombinations:
     """Tests for history page with various filter combinations."""
 
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.query")
     def test_history_min_score_filter(self, mock_query, web_client):
         """GET /history-page?min_score=60 passes filter to query."""
         mock_query.return_value = []
@@ -151,7 +151,7 @@ class TestHistoryFilterCombinations:
         call_args = mock_query.call_args
         assert call_args[1]["filters"]["min_score"] == 60.0
 
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.query")
     def test_history_label_filter(self, mock_query, web_client):
         """GET /history-page?label=junk passes filter to query."""
         mock_query.return_value = []
@@ -162,7 +162,7 @@ class TestHistoryFilterCombinations:
         call_args = mock_query.call_args
         assert call_args[1]["filters"]["label"] == "junk"
 
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.query")
     def test_history_all_filters_combined(self, mock_query, web_client):
         """GET /history-page with all filters combined."""
         mock_query.return_value = []
@@ -178,7 +178,7 @@ class TestHistoryFilterCombinations:
         assert filters["label"] == "high"
         assert filters["date_from"] == "2024-06-01"
 
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.query")
     def test_history_zero_min_score_excluded(self, mock_query, web_client):
         """GET /history-page?min_score=0 excludes min_score from filters."""
         mock_query.return_value = []
@@ -191,7 +191,7 @@ class TestHistoryFilterCombinations:
         # When no filters are added, filters dict is empty/falsy -> passes None
         assert call_args[1]["filters"] is None
 
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.query")
     def test_history_page_large_page_number(self, mock_query, web_client):
         """GET /history-page?page=999 with empty results returns 200."""
         mock_query.return_value = []
@@ -204,7 +204,7 @@ class TestHistoryFilterCombinations:
 class TestDashboardExceptionGraceful:
     """Tests for dashboard graceful degradation."""
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.pages.get_history")
     def test_dashboard_db_error_shows_zero_stats(self, mock_history, web_client):
         """Dashboard with DB error shows page with zero total."""
         mock_history.side_effect = Exception("Connection refused")

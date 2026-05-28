@@ -98,7 +98,7 @@ class TestWebRoutes:
         assert response.status_code == 302
         assert "/dashboard" in response.headers["location"]
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.pages.get_history")
     def test_dashboard_page(self, mock_history, web_client):
         """GET /dashboard returns 200 HTML."""
         mock_history.return_value = []
@@ -112,8 +112,8 @@ class TestWebRoutes:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
-    @patch("src.web.router.count_records")
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.count_records")
+    @patch("src.web.routes.pages.query")
     def test_history_page(self, mock_query, mock_count, web_client):
         """GET /history-page returns 200 HTML."""
         mock_count.return_value = 0
@@ -122,8 +122,8 @@ class TestWebRoutes:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
-    @patch("src.web.router.count_records")
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.count_records")
+    @patch("src.web.routes.pages.query")
     def test_history_page_with_filters(self, mock_query, mock_count, web_client):
         """GET /history-page with filter params passes them correctly."""
         mock_count.return_value = 0
@@ -136,7 +136,7 @@ class TestWebRoutes:
         response = web_client.get("/monitor-status")
         assert response.status_code == 200
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.partials.get_history")
     def test_partials_recent_scores(self, mock_history, web_client):
         """GET /partials/recent-scores returns HTML fragment."""
         mock_history.return_value = []
@@ -149,41 +149,39 @@ class TestWebRoutes:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
-    @patch("src.web.router.query")
-    def test_result_detail_not_found(self, mock_query, web_client):
+    @patch("src.storage.db.get_by_id")
+    def test_result_detail_not_found(self, mock_get_by_id, web_client):
         """GET /result/{id} returns 404 for non-existent record."""
-        mock_query.return_value = []
+        mock_get_by_id.return_value = None
         response = web_client.get("/result/999")
         assert response.status_code == 404
 
-    @patch("src.web.router.query")
-    def test_result_detail_found(self, mock_query, web_client):
+    @patch("src.storage.db.get_by_id")
+    def test_result_detail_found(self, mock_get_by_id, web_client):
         """GET /result/{id} returns 200 for existing record."""
-        mock_query.return_value = [
-            {
-                "id": 1,
-                "overall_score": 72.5,
-                "dimensions": {
-                    "originality": 80,
-                    "info_density": 70,
-                    "reasoning_quality": 75,
-                    "readability": 85,
-                    "timeliness": 60,
-                    "ai_generated_prob": 15,
-                    "emotional_manipulation": 10,
-                    "advertorial_prob": 20,
-                    "scam_prob": 5,
-                },
-                "labels": [],
-                "summary": "Good",
-                "model_used": "test",
-                "cost": 0.0,
-                "confidence": 0.9,
-                "scored_at": "2024-01-01T12:00:00",
-                "title": "Test",
-                "source_url": "https://example.com",
-            }
-        ]
+        mock_get_by_id.return_value = {
+            "id": 1,
+            "overall_score": 72.5,
+            "dimensions": {
+                "originality": 80,
+                "info_density": 70,
+                "reasoning_quality": 75,
+                "readability": 85,
+                "timeliness": 60,
+                "ai_generated_prob": 15,
+                "emotional_manipulation": 10,
+                "advertorial_prob": 20,
+                "scam_prob": 5,
+            },
+            "labels": [],
+            "summary": "Good",
+            "model_used": "test",
+            "cost": 0.0,
+            "confidence": 0.9,
+            "scored_at": "2024-01-01T12:00:00",
+            "title": "Test",
+            "source_url": "https://example.com",
+        }
         response = web_client.get("/result/1")
         assert response.status_code == 200
 
@@ -351,10 +349,10 @@ class TestScoreSubmitSaveError:
 class TestResultDetailEdgeCases:
     """Edge case tests for GET /result/{id}."""
 
-    @patch("src.web.router.query")
-    def test_result_detail_query_raises(self, mock_query, web_client):
-        """GET /result/{id} returns 404 when query() raises exception."""
-        mock_query.side_effect = RuntimeError("DB connection error")
+    @patch("src.storage.db.get_by_id")
+    def test_result_detail_query_raises(self, mock_get_by_id, web_client):
+        """GET /result/{id} returns 404 when get_by_id() raises exception."""
+        mock_get_by_id.side_effect = RuntimeError("DB connection error")
 
         response = web_client.get("/result/1")
 
@@ -364,8 +362,8 @@ class TestResultDetailEdgeCases:
 class TestHistoryPageFilters:
     """Tests for GET /history-page with filters and pagination."""
 
-    @patch("src.web.router.count_records")
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.count_records")
+    @patch("src.web.routes.pages.query")
     def test_history_page_date_from_filter(self, mock_query, mock_count, web_client):
         """GET /history-page with date_from filter passes it to query."""
         mock_count.return_value = 0
@@ -378,8 +376,8 @@ class TestHistoryPageFilters:
         call_args = mock_query.call_args
         assert call_args[1]["filters"]["date_from"] == "2024-01-01"
 
-    @patch("src.web.router.count_records")
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.count_records")
+    @patch("src.web.routes.pages.query")
     def test_history_page_pagination_page2(self, mock_query, mock_count, web_client):
         """GET /history-page?page=2 uses SQL OFFSET for pagination."""
         mock_count.return_value = 40
@@ -477,7 +475,7 @@ class TestToastPartial:
 class TestDashboardExceptionHandling:
     """Tests for dashboard when get_history raises."""
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.pages.get_history")
     def test_dashboard_get_history_raises(self, mock_history, web_client):
         """Dashboard returns 200 with zero stats when get_history raises."""
         mock_history.side_effect = RuntimeError("DB connection failed")
@@ -491,8 +489,8 @@ class TestDashboardExceptionHandling:
 class TestHistoryPageExceptionHandling:
     """Tests for history page when query raises."""
 
-    @patch("src.web.router.count_records")
-    @patch("src.web.router.query")
+    @patch("src.web.routes.pages.count_records")
+    @patch("src.web.routes.pages.query")
     def test_history_page_query_raises(self, mock_query, mock_count, web_client):
         """History page returns 200 with empty results when query raises."""
         mock_count.side_effect = RuntimeError("DB connection failed")
@@ -507,7 +505,7 @@ class TestHistoryPageExceptionHandling:
 class TestRecentScoresExceptionHandling:
     """Tests for partials/recent-scores when get_history raises."""
 
-    @patch("src.web.router.get_history")
+    @patch("src.web.routes.partials.get_history")
     def test_recent_scores_get_history_raises(self, mock_history, web_client):
         """Recent scores partial returns 200 when get_history raises."""
         mock_history.side_effect = RuntimeError("DB connection failed")

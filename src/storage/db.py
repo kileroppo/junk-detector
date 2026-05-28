@@ -37,9 +37,9 @@ _initialized_dbs: set[str] = set()
 
 def _get_connection(db_path: str) -> sqlite3.Connection:
     """Create a thread-safe SQLite connection with row factory."""
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+    from src.storage.engine import get_db_connection
+
+    return get_db_connection(db_path)
 
 
 def _ensure_initialized(db_path: str) -> None:
@@ -296,6 +296,57 @@ def get_history(limit: int = 20, db_path: str = "junk_detector.db") -> list[dict
         List of recent score records as dictionaries.
     """
     return query(filters=None, limit=limit, db_path=db_path)
+
+
+def get_by_id(record_id: int, db_path: str | None = None) -> dict | None:
+    """O(1) lookup by primary key.
+
+    Args:
+        record_id: The integer ID of the score record.
+        db_path: Path to the SQLite database file. If None, uses default.
+
+    Returns:
+        A score record as a dictionary, or None if not found.
+    """
+    if db_path is None:
+        from src.storage.engine import get_db_path
+
+        db_path = get_db_path()
+    _ensure_initialized(db_path)
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute("SELECT * FROM scores WHERE id = ?", (record_id,))
+        row = cursor.fetchone()
+        return _row_to_dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def search_records(keyword: str, limit: int = 50, db_path: str | None = None) -> list[dict]:
+    """Search records by keyword in title, summary, source_url.
+
+    Args:
+        keyword: The search keyword to match.
+        limit: Maximum number of results to return.
+        db_path: Path to the SQLite database file. If None, uses default.
+
+    Returns:
+        List of matching score records as dictionaries.
+    """
+    if db_path is None:
+        from src.storage.engine import get_db_path
+
+        db_path = get_db_path()
+    _ensure_initialized(db_path)
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            "SELECT * FROM scores WHERE title LIKE ? OR summary LIKE ? OR source_url LIKE ? ORDER BY scored_at DESC LIMIT ?",
+            (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%", limit),
+        )
+        return [_row_to_dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:

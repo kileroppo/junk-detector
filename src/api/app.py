@@ -63,6 +63,22 @@ app = FastAPI(
 app.add_middleware(RateLimitMiddleware, config=RateLimitConfig())
 
 # ---------------------------------------------------------------------------
+# Exception handlers
+# ---------------------------------------------------------------------------
+from src.core.exceptions import ScoringError
+
+
+@app.exception_handler(ScoringError)
+async def scoring_error_handler(request, exc: ScoringError):
+    """Return a styled error card for ScoringError."""
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        status_code=500,
+        content={"error": "scoring_failed", "detail": str(exc)},
+    )
+
+# ---------------------------------------------------------------------------
 # Static files and Web UI
 # ---------------------------------------------------------------------------
 _STATIC_DIR = Path(__file__).parent.parent / "web" / "static"
