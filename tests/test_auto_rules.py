@@ -189,33 +189,39 @@ class TestInferDimension:
 
     def test_scam_keywords(self) -> None:
         """Keywords with scam indicators should infer scam_prob."""
-        result = _infer_dimension(["赚钱方法", "免费领取", "加微信了"])
-        assert result == "scam_prob"
+        dimension, is_confident = _infer_dimension(["赚钱方法", "免费领取", "加微信了"])
+        assert dimension == "scam_prob"
+        assert is_confident is True
 
     def test_advertorial_keywords(self) -> None:
         """Keywords with advertorial indicators should infer advertorial_prob."""
-        result = _infer_dimension(["推荐好物", "种草分享", "优惠链接"])
-        assert result == "advertorial_prob"
+        dimension, is_confident = _infer_dimension(["推荐好物", "种草分享", "优惠链接"])
+        assert dimension == "advertorial_prob"
+        assert is_confident is True
 
     def test_emotional_keywords(self) -> None:
         """Keywords with emotional indicators should infer emotional_manipulation."""
-        result = _infer_dimension(["震惊全国", "太可怕了", "不敢相信"])
-        assert result == "emotional_manipulation"
+        dimension, is_confident = _infer_dimension(["震惊全国", "太可怕了", "不敢相信"])
+        assert dimension == "emotional_manipulation"
+        assert is_confident is True
 
     def test_ai_keywords(self) -> None:
         """Keywords with AI indicators should infer ai_generated_prob."""
-        result = _infer_dimension(["众所周知是", "综上所述来", "值得注意的"])
-        assert result == "ai_generated_prob"
+        dimension, is_confident = _infer_dimension(["众所周知是", "综上所述来", "值得注意的"])
+        assert dimension == "ai_generated_prob"
+        assert is_confident is True
 
-    def test_unknown_keywords_default_scam(self) -> None:
-        """Unknown keywords should default to scam_prob."""
-        result = _infer_dimension(["普通词汇", "一般用语"])
-        assert result == "scam_prob"
+    def test_unknown_keywords_default_scam_low_confidence(self) -> None:
+        """Unknown keywords should default to scam_prob with low confidence."""
+        dimension, is_confident = _infer_dimension(["普通词汇", "一般用语"])
+        assert dimension == "scam_prob"
+        assert is_confident is False
 
-    def test_empty_keywords(self) -> None:
-        """Empty keywords should default to scam_prob."""
-        result = _infer_dimension([])
-        assert result == "scam_prob"
+    def test_empty_keywords_default_scam_low_confidence(self) -> None:
+        """Empty keywords should default to scam_prob with low confidence."""
+        dimension, is_confident = _infer_dimension([])
+        assert dimension == "scam_prob"
+        assert is_confident is False
 
 
 class TestGroupByCooccurrence:
