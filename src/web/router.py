@@ -124,6 +124,16 @@ async def score_submit(
         except Exception:
             pass
 
+        # Generate focus guide if content is likely AI-generated or low quality
+        # Widen gate so the inner function's own guard handles "definitely good" case
+        focus_guide = None
+        if result.overall_score < 70 or result.dimensions.ai_generated_prob > 30:
+            from src.core.focus_guide import generate_focus_guide
+
+            guide = generate_focus_guide(content.text, result)
+            if guide:
+                focus_guide = guide.model_dump()
+
         # Build result dict for template
         result_data = {
             "overall_score": result.overall_score,
@@ -136,6 +146,7 @@ async def score_submit(
             "scored_at": result.scored_at.isoformat()[:19],
             "title": content.title,
             "source_url": content.source_url,
+            "focus_guide": focus_guide,
         }
 
         # Check if HTMX request
@@ -307,21 +318,47 @@ async def partials_toast(
 @router.get("/partials/monitor-stats", response_class=HTMLResponse)
 async def partials_monitor_stats(request: Request):
     """Return monitor stats fragment for HTMX polling."""
-    thunder = {
-        "sources_count": 0,
-        "items_discovered": 0,
-        "seen_urls_count": 0,
-    }
-    dispatcher = {
-        "in_flight": 0,
-        "max_in_flight": 10,
-        "queue_size": 0,
-        "total_scored": 0,
-        "total_failed": 0,
-        "total_retried": 0,
-    }
+    from src.core.monitor_service import MonitorService
+
+    service = MonitorService()
+    stats = service.get_stats()
     return templates.TemplateResponse(
         request,
         "partials/monitor_stats.html",
-        {"thunder": thunder, "dispatcher": dispatcher, "is_running": False},
+        {
+            "thunder": stats["thunder"],
+            "dispatcher": stats["dispatcher"],
+            "is_running": service.is_running,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Monitor API endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/monitor/start", response_class=HTMLResponse)
+async def api_monitor_start(request: Request):
+    """Start the Thunder monitor."""
+    from src.core.monitor_service import MonitorService
+
+    service = MonitorService()
+    service.start()
+    return HTMLResponse(
+        content="",
+        headers={"HX-Trigger": '{"showToast": {"message": "Monitor started", "type": "success"}}'},
+    )
+
+
+@router.post("/api/monitor/stop", response_class=HTMLResponse)
+async def api_monitor_stop(request: Request):
+    """Stop the Thunder monitor."""
+    from src.core.monitor_service import MonitorService
+
+    service = MonitorService()
+    service.stop()
+    return HTMLResponse(
+        content="",
+        headers={"HX-Trigger": '{"showToast": {"message": "Monitor stopped", "type": "info"}}'},
     )
