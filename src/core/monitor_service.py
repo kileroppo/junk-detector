@@ -208,6 +208,31 @@ class MonitorService:
         overall = _calculate_overall(dimensions, config)
         return overall
 
+    def add_feed(self, name: str, url: str) -> None:
+        """Add a new feed to the internal feeds list.
+
+        Args:
+            name: Display name for the feed.
+            url: RSS feed URL.
+        """
+        self._feeds.append({"name": name, "url": url})
+        self._thunder["sources_count"] = len(self._feeds)
+
+    def remove_feed(self, index: int) -> bool:
+        """Remove a feed by index from the internal feeds list.
+
+        Args:
+            index: Zero-based index of the feed to remove.
+
+        Returns:
+            True if the feed was removed, False if index was invalid.
+        """
+        if 0 <= index < len(self._feeds):
+            self._feeds.pop(index)
+            self._thunder["sources_count"] = len(self._feeds)
+            return True
+        return False
+
     def get_stats(self) -> dict:
         """Return current stats for thunder and dispatcher, plus recent items."""
         return {

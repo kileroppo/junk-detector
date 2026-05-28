@@ -7,6 +7,13 @@
             <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 11-2 0 1 1 0 012 0z"/></svg>
             RSS 信源
         </h2>
+        <form hx-post="/api/monitor/feeds" hx-swap="none"
+              hx-on::after-request="htmx.trigger('#monitor-stats-container', 'load'); this.reset()"
+              class="flex gap-2 mb-4">
+            <input type="text" name="name" placeholder="信源名称" required class="flex-1 px-3 py-2 rounded-lg bg-navy-800 border border-navy-700 text-sm">
+            <input type="url" name="url" placeholder="RSS URL" required class="flex-2 px-3 py-2 rounded-lg bg-navy-800 border border-navy-700 text-sm">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">添加</button>
+        </form>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {% for feed in feeds %}
             <div class="bg-surface rounded-lg p-3 border border-navy-700 flex items-center gap-3">
@@ -15,6 +22,10 @@
                     <p class="text-sm font-medium truncate">{{ feed.name or feed.url }}</p>
                     <p class="text-xs text-gray-500 truncate">{{ feed.url }}</p>
                 </div>
+                <button hx-delete="/api/monitor/feeds/{{ loop.index0 }}" hx-swap="none"
+                        hx-on::after-request="htmx.trigger('#monitor-stats-container', 'load')"
+                        hx-confirm="确认删除此信源?"
+                        class="text-red-400 hover:text-red-300 text-xs">删除</button>
             </div>
             {% endfor %}
         </div>
@@ -74,6 +85,13 @@
         </div>
     </div>
 
+    <!-- Token ROI Stats -->
+    <div hx-get="/partials/roi-stats" hx-trigger="load, every 30s" hx-swap="innerHTML">
+        <div class="bg-surface rounded-xl p-4 border border-navy-700">
+            <p class="text-sm text-gray-400">Token ROI 统计加载中...</p>
+        </div>
+    </div>
+
     <!-- Recent Items Table -->
     {% if recent_items %}
     <div>
@@ -108,6 +126,9 @@
                                          {% else %}bg-red-900/30 text-red-300{% endif %}">
                                 {{ "%.0f"|format(item.score) }}
                             </span>
+                            {% if item.score < 40 %}
+                            <span class="inline-block w-2 h-2 rounded-full bg-red-500 pulse-indicator ml-1" title="低质量警报"></span>
+                            {% endif %}
                             {% else %}
                             <span class="text-gray-500">-</span>
                             {% endif %}

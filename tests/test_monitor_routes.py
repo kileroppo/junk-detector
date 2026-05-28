@@ -153,3 +153,92 @@ class TestMonitorHXTriggerFormat:
         assert "refreshMonitorStats" in data
         assert data["showToast"]["message"] == "Monitor stopped"
         assert data["showToast"]["type"] == "info"
+
+
+class TestFeedManagement:
+    """Tests for feed management API endpoints."""
+
+    def test_add_feed_returns_200(self, web_client):
+        """POST /api/monitor/feeds with name and url returns 200."""
+        response = web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "Test Feed", "url": "https://example.com/rss"},
+        )
+        assert response.status_code == 200
+
+    def test_add_feed_increases_feed_count(self, web_client):
+        """POST /api/monitor/feeds increases the feed count in MonitorService."""
+        web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "Feed A", "url": "https://a.com/rss"},
+        )
+        web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "Feed B", "url": "https://b.com/rss"},
+        )
+        service = MonitorService()
+        stats = service.get_stats()
+        assert len(stats["feeds"]) == 2
+
+    def test_add_feed_returns_hx_trigger(self, web_client):
+        """POST /api/monitor/feeds returns HX-Trigger with showToast and refreshMonitorStats."""
+        import json
+
+        response = web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "Test", "url": "https://example.com/rss"},
+        )
+        assert "HX-Trigger" in response.headers
+        trigger = json.loads(response.headers["HX-Trigger"])
+        assert "showToast" in trigger
+        assert "refreshMonitorStats" in trigger
+        assert trigger["showToast"]["message"] == "\u4fe1\u6e90\u5df2\u6dfb\u52a0"
+        assert trigger["showToast"]["type"] == "success"
+
+    def test_delete_feed_returns_200(self, web_client):
+        """DELETE /api/monitor/feeds/{index} returns 200 for valid index."""
+        web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "To Delete", "url": "https://delete.com/rss"},
+        )
+        response = web_client.delete("/api/monitor/feeds/0")
+        assert response.status_code == 200
+
+    def test_delete_feed_decreases_count(self, web_client):
+        """DELETE /api/monitor/feeds/{index} decreases feed count."""
+        web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "Feed 1", "url": "https://one.com/rss"},
+        )
+        web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "Feed 2", "url": "https://two.com/rss"},
+        )
+        web_client.delete("/api/monitor/feeds/0")
+        service = MonitorService()
+        stats = service.get_stats()
+        assert len(stats["feeds"]) == 1
+        assert stats["feeds"][0]["name"] == "Feed 2"
+
+    def test_delete_invalid_index_returns_404(self, web_client):
+        """DELETE /api/monitor/feeds/{index} returns 404 for invalid index."""
+        response = web_client.delete("/api/monitor/feeds/99")
+        assert response.status_code == 404
+
+
+class TestRoiStatsEndpoint:
+    """Tests for GET /partials/roi-stats endpoint."""
+
+    def test_roi_stats_returns_200(self, web_client):
+        """GET /partials/roi-stats returns 200."""
+        response = web_client.get("/partials/roi-stats")
+        assert response.status_code == 200
+
+    def test_roi_stats_contains_stats_fields(self, web_client):
+        """GET /partials/roi-stats contains all expected stat fields."""
+        response = web_client.get("/partials/roi-stats")
+        assert "Token ROI" in response.text
+        assert "\u603b\u8c03\u7528\u6b21\u6570" in response.text
+        assert "\u603b Token \u6d88\u8017" in response.text
+        assert "\u5e73\u5747 ROI" in response.text
+        assert "\u5e73\u5747\u4fe1\u606f\u589e\u76ca" in response.text

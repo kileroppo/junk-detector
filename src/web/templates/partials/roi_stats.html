@@ -1,0 +1,12 @@
+<div class="bg-surface rounded-xl p-4 border border-navy-700">
+    <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Token ROI 统计
+    </h2>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div><p class="text-sm text-gray-400">总调用次数</p><p class="text-xl font-bold">{{ stats.total_calls }}</p></div>
+        <div><p class="text-sm text-gray-400">总 Token 消耗</p><p class="text-xl font-bold">{{ stats.total_tokens }}</p></div>
+        <div><p class="text-sm text-gray-400">平均 ROI</p><p class="text-xl font-bold">{{ "%.4f"|format(stats.avg_roi) }}</p></div>
+        <div><p class="text-sm text-gray-400">平均信息增益</p><p class="text-xl font-bold">{{ "%.1f"|format(stats.avg_info_gain) }}</p></div>
+    </div>
+</div>

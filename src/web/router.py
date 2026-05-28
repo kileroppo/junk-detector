@@ -599,6 +599,19 @@ async def partials_monitor_stats(request: Request):
     )
 
 
+@router.get("/partials/roi-stats", response_class=HTMLResponse)
+async def partials_roi_stats(request: Request):
+    """Return Token ROI stats card fragment for HTMX polling."""
+    from src.core.token_roi import get_roi_stats
+
+    stats = get_roi_stats()
+    return templates.TemplateResponse(
+        request,
+        "partials/roi_stats.html",
+        {"stats": stats},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Monitor API endpoints
 # ---------------------------------------------------------------------------
@@ -627,6 +640,38 @@ async def api_monitor_stop(request: Request):
     return HTMLResponse(
         content="",
         headers={"HX-Trigger": json.dumps({"showToast": {"message": "Monitor stopped", "type": "info"}, "refreshMonitorStats": ""})},
+    )
+
+
+@router.post("/api/monitor/feeds", response_class=HTMLResponse)
+async def api_monitor_add_feed(
+    request: Request,
+    name: str = Form(...),
+    url: str = Form(...),
+):
+    """Add a new RSS feed to the monitor."""
+    from src.core.monitor_service import MonitorService
+
+    service = MonitorService()
+    service.add_feed(name, url)
+    return HTMLResponse(
+        content="",
+        headers={"HX-Trigger": json.dumps({"showToast": {"message": "\u4fe1\u6e90\u5df2\u6dfb\u52a0", "type": "success"}, "refreshMonitorStats": ""})},
+    )
+
+
+@router.delete("/api/monitor/feeds/{feed_index}", response_class=HTMLResponse)
+async def api_monitor_delete_feed(request: Request, feed_index: int):
+    """Remove an RSS feed from the monitor by index."""
+    from src.core.monitor_service import MonitorService
+
+    service = MonitorService()
+    removed = service.remove_feed(feed_index)
+    if not removed:
+        return HTMLResponse(content="", status_code=404)
+    return HTMLResponse(
+        content="",
+        headers={"HX-Trigger": json.dumps({"showToast": {"message": "\u4fe1\u6e90\u5df2\u5220\u9664", "type": "info"}, "refreshMonitorStats": ""})},
     )
 
 
