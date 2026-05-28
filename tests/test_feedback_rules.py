@@ -153,13 +153,15 @@ class TestSuggestNewRules:
         for rule in result:
             assert "name" in rule
             assert "keywords" in rule
-            assert "dimension" in rule
+            assert "target_dimension" in rule
+            assert "score_contribution" in rule
             assert "confidence" in rule
             assert isinstance(rule["keywords"], list)
-            assert rule["dimension"] in (
+            assert rule["target_dimension"] in (
                 "scam_prob",
                 "advertorial_prob",
                 "emotional_manipulation",
+                "ai_generated_prob",
             )
             assert 0 <= rule["confidence"] <= 1.0
 

@@ -1032,14 +1032,17 @@ def feedback(
             return
         console.print("[bold]Auto-Generated Rule Candidates[/bold]")
         console.print("\u2501" * 40)
+        console.print()
+        console.print("# Paste into .junk-rules.yaml under 'rules:'")
+        console.print("rules:")
         for rule in candidates:
-            console.print()
-            console.print(f"  name: {rule['name']}")
-            console.print(f"  dimension: {rule['dimension']}")
-            console.print(f"  confidence: {rule['confidence']}")
-            console.print("  keywords:")
+            console.print(f"  - name: {rule['name']}")
+            console.print(f"    target_dimension: {rule['target_dimension']}")
+            console.print(f"    score_contribution: {rule['score_contribution']}")
+            console.print(f"    confidence: {rule['confidence']}")
+            console.print("    keywords:")
             for kw in rule["keywords"]:
-                console.print(f"    - {kw}")
+                console.print(f"      - \"{kw}\"")
         console.print()
         return
 
