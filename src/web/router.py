@@ -125,8 +125,9 @@ async def score_submit(
             pass
 
         # Generate focus guide if content is likely AI-generated or low quality
+        # Widen gate so the inner function's own guard handles "definitely good" case
         focus_guide = None
-        if result.overall_score < 50 or result.dimensions.ai_generated_prob > 50:
+        if result.overall_score < 70 or result.dimensions.ai_generated_prob > 30:
             from src.core.focus_guide import generate_focus_guide
 
             guide = generate_focus_guide(content.text, result)

@@ -313,6 +313,18 @@ def _detect_lack_of_specifics(paragraphs: list[str]) -> Optional[AIPattern]:
 # ---------------------------------------------------------------------------
 
 
+def _is_primarily_english(text: str) -> bool:
+    """Check if text is primarily English/ASCII based.
+
+    Heuristic: if more than 50% of non-whitespace characters are ASCII
+    letters, digits, or common punctuation, treat as English.
+    """
+    if not text:
+        return False
+    ascii_count = sum(1 for c in text if c.isascii() and (c.isalnum() or c == ' '))
+    return ascii_count > len(text) * 0.5
+
+
 def _generate_tldr(paragraphs: list[str]) -> str:
     """Generate a TL;DR by picking the most information-dense sentences."""
     all_sentences = []
@@ -341,7 +353,10 @@ def _generate_tldr(paragraphs: list[str]) -> str:
                 return sent
         return all_sentences[0] if all_sentences else ""
 
-    return "。".join(top_sentences)
+    # Use language-appropriate separator
+    full_text = "\n".join(paragraphs)
+    separator = ". " if _is_primarily_english(full_text) else "。"
+    return separator.join(top_sentences)
 
 
 # ---------------------------------------------------------------------------

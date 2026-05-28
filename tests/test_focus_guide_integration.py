@@ -232,3 +232,48 @@ class TestFocusGuideIntegration:
         assert response.status_code == 200
         html = response.text
         assert "重点关注指南" in html
+
+    @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.storage.db.save")
+    @patch("src.extractors.text.extract_from_text")
+    def test_focus_guide_mid_range_content_gets_guide(
+        self, mock_extract, mock_save, mock_score, web_client
+    ):
+        """Content in middle range (score 55, ai_prob 40) should get a focus guide.
+
+        This tests the fix for the gating mismatch where the router gate was
+        too narrow (score < 50 OR ai_prob > 50) and missed borderline content.
+        """
+        mid_range_score = ScoreResult(
+            overall_score=55.0,
+            dimensions=DimensionScores(
+                originality=50,
+                info_density=45,
+                reasoning_quality=55,
+                readability=60,
+                timeliness=50,
+                ai_generated_prob=40,
+                emotional_manipulation=15,
+                advertorial_prob=20,
+                scam_prob=10,
+            ),
+            labels=[],
+            summary="Borderline content",
+            confidence=0.85,
+            model_used="test",
+            cost=0.001,
+        )
+        mock_extract.return_value = _make_content(text=AI_TEXT)
+        mock_score.return_value = mid_range_score
+        mock_save.return_value = None
+
+        response = web_client.post(
+            "/score-submit",
+            data={"input_type": "text", "text": AI_TEXT},
+        )
+
+        assert response.status_code == 200
+        html = response.text
+        # With the widened gate (score < 70 OR ai_prob > 30), this mid-range
+        # content should now get a focus guide generated
+        assert "重点关注指南" in html

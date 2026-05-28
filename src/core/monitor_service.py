@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import threading
+
 
 class MonitorService:
     """Singleton service that tracks monitor running state and statistics."""
 
     _instance: MonitorService | None = None
+    _lock = threading.Lock()
 
     def __new__(cls) -> MonitorService:
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
         return cls._instance
 
     def __init__(self) -> None:
