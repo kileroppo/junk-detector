@@ -216,3 +216,174 @@ class TestScoreFastFlag:
 
         assert result.exit_code == 1
         assert "\u5fc5\u987b\u6307\u5b9a" in result.output
+
+
+class TestQuickThreshold:
+    """Test --threshold flag on quick command."""
+
+    def test_threshold_80_rules_only_pass(self):
+        """--threshold 80 with clean content (rules-only) exits 0 when score >= 80."""
+        # Clean text that rules can't determine -> score 50, which is < 80 -> exit 1
+        # We need text that rules confidently say is OK (high quick_verdict)
+        # Actually rules-only with no flags -> score 50 (uncertain), exit 1 at threshold 80
+        # Let's use a scam text that gets a low score
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "这是一段普通的新闻内容", "--rules-only", "--threshold", "80"],
+        )
+        # Rules can't determine -> score 50, which is < 80 -> exit 1
+        assert result.exit_code == 1
+
+    def test_threshold_30_rules_only_pass(self):
+        """--threshold 30 with uncertain content (rules-only, score 50) exits 0."""
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "这是一段普通的新闻内容", "--rules-only", "--threshold", "30"],
+        )
+        # Rules can't determine -> score 50, which is >= 30 -> exit 0
+        assert result.exit_code == 0
+
+    def test_threshold_default_scam_fails(self):
+        """Scam content fails at default threshold 60."""
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "日入过万躺赚财富自由限时免费", "--rules-only"],
+        )
+        # Scam keywords trigger -> high scam_prob -> low quick_verdict -> exit 1
+        assert result.exit_code == 1
+
+    @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    def test_threshold_80_with_llm(self, mock_score_fast):
+        """--threshold 80 with LLM score 75 exits 1 (below threshold)."""
+        mock_score_fast.return_value = _mock_fast_result(75.0)
+
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "sample", "--threshold", "80"],
+            env={"DEEPSEEK_API_KEY": "test-key"},
+        )
+
+        assert result.exit_code == 1, f"Output: {result.output}"
+
+    @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    def test_threshold_50_with_llm(self, mock_score_fast):
+        """--threshold 50 with LLM score 75 exits 0 (above threshold)."""
+        mock_score_fast.return_value = _mock_fast_result(75.0)
+
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "sample", "--threshold", "50"],
+            env={"DEEPSEEK_API_KEY": "test-key"},
+        )
+
+        assert result.exit_code == 0, f"Output: {result.output}"
+
+
+class TestQuickFormat:
+    """Test --format flag on quick command."""
+
+    @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    def test_format_json_output(self, mock_score_fast):
+        """--format json produces valid JSON output."""
+        mock_score_fast.return_value = _mock_fast_result(75.0)
+
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "sample", "--format", "json"],
+            env={"DEEPSEEK_API_KEY": "test-key"},
+        )
+
+        assert result.exit_code == 0, f"Output: {result.output}"
+        data = json.loads(result.output)
+        assert "quick_verdict" in data
+        assert data["quick_verdict"] == 75.0
+        assert "summary" in data
+
+    @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    def test_format_csv_output(self, mock_score_fast):
+        """--format csv produces comma-separated output."""
+        mock_score_fast.return_value = _mock_fast_result(75.0)
+
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "sample", "--format", "csv"],
+            env={"DEEPSEEK_API_KEY": "test-key"},
+        )
+
+        assert result.exit_code == 0, f"Output: {result.output}"
+        line = result.output.strip()
+        parts = line.split(",", 2)
+        assert len(parts) == 3
+        assert parts[0] == "75"
+        assert parts[1] == "OK"
+
+    @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    def test_format_csv_junk(self, mock_score_fast):
+        """--format csv with junk score shows JUNK verdict."""
+        mock_score_fast.return_value = _mock_fast_result(30.0)
+
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "bad content", "--format", "csv"],
+            env={"DEEPSEEK_API_KEY": "test-key"},
+        )
+
+        assert result.exit_code == 1, f"Output: {result.output}"
+        line = result.output.strip()
+        parts = line.split(",", 2)
+        assert parts[0] == "30"
+        assert parts[1] == "JUNK"
+
+    @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    def test_format_human_default(self, mock_score_fast):
+        """--format human (default) produces colored emoji output."""
+        mock_score_fast.return_value = _mock_fast_result(75.0)
+
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "sample", "--format", "human"],
+            env={"DEEPSEEK_API_KEY": "test-key"},
+        )
+
+        assert result.exit_code == 0, f"Output: {result.output}"
+        assert "\u2705" in result.output
+
+    @patch("src.core.fast_scorer.score_fast", new_callable=AsyncMock)
+    def test_json_flag_equivalent_to_format_json(self, mock_score_fast):
+        """--json flag is equivalent to --format json."""
+        mock_score_fast.return_value = _mock_fast_result(75.0)
+
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "sample", "--json"],
+            env={"DEEPSEEK_API_KEY": "test-key"},
+        )
+
+        assert result.exit_code == 0, f"Output: {result.output}"
+        data = json.loads(result.output)
+        assert data["quick_verdict"] == 75.0
+
+    def test_format_json_rules_only(self):
+        """--format json works with --rules-only."""
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "日入过万躺赚财富自由限时免费", "--rules-only", "--format", "json"],
+        )
+
+        assert result.exit_code == 1, f"Output: {result.output}"
+        data = json.loads(result.output)
+        assert "quick_verdict" in data
+        assert data["scam_prob"] >= 95
+
+    def test_format_csv_rules_only(self):
+        """--format csv works with --rules-only."""
+        result = runner.invoke(
+            app,
+            ["quick", "--text", "日入过万躺赚财富自由限时免费", "--rules-only", "--format", "csv"],
+        )
+
+        assert result.exit_code == 1, f"Output: {result.output}"
+        line = result.output.strip()
+        parts = line.split(",", 2)
+        assert len(parts) == 3
+        assert parts[1] == "JUNK"

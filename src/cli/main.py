@@ -375,16 +375,48 @@ def _extract_content(
     raise ValueError("No input source provided")
 
 
-def _print_quick_verdict(result: FastScoreResult) -> None:
+def _print_quick_verdict(result: FastScoreResult, threshold: int = 60) -> None:
     """Print a single-line verdict based on the fast score result."""
     score_val = result.quick_verdict
-    if score_val >= 60:
+    if score_val >= threshold:
         verdict = f"\u2705 \u770b\u8d77\u6765\u6b63\u5e38 (score: {score_val:.0f})"
     elif score_val >= 40:
         verdict = f"\u26a0\ufe0f \u9700\u8981\u6ce8\u610f (score: {score_val:.0f})"
     else:
         verdict = f"\U0001f6a8 \u7591\u4f3c\u5783\u573e\u5185\u5bb9 (score: {score_val:.0f})"
     console.print(verdict)
+
+
+def _output_quick_result(
+    result: FastScoreResult,
+    *,
+    output_format: str,
+    json_output: bool,
+    threshold: int,
+) -> None:
+    """Output quick result in the requested format (human, json, csv)."""
+    # --json flag is equivalent to --format json
+    effective_format = "json" if json_output else output_format
+
+    if effective_format == "json":
+        output = result.model_dump(mode="json")
+        typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
+    elif effective_format == "csv":
+        # Single CSV line: score,verdict,summary (no header)
+        score_val = result.quick_verdict
+        if score_val >= threshold:
+            verdict_str = "OK"
+        elif score_val >= 40:
+            verdict_str = "CAUTION"
+        else:
+            verdict_str = "JUNK"
+        # Escape commas and quotes in summary
+        summary = result.summary.replace('"', '""')
+        if "," in summary or '"' in summary:
+            summary = f'"{summary}"'
+        typer.echo(f"{score_val:.0f},{verdict_str},{summary}")
+    else:
+        _print_quick_verdict(result, threshold)
 
 
 @app.command()
@@ -401,6 +433,8 @@ def quick(
     consistent: bool = typer.Option(
         False, "--consistent", help="Score 3 times and return median for stability"
     ),
+    threshold: int = typer.Option(60, "--threshold", help="Score threshold for pass/fail (default 60)"),
+    output_format: str = typer.Option("human", "--format", help="Output format: human, json, csv"),
 ) -> None:
     """Quick content screening - single-line pass/fail verdict."""
 
@@ -490,16 +524,13 @@ def quick(
                     model_used="rules_only",
                 )
 
-            if json_output:
-                output = fast_result.model_dump(mode="json")
-                typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
-            else:
-                _print_quick_verdict(fast_result)
+            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+            if not json_output and output_format == "human":
                 console.print(
                     "\U0001f4a1 Rules are deterministic - consistent mode ran once.",
                     style="dim",
                 )
-            raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
+            raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
         else:
             # LLM mode: use score_consistent
             try:
@@ -519,12 +550,8 @@ def quick(
                 )
                 raise typer.Exit(code=2)
 
-            if json_output:
-                output = fast_result.model_dump(mode="json")
-                typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
-            else:
-                _print_quick_verdict(fast_result)
-            raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
+            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+            raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
 
     # Rules-only mode: skip API key validation and LLM call
     if rules_only:
@@ -566,18 +593,14 @@ def quick(
                 model_used="rules_only",
             )
 
-        if json_output:
-            output = fast_result.model_dump(mode="json")
-            typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
-        else:
-            _print_quick_verdict(fast_result)
-            # Hint when auto rules-only is engaged and rules returned uncertain
-            if auto_rules_only and fast_result.confidence <= 0.2:
-                console.print(
-                    "\U0001f4a1 \u63d0\u793a: \u8bbe\u7f6e API key \u53ef\u83b7\u5f97\u66f4\u51c6\u786e\u7684\u5206\u6790",
-                    style="dim",
-                )
-        raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
+        _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+        # Hint when auto rules-only is engaged and rules returned uncertain
+        if not json_output and output_format == "human" and auto_rules_only and fast_result.confidence <= 0.2:
+            console.print(
+                "\U0001f4a1 \u63d0\u793a: \u8bbe\u7f6e API key \u53ef\u83b7\u5f97\u66f4\u51c6\u786e\u7684\u5206\u6790",
+                style="dim",
+            )
+        raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
 
     try:
         from src.core.config import load_config
@@ -594,12 +617,8 @@ def quick(
         console.print(f"\u274c \u5feb\u901f\u8bc4\u5206\u5931\u8d25: {exc}", style="bold red")
         raise typer.Exit(code=2)
 
-    if json_output:
-        output = fast_result.model_dump(mode="json")
-        typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
-    else:
-        _print_quick_verdict(fast_result)
-    raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
+    _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+    raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
 
 
 @app.command()
