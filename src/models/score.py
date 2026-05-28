@@ -63,6 +63,7 @@ class ScoreResult(BaseModel):
     dimension_sources: dict[str, str] = Field(
         default_factory=dict, description="每个维度的来源: 'rule' or 'llm'"
     )
+    tokens_used: int = Field(default=0, ge=0, description="Total tokens used in LLM call")
 
 
 class FastScoreResult(BaseModel):

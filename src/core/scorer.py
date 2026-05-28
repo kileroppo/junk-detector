@@ -10,6 +10,7 @@ import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 
+from src.core.content_optimizer import smart_truncate
 from src.core.llm_judge import judge
 from src.core.platform_profiles import (
     apply_platform_weights,
@@ -313,7 +314,15 @@ async def score(
             logger.debug("Failed to increment rules_only stats: %s", e)
     else:
         # 3. Call LLM judge with primary model
-        result = await judge(content_text, config, language=language)
+        # Determine which dimensions still need LLM evaluation
+        required_dimensions = [dim for dim in all_dimensions if dim not in rules_covered]
+
+        # Apply smart truncation to content before sending to LLM
+        truncated_content = smart_truncate(content_text)
+
+        result = await judge(
+            truncated_content, config, language=language, required_dimensions=required_dimensions
+        )
         logger.info(
             "Primary model (%s) returned confidence=%.2f",
             config.primary_model,
@@ -330,7 +339,12 @@ async def score(
             )
             fallback_config = config.model_copy(deep=True)
             fallback_config.primary_model = config.fallback_model
-            fallback_result = await judge(content_text, fallback_config, language=language)
+            fallback_result = await judge(
+                truncated_content,
+                fallback_config,
+                language=language,
+                required_dimensions=required_dimensions,
+            )
 
             # Use fallback result if it has higher confidence
             if fallback_result.confidence > result.confidence:
@@ -462,6 +476,50 @@ async def score(
             increment_llm_count()
         except Exception as e:
             logger.debug("Failed to increment llm_count stats: %s", e)
+
+        # Track ROI: compare rules-only score with LLM score
+        try:
+            from src.core.token_roi import compute_roi, save_roi_record
+
+            if result.tokens_used > 0:
+                # Compute a rules-only score from dimension_overrides
+                _positive_default = 50.0
+                _negative_default = 0.0
+                positive_dims_for_roi = [
+                    "originality",
+                    "info_density",
+                    "reasoning_quality",
+                    "readability",
+                    "timeliness",
+                ]
+                negative_dims_for_roi = [
+                    "ai_generated_prob",
+                    "emotional_manipulation",
+                    "advertorial_prob",
+                    "scam_prob",
+                ]
+                roi_dims_dict: dict[str, float] = {}
+                for dim in positive_dims_for_roi:
+                    roi_dims_dict[dim] = rule_result.dimension_overrides.get(
+                        dim, _positive_default
+                    )
+                for dim in negative_dims_for_roi:
+                    roi_dims_dict[dim] = rule_result.dimension_overrides.get(
+                        dim, _negative_default
+                    )
+                rules_only_dims = DimensionScores(**roi_dims_dict)
+                rules_only_score = _calculate_overall(rules_only_dims, config)
+
+                roi = compute_roi(rules_only_score, result.overall_score, result.tokens_used)
+                save_roi_record(
+                    content_hash=content_hash,
+                    tokens_used=result.tokens_used,
+                    rules_score=rules_only_score,
+                    llm_score=result.overall_score,
+                    roi=roi,
+                )
+        except Exception as e:
+            logger.debug("Failed to track ROI: %s", e)
 
     # 6. Record rule hits
     result.rule_hits = rule_result.matched_rules

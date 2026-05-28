@@ -11,6 +11,7 @@ from datetime import datetime
 
 import httpx
 
+from src.core.adaptive_prompt import ALL_DIMENSIONS, build_adaptive_prompt
 from src.core.prompt_loader import get_system_prompt
 from src.models.score import DimensionScores, ScoreResult, ScoringConfig
 
@@ -37,8 +38,14 @@ def _extract_json(text: str) -> dict:
     return json.loads(text)
 
 
-def _build_score_result(data: dict, model: str) -> ScoreResult:
+def _build_score_result(data: dict, model: str, required_dimensions: list[str] | None = None) -> ScoreResult:
     """Convert parsed JSON dict into a ScoreResult, computing overall_score."""
+
+    # Default values for dimensions not provided by LLM
+    _POSITIVE_DEFAULT = 50
+    _NEGATIVE_DEFAULT = 0
+    _POSITIVE_DIMS = {"originality", "info_density", "reasoning_quality", "readability", "timeliness"}
+    _NEGATIVE_DIMS = {"ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob"}
 
     def _clamp_score(val, name: str) -> int:
         val = int(val)
@@ -47,18 +54,24 @@ def _build_score_result(data: dict, model: str) -> ScoreResult:
             return max(0, min(100, val))
         return val
 
+    def _get_dim_value(dim: str) -> int:
+        if dim in data:
+            return _clamp_score(data[dim], dim)
+        # Use defaults for missing dimensions
+        if dim in _POSITIVE_DIMS:
+            return _POSITIVE_DEFAULT
+        return _NEGATIVE_DEFAULT
+
     dimensions = DimensionScores(
-        originality=_clamp_score(data["originality"], "originality"),
-        info_density=_clamp_score(data["info_density"], "info_density"),
-        reasoning_quality=_clamp_score(data["reasoning_quality"], "reasoning_quality"),
-        readability=_clamp_score(data["readability"], "readability"),
-        timeliness=_clamp_score(data["timeliness"], "timeliness"),
-        ai_generated_prob=_clamp_score(data["ai_generated_prob"], "ai_generated_prob"),
-        emotional_manipulation=_clamp_score(
-            data["emotional_manipulation"], "emotional_manipulation"
-        ),
-        advertorial_prob=_clamp_score(data["advertorial_prob"], "advertorial_prob"),
-        scam_prob=_clamp_score(data["scam_prob"], "scam_prob"),
+        originality=_get_dim_value("originality"),
+        info_density=_get_dim_value("info_density"),
+        reasoning_quality=_get_dim_value("reasoning_quality"),
+        readability=_get_dim_value("readability"),
+        timeliness=_get_dim_value("timeliness"),
+        ai_generated_prob=_get_dim_value("ai_generated_prob"),
+        emotional_manipulation=_get_dim_value("emotional_manipulation"),
+        advertorial_prob=_get_dim_value("advertorial_prob"),
+        scam_prob=_get_dim_value("scam_prob"),
     )
 
     # Clamp confidence to [0, 1]
@@ -119,19 +132,38 @@ def _default_score_result(model: str) -> ScoreResult:
     )
 
 
-async def judge(content: str, config: ScoringConfig, language: str = "zh") -> ScoreResult:
+async def judge(
+    content: str,
+    config: ScoringConfig,
+    language: str = "zh",
+    required_dimensions: list[str] | None = None,
+) -> ScoreResult:
     """Score content using an LLM judge.
 
     Args:
         content: The text content to evaluate.
         config: Scoring configuration (contains model name, etc.).
         language: Language code for prompt template ("zh" or "en"). Defaults to "zh".
+        required_dimensions: Optional list of dimensions to evaluate. If provided
+            and fewer than 9, uses an adaptive shorter prompt.
 
     Returns:
         ScoreResult with dimension scores, labels, and summary.
     """
     model = config.primary_model
-    system_prompt = get_system_prompt(language)
+
+    # Use adaptive prompt if fewer dimensions are needed
+    use_adaptive = (
+        required_dimensions is not None
+        and len(required_dimensions) < len(ALL_DIMENSIONS)
+    )
+    if use_adaptive:
+        system_prompt = build_adaptive_prompt(required_dimensions, language)
+        max_tokens = 512
+    else:
+        system_prompt = get_system_prompt(language)
+        max_tokens = 1024
+
     user_content = f"<content_to_evaluate>\n{content}\n</content_to_evaluate>"
 
     messages = [
@@ -150,7 +182,7 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
                 "model": model,
                 "messages": messages,
                 "temperature": 0.3,
-                "max_tokens": 1024,
+                "max_tokens": max_tokens,
                 "timeout": 30.0,
             }
             # If using Ollama, pass api_base
@@ -167,7 +199,7 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
                 raise ValueError("Empty response from LLM")
 
             data = _extract_json(raw_text)
-            result = _build_score_result(data, model)
+            result = _build_score_result(data, model, required_dimensions)
 
             # Attach cost if available
             hidden = getattr(response, "_hidden_params", None)
@@ -175,6 +207,13 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
                 cost = hidden.get("response_cost", 0.0)
                 if cost:
                     result.cost = cost
+
+            # Attach tokens_used if available
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                total_tokens = getattr(usage, "total_tokens", None)
+                if total_tokens is not None:
+                    result.tokens_used = int(total_tokens)
 
             return result
 

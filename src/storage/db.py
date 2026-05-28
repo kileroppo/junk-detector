@@ -82,6 +82,22 @@ def init_db(db_path: str = "junk_detector.db") -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_scores_source_url ON scores(source_url)")
         conn.commit()
 
+        # Create token_roi table for ROI tracking
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS token_roi (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_hash TEXT,
+                tokens_used INTEGER,
+                rules_score REAL,
+                llm_score REAL,
+                roi REAL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.commit()
+
         _initialized_dbs.add(db_path)
     finally:
         conn.close()
