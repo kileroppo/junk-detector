@@ -104,7 +104,6 @@ async def score_submit(
     If the request comes from HTMX, return an inline result fragment.
     Otherwise, redirect to the result detail page.
     """
-    from src.core.scorer import score
     from src.extractors.text import extract_from_text
     from src.extractors.web import extract_from_url
     from src.storage.db import save
@@ -128,6 +127,7 @@ async def score_submit(
 
         # Score the content (with adaptive weights from user feedback)
         from src.core.adaptive_weights import get_adjusted_weights
+        from src.core.scoring_service import score_with_full_report
 
         adjusted_weights = get_adjusted_weights(user_id="anonymous")
         # Build a ScoringConfig with adjusted weights if feedback has modified them
@@ -144,107 +144,38 @@ async def score_submit(
             except Exception:
                 pass
 
-        result = await score(content.text, config=scoring_config)
+        report = await score_with_full_report(
+            content.text, source_url=content.source_url, config=scoring_config
+        )
 
         # Save to storage
         try:
-            save(result, content)
+            save(report.result, content)
         except Exception:
             logger.exception("Failed to save scoring result")
 
-        # Compute dual-score: rule_score vs llm_score (overall)
-        from src.core.rules import apply_rules
-        from src.core.scorer import _calculate_overall
-        from src.models.score import DimensionScores
-
-        rule_result = apply_rules(content.text)
-
-        # Build rule-only dimensions
-        rule_dims_dict: dict[str, float] = {}
-        for dim in ["originality", "info_density", "reasoning_quality", "readability", "timeliness"]:
-            rule_dims_dict[dim] = rule_result.dimension_overrides.get(dim, 50.0)
-        for dim in ["ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob"]:
-            rule_dims_dict[dim] = rule_result.dimension_overrides.get(dim, 0.0)
-
-        rule_dimensions = DimensionScores(**rule_dims_dict)
-        try:
-            from src.core.config import load_config as _load_cfg
-
-            _cfg = _load_cfg()
-        except Exception:
-            _cfg = None
-
-        if _cfg:
-            rule_only_score = _calculate_overall(rule_dimensions, _cfg)
-        else:
-            rule_only_score = 50.0
-
-        llm_score = result.overall_score
-        score_divergence = abs(rule_only_score - llm_score)
-        # Only show dual rings if rules actually fired (rule_score != default ~73)
-        rules_fired = bool(rule_result.matched_rules)
-        divergence_warning = score_divergence > 20 and rules_fired
-
-        # Generate focus guide if content is likely AI-generated or low quality
-        # Widen gate so the inner function's own guard handles "definitely good" case
-        focus_guide = None
-        if result.overall_score < 70 or result.dimensions.ai_generated_prob > 30:
-            from src.core.focus_guide import generate_focus_guide
-
-            guide = generate_focus_guide(content.text, result)
-            if guide:
-                focus_guide = guide.model_dump()
-
         # Build result dict for template
         result_data = {
-            "overall_score": result.overall_score,
-            "dimensions": result.dimensions.model_dump(),
-            "labels": result.labels,
-            "summary": result.summary,
-            "model_used": result.model_used,
-            "cost": result.cost,
-            "confidence": result.confidence,
-            "scored_at": result.scored_at.isoformat()[:19],
+            "overall_score": report.result.overall_score,
+            "dimensions": report.result.dimensions.model_dump(),
+            "labels": report.result.labels,
+            "summary": report.result.summary,
+            "model_used": report.result.model_used,
+            "cost": report.result.cost,
+            "confidence": report.result.confidence,
+            "scored_at": report.result.scored_at.isoformat()[:19],
             "title": content.title,
             "source_url": content.source_url,
-            "focus_guide": focus_guide,
-            "rule_hits": result.rule_hits,
-            "dimension_sources": result.dimension_sources,
-            "rule_score": rule_only_score,
-            "llm_score": llm_score,
-            "score_divergence": score_divergence,
-            "divergence_warning": divergence_warning,
-            "rules_fired": rules_fired,
+            "focus_guide": report.focus_guide,
+            "rule_hits": report.rule_hits,
+            "dimension_sources": report.dimension_sources,
+            "rule_score": report.rule_score,
+            "llm_score": report.llm_score,
+            "score_divergence": report.score_divergence,
+            "divergence_warning": report.divergence_warning,
+            "rules_fired": report.rules_fired,
+            "source_warning": report.source_warning,
         }
-
-        # Source reputation warning
-        source_warning = None
-        if content.source_url:
-            from urllib.parse import urlparse
-
-            from src.core.source_reputation import check_auto_blacklist, is_blacklisted
-
-            try:
-                parsed = urlparse(content.source_url)
-                domain = parsed.netloc or ""
-                if domain.startswith("www."):
-                    domain = domain[4:]
-
-                if domain:
-                    if is_blacklisted(domain):
-                        source_warning = {
-                            "level": "blacklisted",
-                            "message": "来源已列入黑名单",
-                        }
-                    elif check_auto_blacklist(domain):
-                        source_warning = {
-                            "level": "low_reputation",
-                            "message": "该来源历史评分较低",
-                        }
-            except Exception:
-                pass
-
-        result_data["source_warning"] = source_warning
 
         # Check if HTMX request
         is_htmx = request.headers.get("HX-Request") == "true"

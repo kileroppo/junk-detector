@@ -109,6 +109,13 @@ class ScoreRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+import time
+
+# Module-level cache for deep health check
+_health_cache: dict = {"result": None, "timestamp": 0.0}
+_HEALTH_CACHE_TTL = 60.0  # seconds
+
+
 @app.get("/health")
 async def health(deep: bool = False):
     """Health check endpoint.
@@ -119,7 +126,17 @@ async def health(deep: bool = False):
     if not deep:
         return {"status": "ok"}
 
-    # Deep health check: ping the LLM API
+    # Check cache
+    now = time.time()
+    if _health_cache["result"] and (now - _health_cache["timestamp"]) < _HEALTH_CACHE_TTL:
+        cached = _health_cache["result"]
+        if cached.get("status") == "degraded":
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(content=cached, status_code=503)
+        return cached
+
+    # Deep check: minimal LLM request
     try:
         import litellm
 
@@ -128,16 +145,36 @@ async def health(deep: bool = False):
         model_cfg = get_model_config()
         primary_model = model_cfg["primary"]
 
+        start = time.time()
         await litellm.acompletion(
             model=primary_model,
-            messages=[{"role": "user", "content": "hi"}],
-            max_tokens=1,
+            messages=[{"role": "user", "content": "respond ok"}],
+            max_tokens=5,
             timeout=5.0,
         )
-        return {"status": "ok", "llm_status": "connected"}
+        latency_ms = int((time.time() - start) * 1000)
+
+        result = {
+            "status": "healthy",
+            "llm_reachable": True,
+            "model": primary_model,
+            "latency_ms": latency_ms,
+        }
+        _health_cache["result"] = result
+        _health_cache["timestamp"] = now
+        return result
+
     except Exception as e:
-        logger.error("Deep health check failed: %s", e)
-        return {"status": "degraded", "llm_status": "unreachable"}
+        result = {
+            "status": "degraded",
+            "llm_reachable": False,
+            "error": str(e)[:200],
+        }
+        _health_cache["result"] = result
+        _health_cache["timestamp"] = now
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(content=result, status_code=503)
 
 
 @app.post("/score", response_model=ScoreResult)

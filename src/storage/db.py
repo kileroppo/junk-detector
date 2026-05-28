@@ -411,6 +411,42 @@ def query_by_content_hash(content_hash: str, db_path: str = "junk_detector.db") 
         conn.close()
 
 
+def get_cached_score(content_hash: str, max_age_days: int = 7, db_path: str | None = None) -> dict | None:
+    """Get a cached score result by content hash within max_age_days window.
+
+    Args:
+        content_hash: SHA256 hash of content text.
+        max_age_days: Maximum age of cached result in days.
+        db_path: Path to SQLite database file.
+
+    Returns:
+        Score record dict if found and within age window, None otherwise.
+    """
+    if db_path is None:
+        from src.storage.engine import get_db_path
+
+        db_path = get_db_path()
+
+    record = query_by_content_hash(content_hash, db_path=db_path)
+    if not record:
+        return None
+
+    from datetime import timezone
+
+    scored_at_str = record.get("scored_at", "")
+    if not scored_at_str:
+        return None
+
+    scored_at = datetime.fromisoformat(scored_at_str)
+    if scored_at.tzinfo is None:
+        scored_at = scored_at.replace(tzinfo=timezone.utc)
+
+    if datetime.now(timezone.utc) - scored_at > timedelta(days=max_age_days):
+        return None
+
+    return record
+
+
 def get_all_embeddings(db_path: str = "junk_detector.db") -> list[dict]:
     """Retrieve all rows that have a stored embedding vector.
 
