@@ -10,8 +10,13 @@
         返回历史记录
     </a>
 
+    <!-- Simple Mode View (shown only when body.simple-mode) -->
+    <div class="simple-only" style="display:none">
+        {% include "partials/result_simple.html" %}
+    </div>
+
     <!-- Overall Score with SVG Ring -->
-    <div class="bg-surface rounded-xl p-6 border border-navy-700 text-center">
+    <div class="bg-surface rounded-xl p-6 border border-navy-700 text-center simple-hidden">
         <h1 class="text-lg font-medium text-gray-400 mb-4">综合评分</h1>
         <div class="inline-flex items-center justify-center relative">
             <svg width="140" height="140" viewBox="0 0 100 100">
@@ -60,7 +65,7 @@
     {% endif %}
 
     <!-- Dimension Breakdown -->
-    <div class="bg-surface rounded-xl p-6 border border-navy-700">
+    <div class="bg-surface rounded-xl p-6 border border-navy-700 detail-section">
         <h2 class="text-lg font-semibold mb-5">9维度详细分析</h2>
 
         <!-- Positive Dimensions -->
@@ -117,7 +122,7 @@
     </div>
 
     <!-- Metadata (collapsible) -->
-    <details class="bg-surface rounded-xl border border-navy-700 overflow-hidden">
+    <details class="bg-surface rounded-xl border border-navy-700 overflow-hidden detail-section">
         <summary class="px-6 py-4 cursor-pointer text-lg font-semibold hover:bg-surface-raised transition-colors flex items-center gap-2">
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             元数据

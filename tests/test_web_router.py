@@ -112,17 +112,21 @@ class TestWebRoutes:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
+    @patch("src.web.router.count_records")
     @patch("src.web.router.query")
-    def test_history_page(self, mock_query, web_client):
+    def test_history_page(self, mock_query, mock_count, web_client):
         """GET /history-page returns 200 HTML."""
+        mock_count.return_value = 0
         mock_query.return_value = []
         response = web_client.get("/history-page")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
+    @patch("src.web.router.count_records")
     @patch("src.web.router.query")
-    def test_history_page_with_filters(self, mock_query, web_client):
+    def test_history_page_with_filters(self, mock_query, mock_count, web_client):
         """GET /history-page with filter params passes them correctly."""
+        mock_count.return_value = 0
         mock_query.return_value = []
         response = web_client.get("/history-page?min_score=60&label=junk&page=2")
         assert response.status_code == 200
@@ -360,9 +364,11 @@ class TestResultDetailEdgeCases:
 class TestHistoryPageFilters:
     """Tests for GET /history-page with filters and pagination."""
 
+    @patch("src.web.router.count_records")
     @patch("src.web.router.query")
-    def test_history_page_date_from_filter(self, mock_query, web_client):
+    def test_history_page_date_from_filter(self, mock_query, mock_count, web_client):
         """GET /history-page with date_from filter passes it to query."""
+        mock_count.return_value = 0
         mock_query.return_value = []
 
         response = web_client.get("/history-page?date_from=2024-01-01")
@@ -372,18 +378,20 @@ class TestHistoryPageFilters:
         call_args = mock_query.call_args
         assert call_args[1]["filters"]["date_from"] == "2024-01-01"
 
+    @patch("src.web.router.count_records")
     @patch("src.web.router.query")
-    def test_history_page_pagination_page2(self, mock_query, web_client):
-        """GET /history-page?page=2 fetches enough results for pagination."""
-        # Return 40 results so page 2 has data
-        mock_query.return_value = [{"overall_score": 50.0, "id": i} for i in range(40)]
+    def test_history_page_pagination_page2(self, mock_query, mock_count, web_client):
+        """GET /history-page?page=2 uses SQL OFFSET for pagination."""
+        mock_count.return_value = 40
+        mock_query.return_value = [{"overall_score": 50.0, "id": i} for i in range(20)]
 
         response = web_client.get("/history-page?page=2")
 
         assert response.status_code == 200
-        # page=2 means offset_limit = 2*20 = 40
+        # page=2 means limit=20, offset=20
         call_args = mock_query.call_args
-        assert call_args[1]["limit"] == 40
+        assert call_args[1]["limit"] == 20
+        assert call_args[1]["offset"] == 20
 
 
 class TestSettingsRoute:
@@ -483,9 +491,11 @@ class TestDashboardExceptionHandling:
 class TestHistoryPageExceptionHandling:
     """Tests for history page when query raises."""
 
+    @patch("src.web.router.count_records")
     @patch("src.web.router.query")
-    def test_history_page_query_raises(self, mock_query, web_client):
+    def test_history_page_query_raises(self, mock_query, mock_count, web_client):
         """History page returns 200 with empty results when query raises."""
+        mock_count.side_effect = RuntimeError("DB connection failed")
         mock_query.side_effect = RuntimeError("DB connection failed")
 
         response = web_client.get("/history-page")

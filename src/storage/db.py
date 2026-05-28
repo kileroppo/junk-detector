@@ -161,6 +161,7 @@ def query(
     filters: dict | None = None,
     limit: int = 20,
     db_path: str = "junk_detector.db",
+    offset: int = 0,
 ) -> list[dict]:
     """Query scoring history with optional filters.
 
@@ -175,6 +176,7 @@ def query(
         filters: Optional dictionary of filter conditions.
         limit: Maximum number of results to return.
         db_path: Path to the SQLite database file.
+        offset: Number of rows to skip (for pagination).
 
     Returns:
         List of score records as dictionaries.
@@ -205,14 +207,63 @@ def query(
             sql += " AND scored_at <= ?"
             params.append(filters["date_to"])
 
-    sql += " ORDER BY scored_at DESC LIMIT ?"
+    sql += " ORDER BY scored_at DESC LIMIT ? OFFSET ?"
     params.append(limit)
+    params.append(offset)
 
     conn = _get_connection(db_path)
     try:
         cursor = conn.execute(sql, params)
         rows = cursor.fetchall()
         return [_row_to_dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def count_records(
+    filters: dict | None = None,
+    db_path: str = "junk_detector.db",
+) -> int:
+    """Count total number of records matching the given filters.
+
+    Args:
+        filters: Optional dictionary of filter conditions (same as query()).
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        Total count of matching records.
+    """
+    _ensure_initialized(db_path)
+
+    sql = "SELECT COUNT(*) FROM scores WHERE 1=1"
+    params: list = []
+
+    if filters:
+        if "min_score" in filters:
+            sql += " AND overall_score >= ?"
+            params.append(filters["min_score"])
+
+        if "max_score" in filters:
+            sql += " AND overall_score <= ?"
+            params.append(filters["max_score"])
+
+        if "label" in filters:
+            sql += " AND labels_json LIKE ?"
+            params.append(f"%{filters['label']}%")
+
+        if "date_from" in filters:
+            sql += " AND scored_at >= ?"
+            params.append(filters["date_from"])
+
+        if "date_to" in filters:
+            sql += " AND scored_at <= ?"
+            params.append(filters["date_to"])
+
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(sql, params)
+        row = cursor.fetchone()
+        return row[0] if row else 0
     finally:
         conn.close()
 

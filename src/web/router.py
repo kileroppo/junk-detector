@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Optional
@@ -9,9 +10,10 @@ from typing import Optional
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.responses import StreamingResponse
 
 from src.core.config import get_model_config
-from src.storage.db import get_history, query
+from src.storage.db import count_records, get_history, query
 
 # Template and static directories (relative to this file)
 _BASE_DIR = Path(__file__).parent
@@ -208,6 +210,110 @@ async def result_detail(request: Request, record_id: int):
     )
 
 
+@router.post("/score-stream")
+async def score_stream(
+    request: Request,
+    input_type: Optional[str] = Form(default="text"),
+    text: Optional[str] = Form(default=None),
+    url: Optional[str] = Form(default=None),
+    title: Optional[str] = Form(default=None),
+):
+    """SSE streaming endpoint for progressive scoring.
+
+    First event: immediate rule-engine results.
+    Second event: full LLM scoring result.
+    """
+    from src.core.rules import apply_rules
+    from src.core.scorer import _calculate_overall, score
+    from src.extractors.text import extract_from_text
+    from src.extractors.web import extract_from_url
+    from src.models.score import DimensionScores
+
+    async def event_generator():
+        try:
+            # Determine input
+            if input_type == "url" and url:
+                content = await extract_from_url(url)
+            elif text:
+                if text.startswith(("http://", "https://")) and not url:
+                    content = await extract_from_url(text)
+                else:
+                    content = extract_from_text(text, title=title)
+            else:
+                error_data = json.dumps({"error": "请输入文本或 URL"}, ensure_ascii=False)
+                yield f"event: error\ndata: {error_data}\n\n"
+                return
+
+            # Step 1: immediate rule-engine results
+            rule_result = apply_rules(content.text)
+
+            # Build partial dimensions from rules
+            positive_default = 50.0
+            negative_default = 0.0
+            dims_dict: dict[str, float] = {}
+            for dim in ["originality", "info_density", "reasoning_quality", "readability", "timeliness"]:
+                dims_dict[dim] = rule_result.dimension_overrides.get(dim, positive_default)
+            for dim in ["ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob"]:
+                dims_dict[dim] = rule_result.dimension_overrides.get(dim, negative_default)
+
+            dimensions = DimensionScores(**dims_dict)
+            config = None
+            try:
+                from src.core.config import load_config
+                config = load_config()
+            except Exception:
+                pass
+
+            if config:
+                overall = _calculate_overall(dimensions, config)
+            else:
+                overall = 50.0
+
+            rules_data = {
+                "type": "rules_result",
+                "overall_score": overall,
+                "dimensions": dims_dict,
+                "matched_rules": rule_result.matched_rules,
+                "title": content.title,
+            }
+            yield f"event: rules_result\ndata: {json.dumps(rules_data, ensure_ascii=False)}\n\n"
+
+            # Step 2: full LLM scoring
+            result = await score(content.text)
+
+            # Save to storage
+            try:
+                from src.storage.db import save
+                save(result, content)
+            except Exception:
+                pass
+
+            final_data = {
+                "type": "final_result",
+                "overall_score": result.overall_score,
+                "dimensions": result.dimensions.model_dump(),
+                "labels": result.labels,
+                "summary": result.summary,
+                "model_used": result.model_used,
+                "cost": result.cost,
+                "confidence": result.confidence,
+                "scored_at": result.scored_at.isoformat()[:19],
+                "title": content.title,
+                "source_url": content.source_url,
+            }
+            yield f"event: final_result\ndata: {json.dumps(final_data, ensure_ascii=False)}\n\n"
+
+        except Exception as e:
+            error_data = json.dumps({"error": str(e)}, ensure_ascii=False)
+            yield f"event: error\ndata: {error_data}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
+
+
 @router.get("/history-page", response_class=HTMLResponse)
 async def history_page(
     request: Request,
@@ -226,18 +332,19 @@ async def history_page(
     if date_from:
         filters["date_from"] = date_from
 
-    # Pagination: fetch one extra page worth to determine if there's a next page
-    offset_limit = page * 20
+    per_page = 20
+    offset = (page - 1) * per_page
+
     try:
-        all_results = query(
+        total = count_records(filters=filters if filters else None)
+        results = query(
             filters=filters if filters else None,
-            limit=offset_limit,
+            limit=per_page,
+            offset=offset,
         )
-        # Slice for current page
-        start_idx = (page - 1) * 20
-        results = all_results[start_idx : start_idx + 20]
     except Exception:
         results = []
+        total = 0
 
     filter_context = {
         "min_score": min_score,
@@ -252,8 +359,59 @@ async def history_page(
             "results": results,
             "filters": filter_context,
             "page": page,
+            "total": total,
+            "per_page": per_page,
         },
     )
+
+
+@router.get("/compare", response_class=HTMLResponse)
+async def compare_page(request: Request):
+    """Comparison mode page with two side-by-side inputs."""
+    return templates.TemplateResponse(request, "compare.html")
+
+
+@router.post("/compare-submit", response_class=HTMLResponse)
+async def compare_submit(
+    request: Request,
+    text_a: Optional[str] = Form(default=None),
+    text_b: Optional[str] = Form(default=None),
+):
+    """Score two texts and return side-by-side comparison results."""
+    from src.core.scorer import score
+
+    if not text_a or not text_b:
+        return HTMLResponse(
+            content='<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">请输入两段文本进行对比</div>',
+            status_code=422,
+        )
+
+    try:
+        result_a = await score(text_a)
+        result_b = await score(text_b)
+
+        result_data_a = {
+            "overall_score": result_a.overall_score,
+            "dimensions": result_a.dimensions.model_dump(),
+            "labels": result_a.labels,
+            "summary": result_a.summary,
+        }
+        result_data_b = {
+            "overall_score": result_b.overall_score,
+            "dimensions": result_b.dimensions.model_dump(),
+            "labels": result_b.labels,
+            "summary": result_b.summary,
+        }
+
+        return templates.TemplateResponse(
+            request,
+            "partials/compare_result.html",
+            {"result_a": result_data_a, "result_b": result_data_b},
+        )
+
+    except Exception as e:
+        error_html = f'<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">对比评分失败: {str(e)}</div>'
+        return HTMLResponse(content=error_html, status_code=500)
 
 
 @router.get("/monitor-status", response_class=HTMLResponse)

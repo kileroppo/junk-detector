@@ -133,14 +133,14 @@
 
     <!-- Pagination -->
     <div class="flex items-center justify-between">
-        <p class="text-xs text-gray-500">显示 {{ results|length }} 条记录</p>
+        <p class="text-xs text-gray-500">显示 {{ results|length }} 条记录，共 {{ total }} 条</p>
         <div class="flex gap-2">
             {% if page > 1 %}
             <a href="/history-page?page={{ page - 1 }}&min_score={{ filters.min_score or 0 }}&label={{ filters.label or '' }}&date_from={{ filters.date_from or '' }}"
                class="px-3 py-1.5 rounded-lg bg-surface border border-navy-700 text-sm hover:bg-surface-raised transition-colors">上一页</a>
             {% endif %}
             <span class="px-3 py-1.5 text-sm text-gray-400">第 {{ page }} 页</span>
-            {% if results|length >= 20 %}
+            {% if results|length >= per_page and (page * per_page) < total %}
             <a href="/history-page?page={{ page + 1 }}&min_score={{ filters.min_score or 0 }}&label={{ filters.label or '' }}&date_from={{ filters.date_from or '' }}"
                class="px-3 py-1.5 rounded-lg bg-surface border border-navy-700 text-sm hover:bg-surface-raised transition-colors">下一页</a>
             {% endif %}
