@@ -666,4 +666,21 @@ def apply_rules(content: str) -> RuleResult:
             current_conf = result.confidence.get("advertorial_prob", 0.0)
             result.confidence["advertorial_prob"] = max(current_conf, 0.7)
 
+    # --- Custom rules (user-defined) ---
+    try:
+        from src.core.custom_rules import apply_custom_rules, load_custom_rules
+        custom_rules = load_custom_rules()
+        if custom_rules:
+            custom_result = apply_custom_rules(content, custom_rules)
+            # Merge custom results
+            result.matched_rules.extend(custom_result.matched_rules)
+            for dim, score_val in custom_result.dimension_overrides.items():
+                current = result.dimension_overrides.get(dim, 0)
+                result.dimension_overrides[dim] = min(current + score_val, 100.0)
+            for dim, conf in custom_result.confidence.items():
+                current = result.confidence.get(dim, 0)
+                result.confidence[dim] = max(current, conf)
+    except Exception:
+        pass  # Custom rules should never break built-in functionality
+
     return result
