@@ -437,7 +437,10 @@ html.dark .spinner {
     animation: slideIn 0.3s ease-out;
 }
 
-/* Staggered children entrance */
+/* Staggered children entrance
+   NOTE: This animation is designed for lists with at most 8 items.
+   Do not use .stagger-children on containers with more than 8 children,
+   as the cumulative delay (420ms max) would feel sluggish. */
 .stagger-children > * {
     opacity: 0;
     transform: translateY(12px);

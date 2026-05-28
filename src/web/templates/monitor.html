@@ -24,7 +24,7 @@
     </div>
 
     <!-- Feeds Configuration Info -->
-    <div class="bg-surface rounded-xl p-4 border border-navy-700">
+    <div class="bg-surface rounded-xl p-5 border border-navy-700">
         <h2 class="text-sm font-medium text-gray-400 mb-2 flex items-center gap-1.5">
             <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 11-2 0 1 1 0 012 0z"/></svg>
             已配置信源 (config.yaml)
@@ -38,9 +38,13 @@
          hx-trigger="load, every 5s, refreshMonitorStats from:body"
          hx-swap="innerHTML">
         <!-- Loaded via HTMX -->
-        <div class="p-8 text-center text-gray-500">
-            <span class="spinner"></span>
-            <p class="mt-2">加载监控数据...</p>
+        <div class="space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="skeleton h-24 rounded-xl"></div>
+                <div class="skeleton h-24 rounded-xl"></div>
+                <div class="skeleton h-24 rounded-xl"></div>
+            </div>
+            <div class="skeleton h-48 rounded-xl"></div>
         </div>
     </div>
 </div>

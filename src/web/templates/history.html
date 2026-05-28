@@ -188,6 +188,17 @@
 </div>
 
 <script>
+// Dim results immediately on filter submit for instant feedback
+(function() {
+    var filterForm = document.querySelector('form[action="/history-page"]');
+    if (filterForm) {
+        filterForm.addEventListener('submit', function() {
+            var results = document.querySelector('.bg-surface.rounded-xl.border');
+            if (results) results.style.opacity = '0.5';
+        });
+    }
+})();
+
 // Mobile swipe gestures on history cards
 (function() {
     // Show swipe hint on first card briefly

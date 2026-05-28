@@ -28,13 +28,13 @@
     </div>
 
     <!-- Overall Score with SVG Ring -->
-    <div class="bg-surface rounded-xl p-6 border border-navy-700 text-center simple-hidden">
+    <div class="bg-surface rounded-xl p-5 border border-navy-700 text-center simple-hidden">
         {% if result.rules_fired %}
         <!-- Dual Score Display: Rule Engine vs LLM -->
         <h1 class="text-lg font-medium text-gray-400 mb-4">评分对比</h1>
         <div class="flex items-center justify-center gap-8 flex-wrap">
             <!-- Rule Engine Score -->
-            <div class="text-center">
+            <div class="text-center w-full sm:w-auto">
                 <p class="text-sm text-amber-400 mb-2 font-medium">规则引擎</p>
                 <div class="inline-flex items-center justify-center relative">
                     <svg width="110" height="110" viewBox="0 0 100 100" aria-label="规则引擎评分 {{ '%.0f'|format(result.rule_score) }} 分">
@@ -51,7 +51,7 @@
                 </div>
             </div>
             <!-- LLM Score (Overall) -->
-            <div class="text-center">
+            <div class="text-center w-full sm:w-auto">
                 <p class="text-sm text-indigo-400 mb-2 font-medium">综合评分</p>
                 <div class="inline-flex items-center justify-center relative">
                     <svg width="110" height="110" viewBox="0 0 100 100" aria-label="综合评分 {{ '%.0f'|format(result.llm_score) }} 分">
@@ -132,7 +132,7 @@
     {% endif %}
 
     <!-- Dimension Breakdown -->
-    <div class="bg-surface rounded-xl p-6 border border-navy-700 detail-section">
+    <div class="bg-surface rounded-xl p-5 border border-navy-700 detail-section">
         <h2 class="text-lg font-semibold mb-5">9维度详细分析</h2>
 
         <!-- Positive Dimensions -->
