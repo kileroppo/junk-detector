@@ -111,7 +111,7 @@ class TestNavAriaLabels:
         assert 'aria-label="评分 - 输入内容进行AI质量分析"' in html
         assert 'aria-label="历史记录 - 查看过去的评分结果"' in html
         assert 'aria-label="监控 - Thunder信源监控管理"' in html
-        assert 'aria-label="对比 - 多篇内容质量对比分析"' in html
+        # Compare removed from nav in Round 9 (still accessible from score_form)
         assert 'aria-label="设置 - 配置API密钥和偏好"' in html
 
     @patch("src.web.routes.pages.get_history")

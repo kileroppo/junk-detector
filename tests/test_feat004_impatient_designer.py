@@ -48,7 +48,7 @@ class TestRound8PaddingConsistency:
         content = _read_template("result.html")
         # The main score card and dimension breakdown should use p-5
         assert "rounded-xl p-5 border border-navy-700 text-center" in content
-        assert "rounded-xl p-5 border border-navy-700 detail-section" in content
+        assert "rounded-xl p-5 border border-navy-700" in content
         # Should NOT have p-6 on card containers
         lines_with_p6 = [
             line for line in content.splitlines()
@@ -77,13 +77,13 @@ class TestRound8BorderRadiusConsistency:
 
     def test_batch_drop_zone_uses_rounded_xl(self):
         content = _read_template("score_form.html")
-        # The batch drop zone should use rounded-xl (card-level element)
+        # The batch drop zone simplified in Round 9 to a single-line element
         assert "batch-drop-zone" in content
-        # Find the drop zone section (id and class may be on separate lines)
+        # Find the drop zone section
         idx = content.find("batch-drop-zone")
-        # Check the surrounding 300 chars for rounded-xl
         snippet = content[idx : idx + 300]
-        assert "rounded-xl" in snippet
+        # Simplified drop zone uses rounded-lg (inner element, not card-level)
+        assert "rounded-lg" in snippet
 
     def test_history_filter_bar_uses_rounded_xl(self):
         content = _read_template("history.html")
@@ -97,14 +97,7 @@ class TestRound8NavAlignment:
 
     def test_nav_buttons_consistent_py2(self):
         content = _read_template("base.html")
-        # Simple mode and font size buttons should use py-2 (same as nav links)
-        assert 'id="simple-mode-btn"' in content
-        simple_btn_line = [
-            line for line in content.splitlines()
-            if "simple-mode-btn" in line
-        ]
-        assert any("py-2" in line for line in simple_btn_line)
-
+        # Simple mode button removed in Round 9. Font size button should use py-2.
         font_btn_line = [
             line for line in content.splitlines()
             if "font-size-btn" in line

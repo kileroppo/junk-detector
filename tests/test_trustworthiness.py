@@ -209,8 +209,7 @@ class TestEvidenceChain:
             # Triggered rules section
             assert "触发规则" in html
             assert "scam_keywords" in html
-            # Keyword matches section
-            assert "关键词匹配" in html
+            # Keyword matches section removed in Round 9 (redundant)
             # LLM assessment
             assert "AI评估摘要" in html
             # Confidence factors

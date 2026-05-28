@@ -266,13 +266,14 @@ class TestSettingsTemplateContent:
         assert "localStorage" in html
 
     def test_settings_has_scoring_preferences(self, web_client):
-        """Settings page contains scoring weight preferences."""
+        """Settings page contains model configuration and about sections."""
         response = web_client.get("/settings")
         html = response.text
 
-        assert "评分权重" in html
-        assert "原创性" in html
-        assert "信息密度" in html
+        # Weight sliders removed in Round 9
+        assert "模型配置" in html
+        assert "外观" in html
+        assert "关于" in html
 
 
 class TestBaseTemplateElements:

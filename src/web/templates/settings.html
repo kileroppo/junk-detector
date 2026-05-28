@@ -35,27 +35,6 @@
         </div>
     </div>
 
-    <!-- Scoring Preferences -->
-    <div class="bg-white dark:bg-surface rounded-xl p-5 border border-gray-200 dark:border-navy-700">
-        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-            评分权重
-        </h2>
-        <div class="space-y-4">
-            {% for dim_name, dim_label, dim_title in [('originality', '原创性', '内容是否为原创而非复制粘贴'), ('info_density', '信息密度', '每段文字包含的有效信息量'), ('reasoning_quality', '论证质量', '论点是否有充分的逻辑和证据支撑'), ('readability', '可读性', '文字是否容易理解，结构是否清晰'), ('timeliness', '时效性', '信息是否过时或仍有参考价值')] %}
-            <div>
-                <div class="flex justify-between mb-1">
-                    <label class="text-sm text-gray-600 dark:text-gray-300" title="{{ dim_title }}">{{ dim_label }}</label>
-                    <span class="text-xs text-gray-500">1.0x</span>
-                </div>
-                <input type="range" min="0" max="200" value="100"
-                       class="w-full accent-indigo-500" disabled>
-            </div>
-            {% endfor %}
-        </div>
-        <p class="text-xs text-gray-400 mt-4">权重调整功能即将推出</p>
-    </div>
-
     <!-- Theme Toggle -->
     <div class="bg-white dark:bg-surface rounded-xl p-5 border border-gray-200 dark:border-navy-700">
         <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">

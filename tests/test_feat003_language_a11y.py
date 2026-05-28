@@ -186,15 +186,15 @@ class TestHistoryTableAccessibility:
 
 
 class TestSettingsAccessibility:
-    """Verify settings.html has title attributes on dimension labels."""
+    """Verify settings.html has accessible controls."""
 
     def test_dimension_labels_have_title(self):
+        """Weight sliders removed in Round 9. Settings still has theme toggle accessibility."""
         content = (TEMPLATE_DIR / "settings.html").read_text()
-        assert "内容是否为原创而非复制粘贴" in content
-        assert "每段文字包含的有效信息量" in content
-        assert "论点是否有充分的逻辑和证据支撑" in content
-        assert "文字是否容易理解，结构是否清晰" in content
-        assert "信息是否过时或仍有参考价值" in content
+        # Weight sliders removed; verify core settings sections remain
+        assert "模型配置" in content
+        assert "外观" in content
+        assert "关于" in content
 
     def test_theme_toggle_has_switch_role(self):
         content = (TEMPLATE_DIR / "settings.html").read_text()
@@ -210,5 +210,6 @@ class TestBatchTabHelperText:
         assert "每行输入一个网址，支持 http:// 和 https:// 开头的链接" in content
 
     def test_drop_zone_has_click_hint(self):
+        """Drop zone simplified in Round 9 to single line."""
         content = (TEMPLATE_DIR / "score_form.html").read_text()
-        assert "或点击选择文件" in content
+        assert "或拖放文件到此处" in content

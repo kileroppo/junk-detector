@@ -19,10 +19,6 @@
         nav { background: #1e293b; border-bottom: 1px solid #334155; }
         .fade-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        /* Simple mode: hide detailed sections */
-        body.simple-mode .detail-section { display: none !important; }
-        body.simple-mode .simple-hidden { display: none !important; }
-        body.simple-mode .simple-only { display: block !important; }
         /* Font size classes */
         html.font-large { font-size: 18px; }
         html.font-xl { font-size: 20px; }
@@ -49,19 +45,10 @@
             } else if (fontSize === 'xl') {
                 document.documentElement.classList.add('font-xl');
             }
-            // Simple mode initialization
-            if (localStorage.getItem('simple_mode') === 'true') {
-                document.body && document.body.classList.add('simple-mode');
-            }
         })();
 
-        // Simple mode: apply on DOMContentLoaded for body class
+        // Simple mode: removed (integrated into default view)
         document.addEventListener('DOMContentLoaded', function() {
-            if (localStorage.getItem('simple_mode') === 'true') {
-                document.body.classList.add('simple-mode');
-                var btn = document.getElementById('simple-mode-btn');
-                if (btn) btn.classList.add('active');
-            }
             // Font size button state
             var fontSize = localStorage.getItem('font_size') || 'normal';
             var fontBtn = document.getElementById('font-size-btn');
@@ -70,19 +57,6 @@
                 fontBtn.title = fontSize === 'normal' ? '字体: 标准' : (fontSize === 'large' ? '字体: 大' : '字体: 特大');
             }
         });
-
-        function toggleSimpleMode() {
-            var isSimple = document.body.classList.toggle('simple-mode');
-            localStorage.setItem('simple_mode', isSimple ? 'true' : 'false');
-            var btn = document.getElementById('simple-mode-btn');
-            if (btn) {
-                if (isSimple) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            }
-        }
 
         function toggleTheme() {
             var isDark = document.documentElement.classList.toggle('dark');
@@ -206,15 +180,7 @@
                             监控
                         </span>
                     </a>
-                    <a href="/compare" aria-label="对比 - 多篇内容质量对比分析" class="px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-navy-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors {% block nav_compare %}{% endblock %}">
-                        <span class="inline-flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                            对比
-                        </span>
-                    </a>
-                    <button id="simple-mode-btn" onclick="toggleSimpleMode()" class="px-3 py-2 rounded-lg text-xs font-medium border border-navy-700 hover:bg-navy-700 transition-colors" title="极简模式" aria-label="极简模式 - 切换简洁界面">
-                        极简
-                    </button>
+
                     <button id="font-size-btn" onclick="cycleFontSize()" class="px-3 py-2 rounded-lg text-xs font-bold border border-navy-700 hover:bg-navy-700 transition-colors" title="字体: 标准" aria-label="切换字体大小">
                         A
                     </button>
@@ -257,10 +223,6 @@
                 <a href="/monitor-status" aria-label="监控 - Thunder信源监控管理" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-navy-700">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                     监控
-                </a>
-                <a href="/compare" aria-label="对比 - 多篇内容质量对比分析" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-navy-700">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                    对比
                 </a>
                 <a href="/settings" aria-label="设置 - 配置API密钥和偏好" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-navy-700">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>

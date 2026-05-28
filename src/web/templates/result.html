@@ -22,13 +22,37 @@
     </div>
     {% endif %}
 
-    <!-- Simple Mode View (shown only when body.simple-mode) -->
-    <div class="simple-only" style="display:none">
-        {% include "partials/result_simple.html" %}
+    <!-- Credibility Passport -->
+    <div class="bg-surface rounded-xl p-5 border border-navy-700 flex items-center gap-4" id="credibility-passport">
+        {% if result.overall_score > 70 %}
+        <div class="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+            <svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+            <p class="text-lg font-bold text-emerald-400">可信赖</p>
+            <p class="text-sm text-gray-400">这篇内容质量较高，信息可靠。</p>
+        </div>
+        {% elif result.overall_score > 40 %}
+        <div class="w-14 h-14 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+            <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+        </div>
+        <div>
+            <p class="text-lg font-bold text-amber-400">谨慎参考</p>
+            <p class="text-sm text-gray-400">这篇内容质量一般，建议交叉验证关键信息。</p>
+        </div>
+        {% else %}
+        <div class="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+            <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+            <p class="text-lg font-bold text-red-400">不推荐</p>
+            <p class="text-sm text-gray-400">这篇内容存在明显质量问题，不建议直接引用。</p>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Overall Score with SVG Ring -->
-    <div class="bg-surface rounded-xl p-5 border border-navy-700 text-center simple-hidden">
+    <div class="bg-surface rounded-xl p-5 border border-navy-700 text-center">
         {% if result.rules_fired %}
         <!-- Dual Score Display: Rule Engine vs LLM -->
         <h1 class="text-lg font-medium text-gray-400 mb-4">评分对比</h1>
@@ -132,7 +156,7 @@
     {% endif %}
 
     <!-- Dimension Breakdown -->
-    <div class="bg-surface rounded-xl p-5 border border-navy-700 detail-section">
+    <div class="bg-surface rounded-xl p-5 border border-navy-700">
         <h2 class="text-lg font-semibold mb-5">9维度详细分析</h2>
 
         <!-- Positive Dimensions -->
@@ -194,7 +218,7 @@
 
     <!-- 判定依据 (Judgment Basis / Evidence Chain) -->
     {% if result.rule_hits or result.dimension_sources %}
-    <details class="bg-surface rounded-xl border border-navy-700 overflow-hidden detail-section" open>
+    <details class="bg-surface rounded-xl border border-navy-700 overflow-hidden" open>
         <summary class="px-6 py-4 cursor-pointer text-lg font-semibold hover:bg-surface-raised transition-colors flex items-center gap-2">
             <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
             判定依据
@@ -223,33 +247,6 @@
                         {% endif %}
                         {{ rule }}
                     </span>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- B: Keyword Matches -->
-            {% if result.rule_hits %}
-            <div>
-                <h3 class="text-sm font-medium text-rose-400 mb-2 flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    关键词匹配
-                </h3>
-                <div class="flex flex-wrap gap-1.5">
-                    {% for rule in result.rule_hits %}
-                    {% if 'scam' in rule %}
-                    <span class="px-2 py-0.5 rounded text-xs bg-red-900/20 text-red-300 border border-red-800/50">骗局关键词</span>
-                    {% elif 'emotional' in rule or 'anxiety' in rule %}
-                    <span class="px-2 py-0.5 rounded text-xs bg-rose-900/20 text-rose-300 border border-rose-800/50">情绪操纵词</span>
-                    {% elif 'punctuation' in rule %}
-                    <span class="px-2 py-0.5 rounded text-xs bg-orange-900/20 text-orange-300 border border-orange-800/50">过度标点</span>
-                    {% elif 'advertorial' in rule or 'promo' in rule %}
-                    <span class="px-2 py-0.5 rounded text-xs bg-yellow-900/20 text-yellow-300 border border-yellow-800/50">推广关键词</span>
-                    {% elif 'ai_generated' in rule %}
-                    <span class="px-2 py-0.5 rounded text-xs bg-purple-900/20 text-purple-300 border border-purple-800/50">AI痕迹词</span>
-                    {% elif 'combo' in rule %}
-                    <span class="px-2 py-0.5 rounded text-xs bg-blue-900/20 text-blue-300 border border-blue-800/50">组合信号</span>
-                    {% endif %}
                     {% endfor %}
                 </div>
             </div>
@@ -318,7 +315,7 @@
     {% endif %}
 
     <!-- Metadata (collapsible) -->
-    <details class="bg-surface rounded-xl border border-navy-700 overflow-hidden detail-section">
+    <details class="bg-surface rounded-xl border border-navy-700 overflow-hidden">
         <summary class="px-6 py-4 cursor-pointer text-lg font-semibold hover:bg-surface-raised transition-colors flex items-center gap-2">
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             元数据
@@ -354,11 +351,28 @@
     </details>
 
     <!-- Action buttons -->
-    <div class="flex gap-3">
+    <div class="flex flex-wrap gap-3">
         <a href="/score-form" class="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            再次评分
+            评分新内容
         </a>
+        <button onclick="shareResult()" class="bg-navy-700 hover:bg-navy-600 px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2 border border-navy-600">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+            复制摘要
+        </button>
     </div>
 </div>
+
+<script>
+function shareResult() {
+    var score = '{{ "%.0f"|format(result.overall_score) }}';
+    var verdict = score > 70 ? '可信赖' : (score > 40 ? '谨慎参考' : '不推荐');
+    var summary = '{{ result.summary|default("")|replace("'", "\\'") }}'.substring(0, 100);
+    var text = 'Junk Detector: ' + score + '/100 (' + verdict + ')';
+    if (summary) text += ' - ' + summary;
+    navigator.clipboard.writeText(text).then(function() {
+        document.body.dispatchEvent(new CustomEvent('showToast', {detail: {message: '已复制到剪贴板', type: 'success'}}));
+    });
+}
+</script>
 {% endblock %}

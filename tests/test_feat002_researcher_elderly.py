@@ -241,16 +241,12 @@ class TestContrastFixes:
             pytest.fail("Monitor description text not found")
 
     def test_settings_weight_hint_contrast(self, web_client):
-        """Settings weight hint uses text-gray-400."""
+        """Settings weight sliders removed in Round 9 (dead UI). Verify settings page loads."""
         response = web_client.get("/settings")
         html = response.text
-        lines = html.split("\n")
-        for line in lines:
-            if "权重调整功能即将推出" in line:
-                assert "text-gray-400" in line
-                break
-        else:
-            pytest.fail("Settings weight hint not found")
+        # Weight sliders removed; settings still renders model config and about
+        assert "模型配置" in html
+        assert "关于" in html
 
 
 class TestSearchFilterInDB:
