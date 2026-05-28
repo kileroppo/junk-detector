@@ -4,9 +4,6 @@ import json
 import sys
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from src.core.rules import apply_rules, should_skip_llm
 
 
@@ -151,6 +148,11 @@ def write_results_md(metrics: dict, output_path: Path) -> None:
     """Write results to markdown file."""
     lines = []
     lines.append("# Benchmark Results")
+    lines.append("")
+    lines.append("> Note: This benchmark uses a synthetic dataset generated from the same keyword patterns")
+    lines.append("> used by the rules engine. These metrics measure rule coverage consistency, not real-world")
+    lines.append("> detection accuracy on unseen content. For production evaluation, use independently sourced")
+    lines.append("> labeled data.")
     lines.append("")
     lines.append("## Overall Metrics")
     lines.append("")

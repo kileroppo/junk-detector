@@ -1,5 +1,10 @@
 # Benchmark Results
 
+> Note: This benchmark uses a synthetic dataset generated from the same keyword patterns
+> used by the rules engine. These metrics measure rule coverage consistency, not real-world
+> detection accuracy on unseen content. For production evaluation, use independently sourced
+> labeled data.
+
 ## Overall Metrics
 
 | Metric | Value |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from datetime import datetime
 from typing import Any
@@ -426,7 +427,6 @@ def suggest_new_rules(min_count: int = 3, db_path: str = "junk_detector.db") -> 
         # Calculate TF-IDF score for each term
         # tf = term frequency in false negatives (fraction of FN docs containing term)
         # idf = log(total_docs / df) where df = document frequency across all content
-        import math
 
         total_fn = len(fn_ngram_sets)
         tfidf_scores: dict[str, float] = {}
