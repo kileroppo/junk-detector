@@ -65,3 +65,19 @@ class TestSmartTruncate:
         text = "word " * 1000  # ~5000 chars
         result = smart_truncate(text, max_chars=1500)
         assert len(result) <= 1500
+
+    def test_deterministic_output(self):
+        """Same input should always produce the same output (no randomness)."""
+        text = "a" * 200 + "b" * 2000 + "c" * 200 + "d" * 2000 + "e" * 200
+        results = [smart_truncate(text, max_chars=1500) for _ in range(10)]
+        # All results should be identical
+        assert all(r == results[0] for r in results)
+
+    def test_deterministic_different_texts(self):
+        """Different inputs produce different middle segments (seed varies)."""
+        text_a = "alpha" * 1000
+        text_b = "bravo" * 1000
+        result_a = smart_truncate(text_a, max_chars=1500)
+        result_b = smart_truncate(text_b, max_chars=1500)
+        # They should differ (different content, different seed)
+        assert result_a != result_b

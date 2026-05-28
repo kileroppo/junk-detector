@@ -650,6 +650,13 @@ async def api_monitor_add_feed(
     url: str = Form(...),
 ):
     """Add a new RSS feed to the monitor."""
+    # Validate URL starts with http:// or https://
+    if not url.startswith(("http://", "https://")):
+        return HTMLResponse(
+            content='<div class="text-red-400">URL 必须以 http:// 或 https:// 开头</div>',
+            status_code=422,
+        )
+
     from src.core.monitor_service import MonitorService
 
     service = MonitorService()

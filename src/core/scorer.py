@@ -477,7 +477,17 @@ async def score(
         except Exception as e:
             logger.debug("Failed to increment llm_count stats: %s", e)
 
-        # Track ROI: compare rules-only score with LLM score
+    # 6. Record rule hits
+    result.rule_hits = rule_result.matched_rules
+
+    # 7. Recalculate overall_score with weights
+    result.overall_score = _calculate_overall(result.dimensions, config)
+
+    # 8. Generate labels from thresholds
+    result.labels = _generate_labels(result.dimensions, config)
+
+    # Track ROI: compare rules-only score with final LLM score (after step 7)
+    if not skip_llm and not (rules_covered >= set(all_dimensions)):
         try:
             from src.core.token_roi import compute_roi, save_roi_record
 
@@ -520,14 +530,5 @@ async def score(
                 )
         except Exception as e:
             logger.debug("Failed to track ROI: %s", e)
-
-    # 6. Record rule hits
-    result.rule_hits = rule_result.matched_rules
-
-    # 7. Recalculate overall_score with weights
-    result.overall_score = _calculate_overall(result.dimensions, config)
-
-    # 8. Generate labels from thresholds
-    result.labels = _generate_labels(result.dimensions, config)
 
     return result

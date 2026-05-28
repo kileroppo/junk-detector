@@ -214,7 +214,12 @@ class MonitorService:
         Args:
             name: Display name for the feed.
             url: RSS feed URL.
+
+        Raises:
+            ValueError: If the URL does not start with http:// or https://.
         """
+        if not url.startswith(("http://", "https://")):
+            raise ValueError("Feed URL must start with http:// or https://")
         self._feeds.append({"name": name, "url": url})
         self._thunder["sources_count"] = len(self._feeds)
 

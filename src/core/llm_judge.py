@@ -159,7 +159,8 @@ async def judge(
     )
     if use_adaptive:
         system_prompt = build_adaptive_prompt(required_dimensions, language)
-        max_tokens = 512
+        # Dynamically size max_tokens based on dimension count to avoid truncation
+        max_tokens = 512 + len(required_dimensions) * 32
     else:
         system_prompt = get_system_prompt(language)
         max_tokens = 1024

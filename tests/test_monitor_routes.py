@@ -226,6 +226,50 @@ class TestFeedManagement:
         assert response.status_code == 404
 
 
+class TestFeedURLValidation:
+    """Tests for feed URL validation."""
+
+    def test_add_feed_invalid_url_returns_422(self, web_client):
+        """POST /api/monitor/feeds with non-http URL returns 422."""
+        response = web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "Bad Feed", "url": "not-a-url"},
+        )
+        assert response.status_code == 422
+
+    def test_add_feed_javascript_url_returns_422(self, web_client):
+        """POST /api/monitor/feeds with javascript: URL returns 422."""
+        response = web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "XSS Feed", "url": "javascript:alert(1)"},
+        )
+        assert response.status_code == 422
+
+    def test_add_feed_ftp_url_returns_422(self, web_client):
+        """POST /api/monitor/feeds with ftp:// URL returns 422."""
+        response = web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "FTP Feed", "url": "ftp://example.com/rss"},
+        )
+        assert response.status_code == 422
+
+    def test_add_feed_http_url_accepted(self, web_client):
+        """POST /api/monitor/feeds with http:// URL returns 200."""
+        response = web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "HTTP Feed", "url": "http://example.com/rss"},
+        )
+        assert response.status_code == 200
+
+    def test_add_feed_https_url_accepted(self, web_client):
+        """POST /api/monitor/feeds with https:// URL returns 200."""
+        response = web_client.post(
+            "/api/monitor/feeds",
+            data={"name": "HTTPS Feed", "url": "https://example.com/rss"},
+        )
+        assert response.status_code == 200
+
+
 class TestRoiStatsEndpoint:
     """Tests for GET /partials/roi-stats endpoint."""
 

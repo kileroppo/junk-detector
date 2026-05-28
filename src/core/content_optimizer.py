@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import random
 
 # Keywords that indicate suspicious/scam/manipulative content
@@ -101,11 +102,14 @@ def smart_truncate(text: str, max_chars: int = 1500) -> str:
     # Cap suspicious paragraph at 300 chars
     suspicious_segment = best_para[:300] if best_para else ""
 
-    # Random 200-char sample from the middle (avoid overlap with first/last)
+    # Deterministic 200-char sample from the middle (avoid overlap with first/last)
+    # Seed from content hash so same input always produces same output
     middle_start = 200
     middle_end = max(len(text) - 200, middle_start + 1)
     if middle_end - middle_start > 200:
-        start_pos = random.randint(middle_start, middle_end - 200)
+        seed = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+        rng = random.Random(seed)
+        start_pos = rng.randint(middle_start, middle_end - 200)
         middle_segment = text[start_pos : start_pos + 200]
     else:
         middle_segment = text[middle_start:middle_end]
