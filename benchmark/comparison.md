@@ -10,8 +10,8 @@ Evaluated on 500 labeled samples.
 | Recall | 0.7960 |
 | F1 Score | 0.8825 |
 | Accuracy | 0.8940 |
-| Avg latency | 0.14 ms/sample |
-| Total time | 0.07s for 500 samples |
+| Avg latency | 0.10 ms/sample |
+| Total time | 0.05s for 500 samples |
 | Cost | $0 (no API calls) |
 
 ## What Junk Detector Covers
