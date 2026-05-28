@@ -124,8 +124,25 @@ async def score_submit(
                 status_code=422,
             )
 
-        # Score the content
-        result = await score(content.text)
+        # Score the content (with adaptive weights from user feedback)
+        from src.core.adaptive_weights import get_adjusted_weights
+
+        adjusted_weights = get_adjusted_weights(user_id="anonymous")
+        # Build a ScoringConfig with adjusted weights if feedback has modified them
+        scoring_config = None
+        if adjusted_weights:
+            try:
+                from src.core.config import load_config as _load_scoring_cfg
+
+                base_cfg = _load_scoring_cfg()
+                # Only customize if adjustments differ from base
+                if adjusted_weights != base_cfg.weights:
+                    scoring_config = base_cfg.model_copy(deep=True)
+                    scoring_config.weights = adjusted_weights
+            except Exception:
+                pass
+
+        result = await score(content.text, config=scoring_config)
 
         # Save to storage
         try:
@@ -299,11 +316,16 @@ async def score_stream(
     First event: immediate rule-engine results.
     Second event: full LLM scoring result.
     """
+    import asyncio
+    import logging
+
     from src.core.rules import apply_rules
     from src.core.scorer import _calculate_overall, score
     from src.extractors.text import extract_from_text
     from src.extractors.web import extract_from_url
     from src.models.score import DimensionScores
+
+    _sse_logger = logging.getLogger(__name__)
 
     async def event_generator():
         try:
@@ -354,8 +376,14 @@ async def score_stream(
             }
             yield f"event: rules_result\ndata: {json.dumps(rules_data, ensure_ascii=False)}\n\n"
 
-            # Step 2: full LLM scoring
-            result = await score(content.text)
+            # Step 2: full LLM scoring (with timeout to prevent indefinite blocking)
+            try:
+                result = await asyncio.wait_for(score(content.text), timeout=60.0)
+            except asyncio.TimeoutError:
+                _sse_logger.error("LLM scoring timed out after 60s")
+                error_data = json.dumps({"error": "LLM 分析超时，请稍后重试"}, ensure_ascii=False)
+                yield f"event: error\ndata: {error_data}\n\n"
+                return
 
             # Save to storage
             try:
@@ -379,8 +407,9 @@ async def score_stream(
             }
             yield f"event: final_result\ndata: {json.dumps(final_data, ensure_ascii=False)}\n\n"
 
-        except Exception as e:
-            error_data = json.dumps({"error": str(e)}, ensure_ascii=False)
+        except Exception:
+            _sse_logger.exception("SSE score-stream error")
+            error_data = json.dumps({"error": "评分过程出错，请稍后重试"}, ensure_ascii=False)
             yield f"event: error\ndata: {error_data}\n\n"
 
     return StreamingResponse(
@@ -693,7 +722,12 @@ async def api_trends(request: Request, days: int = 28):
 
 @router.post("/api/feedback")
 async def api_feedback(request: Request):
-    """Store user feedback (wrong/correct) for a scoring result."""
+    """Store user feedback (wrong/correct) for a scoring result.
+
+    Auth note: This endpoint has no authentication by design. The application
+    is intended for personal/single-user deployment (single-worker uvicorn).
+    If multi-user deployment is needed in the future, add JWT auth middleware.
+    """
     from fastapi.responses import JSONResponse
 
     from src.core.adaptive_weights import (
@@ -716,8 +750,20 @@ async def api_feedback(request: Request):
             status_code=422,
         )
 
+    # Validate that score_id references an existing record
+    score_id_int = int(score_id)
+    from src.storage.db import query as _query_records
+
+    existing = _query_records(filters=None, limit=1000)
+    record = next((r for r in existing if r.get("id") == score_id_int), None)
+    if record is None:
+        return JSONResponse(
+            content={"error": "score_id not found"},
+            status_code=404,
+        )
+
     save_feedback(
-        score_id=int(score_id),
+        score_id=score_id_int,
         content_hash=body.get("content_hash", ""),
         verdict=verdict,
     )

@@ -157,6 +157,50 @@ def save(
         conn.close()
 
 
+def _build_filter_clause(filters: dict | None) -> tuple[str, list]:
+    """Build a WHERE clause fragment from filter conditions.
+
+    Supported filter keys:
+        - min_score (float): overall_score >= value
+        - max_score (float): overall_score <= value
+        - label (str): labels_json LIKE '%label%'
+        - date_from (str): scored_at >= value (ISO format)
+        - date_to (str): scored_at <= value (ISO format)
+
+    Args:
+        filters: Optional dictionary of filter conditions.
+
+    Returns:
+        Tuple of (sql_fragment, params_list). The sql_fragment starts with
+        " AND ..." if any filters are present, or is empty string if not.
+    """
+    sql = ""
+    params: list = []
+
+    if filters:
+        if "min_score" in filters:
+            sql += " AND overall_score >= ?"
+            params.append(filters["min_score"])
+
+        if "max_score" in filters:
+            sql += " AND overall_score <= ?"
+            params.append(filters["max_score"])
+
+        if "label" in filters:
+            sql += " AND labels_json LIKE ?"
+            params.append(f"%{filters['label']}%")
+
+        if "date_from" in filters:
+            sql += " AND scored_at >= ?"
+            params.append(filters["date_from"])
+
+        if "date_to" in filters:
+            sql += " AND scored_at <= ?"
+            params.append(filters["date_to"])
+
+    return sql, params
+
+
 def query(
     filters: dict | None = None,
     limit: int = 20,
@@ -183,30 +227,8 @@ def query(
     """
     _ensure_initialized(db_path)
 
-    sql = "SELECT * FROM scores WHERE 1=1"
-    params: list = []
-
-    if filters:
-        if "min_score" in filters:
-            sql += " AND overall_score >= ?"
-            params.append(filters["min_score"])
-
-        if "max_score" in filters:
-            sql += " AND overall_score <= ?"
-            params.append(filters["max_score"])
-
-        if "label" in filters:
-            sql += " AND labels_json LIKE ?"
-            params.append(f"%{filters['label']}%")
-
-        if "date_from" in filters:
-            sql += " AND scored_at >= ?"
-            params.append(filters["date_from"])
-
-        if "date_to" in filters:
-            sql += " AND scored_at <= ?"
-            params.append(filters["date_to"])
-
+    filter_clause, params = _build_filter_clause(filters)
+    sql = "SELECT * FROM scores WHERE 1=1" + filter_clause
     sql += " ORDER BY scored_at DESC LIMIT ? OFFSET ?"
     params.append(limit)
     params.append(offset)
@@ -235,29 +257,8 @@ def count_records(
     """
     _ensure_initialized(db_path)
 
-    sql = "SELECT COUNT(*) FROM scores WHERE 1=1"
-    params: list = []
-
-    if filters:
-        if "min_score" in filters:
-            sql += " AND overall_score >= ?"
-            params.append(filters["min_score"])
-
-        if "max_score" in filters:
-            sql += " AND overall_score <= ?"
-            params.append(filters["max_score"])
-
-        if "label" in filters:
-            sql += " AND labels_json LIKE ?"
-            params.append(f"%{filters['label']}%")
-
-        if "date_from" in filters:
-            sql += " AND scored_at >= ?"
-            params.append(filters["date_from"])
-
-        if "date_to" in filters:
-            sql += " AND scored_at <= ?"
-            params.append(filters["date_to"])
+    filter_clause, params = _build_filter_clause(filters)
+    sql = "SELECT COUNT(*) FROM scores WHERE 1=1" + filter_clause
 
     conn = _get_connection(db_path)
     try:

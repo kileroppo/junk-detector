@@ -12,10 +12,18 @@ logger = logging.getLogger(__name__)
 
 
 class MonitorService:
-    """Singleton service that tracks monitor running state, fetches RSS feeds, and scores items."""
+    """Singleton service that tracks monitor running state, fetches RSS feeds, and scores items.
+
+    Thread-safety note: This singleton is designed for single-worker uvicorn deployment.
+    All coroutines (fetch_feeds, get_stats, request handlers) run on the same asyncio
+    event loop, so concurrent mutation of _recent_items, _seen_urls, and stat dicts is
+    safe without locks. If deploying with multiple workers or threads, add explicit
+    synchronization around shared mutable state.
+    """
 
     _instance: MonitorService | None = None
     _lock = threading.Lock()
+    _SEEN_URLS_MAX = 5000
 
     def __new__(cls) -> MonitorService:
         if cls._instance is None:
@@ -143,6 +151,11 @@ class MonitorService:
                             continue
 
                         self._seen_urls.add(link)
+                        # Cap _seen_urls to prevent unbounded memory growth
+                        if len(self._seen_urls) > self._SEEN_URLS_MAX:
+                            # Discard roughly half to amortize the cost of trimming
+                            to_keep = list(self._seen_urls)[self._SEEN_URLS_MAX // 2:]
+                            self._seen_urls = set(to_keep)
                         self._thunder["items_discovered"] += 1
                         self._thunder["seen_urls_count"] = len(self._seen_urls)
 

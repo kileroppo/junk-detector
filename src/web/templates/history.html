@@ -112,7 +112,7 @@
             </div>
             <!-- Card (swipeable) -->
             <a href="/result/{{ item.id }}" class="history-swipe-card block bg-surface p-4 border border-navy-700 hover:bg-surface-raised transition-transform rounded-xl relative z-10"
-               data-score-id="{{ item.id }}">
+               data-score-id="{{ item.id }}" data-content-hash="{{ item.content_hash or '' }}">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
                         <p class="font-medium truncate">{{ item.title or item.source_url or '无标题' }}</p>
@@ -201,10 +201,11 @@
             if (currentX < -80) {
                 // Swipe left: mark wrong
                 var scoreId = card.getAttribute('data-score-id');
+                var contentHash = card.getAttribute('data-content-hash') || '';
                 fetch('/api/feedback', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({score_id: parseInt(scoreId), verdict: 'wrong', content_hash: ''})
+                    body: JSON.stringify({score_id: parseInt(scoreId), verdict: 'wrong', content_hash: contentHash})
                 });
                 card.style.transform = 'translateX(-80px)';
                 setTimeout(function() { card.style.transform = ''; }, 1500);

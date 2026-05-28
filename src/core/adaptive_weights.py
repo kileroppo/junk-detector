@@ -87,17 +87,21 @@ def save_weight_adjustment(
 
         if row:
             new_adjustment = row["adjustment"] + adjustment
+            # Clamp cumulative adjustment to [-1.0, +1.0] to prevent unbounded drift
+            new_adjustment = max(-1.0, min(1.0, new_adjustment))
             conn.execute(
                 "UPDATE weight_adjustments SET adjustment = ?, updated_at = ? WHERE id = ?",
                 (new_adjustment, updated_at, row["id"]),
             )
         else:
+            # Clamp even the initial adjustment
+            clamped_adjustment = max(-1.0, min(1.0, adjustment))
             conn.execute(
                 """
                 INSERT INTO weight_adjustments (user_id, dimension, adjustment, updated_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                (user_id, dimension, adjustment, updated_at),
+                (user_id, dimension, clamped_adjustment, updated_at),
             )
         conn.commit()
     finally:
