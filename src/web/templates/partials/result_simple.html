@@ -1,0 +1,12 @@
+<!-- Simple mode result: traffic-light circle + one sentence summary -->
+<div class="text-center py-8">
+    <div class="inline-flex items-center justify-center w-24 h-24 rounded-full
+                {% if result.overall_score > 70 %}bg-green-500
+                {% elif result.overall_score > 40 %}bg-amber-500
+                {% else %}bg-red-500{% endif %}">
+        <span class="text-3xl font-bold text-white">{{ "%.0f"|format(result.overall_score) }}</span>
+    </div>
+    {% if result.summary %}
+    <p class="mt-4 text-gray-300 text-lg">{{ result.summary }}</p>
+    {% endif %}
+</div>

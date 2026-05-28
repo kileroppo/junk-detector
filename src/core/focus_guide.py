@@ -15,6 +15,7 @@ from src.models.focus_guide import (
     AIPattern,
     FocusGuide,
     InformationNugget,
+    RhythmFingerprintModel,
     SuspiciousParagraph,
 )
 from src.models.score import ScoreResult
@@ -392,6 +393,30 @@ def generate_focus_guide(text: str, score_result: ScoreResult) -> Optional[Focus
     # --- Detect AI patterns ---
     ai_patterns: list[AIPattern] = []
 
+    # Rhythm fingerprint analysis
+    from src.core.rhythm_fingerprint import analyze_rhythm
+
+    rhythm = analyze_rhythm(text)
+    rhythm_fingerprint = RhythmFingerprintModel(
+        rhythm_uniformity=rhythm.rhythm_uniformity,
+        sentence_diversity=rhythm.sentence_diversity,
+        topic_drift=rhythm.topic_drift,
+        paragraph_count=rhythm.paragraph_count,
+        avg_paragraph_length=rhythm.avg_paragraph_length,
+        length_std_dev=rhythm.length_std_dev,
+    )
+
+    if rhythm.rhythm_uniformity > 65:
+        ai_patterns.append(
+            AIPattern(
+                pattern_name="rhythm_uniformity",
+                description=f"写作节奏高度一致(均匀度{rhythm.rhythm_uniformity:.0f}/100)，段落长度变化极小",
+                examples=[
+                    f"段落数: {rhythm.paragraph_count}, 均长: {rhythm.avg_paragraph_length:.0f}字, 标准差: {rhythm.length_std_dev:.0f}"
+                ],
+            )
+        )
+
     uniform = _detect_uniform_structure(paragraphs)
     if uniform:
         ai_patterns.append(uniform)
@@ -488,4 +513,5 @@ def generate_focus_guide(text: str, score_result: ScoreResult) -> Optional[Focus
         empty_calorie_indices=empty_calorie_indices,
         information_nuggets=information_nuggets,
         reading_time_saved_percent=reading_time_saved,
+        rhythm_fingerprint=rhythm_fingerprint,
     )

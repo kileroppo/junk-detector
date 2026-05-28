@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}对比评分 - Junk Detector{% endblock %}
+{% block nav_compare %}text-indigo-400 bg-navy-700{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+    <h1 class="text-2xl font-bold">对比评分</h1>
+    <p class="text-gray-400">输入两段文本，对比分析内容质量差异。</p>
+
+    <form hx-post="/compare-submit"
+          hx-target="#compare-result-container"
+          hx-swap="innerHTML"
+          hx-indicator="#compare-loading"
+          class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Text A -->
+            <div>
+                <label for="text-a" class="block text-sm font-medium text-gray-300 mb-1">文本 A</label>
+                <textarea id="text-a" name="text_a" rows="8" placeholder="粘贴第一段文本..."
+                          class="w-full bg-navy-900 border border-navy-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 resize-y"
+                          required></textarea>
+            </div>
+            <!-- Text B -->
+            <div>
+                <label for="text-b" class="block text-sm font-medium text-gray-300 mb-1">文本 B</label>
+                <textarea id="text-b" name="text_b" rows="8" placeholder="粘贴第二段文本..."
+                          class="w-full bg-navy-900 border border-navy-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 resize-y"
+                          required></textarea>
+            </div>
+        </div>
+        <button type="submit"
+                class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 px-8 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+            <span>开始对比</span>
+            <span id="compare-loading" class="htmx-indicator spinner"></span>
+        </button>
+    </form>
+
+    <!-- Compare Result Container -->
+    <div id="compare-result-container"></div>
+</div>
+{% endblock %}
