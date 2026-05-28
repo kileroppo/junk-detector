@@ -289,3 +289,49 @@ class TestComboRules:
         result = apply_rules(text)
         combo_rules = [r for r in result.matched_rules if r.startswith("combo_")]
         assert len(combo_rules) >= 2
+
+
+class TestPlatformPatterns:
+    """Tests for platform-specific engagement/promotion pattern detection."""
+
+    @pytest.mark.parametrize("text,platform,min_hits", [
+        ("点击关注公众号转发有礼", "wechat", 2),
+        ("姐妹们这个绝绝子yyds", "xiaohongshu", 3),
+        ("点赞关注评论区见家人们", "douyin", 3),
+        ("谢邀利益相关匿了", "zhihu", 3),
+    ])
+    def test_platform_detection(self, text, platform, min_hits):
+        """Platform-specific patterns are detected with correct hit counts."""
+        from src.core.rules import check_platform_patterns
+        result = check_platform_patterns(text)
+        assert platform in result
+        assert result[platform] >= min_hits
+
+    def test_no_platform_patterns_in_clean_text(self, sample_good_text):
+        """Clean text does not trigger platform pattern detection."""
+        from src.core.rules import check_platform_patterns
+        result = check_platform_patterns(sample_good_text)
+        assert result == {}
+
+    def test_platform_patterns_integrate_into_apply_rules(self):
+        """Content with 2+ platform keywords gets advertorial boost via apply_rules."""
+        # WeChat content with 2 patterns
+        text = "点击关注我们的公众号，转发有礼活动进行中"
+        result = apply_rules(text)
+        assert "platform_wechat_patterns" in result.matched_rules
+        assert "advertorial_prob" in result.dimension_overrides
+        assert result.dimension_overrides["advertorial_prob"] >= 15
+
+    def test_platform_patterns_single_hit_no_rule(self):
+        """Content with only 1 platform keyword does not trigger the platform rule."""
+        text = "这篇文章讲述了姐妹们的故事"
+        result = apply_rules(text)
+        platform_rules = [r for r in result.matched_rules if r.startswith("platform_")]
+        assert platform_rules == []
+
+    def test_platform_patterns_advertorial_boost_capped(self):
+        """Platform pattern advertorial boost is capped at 100."""
+        # Content with many advertorial keywords AND platform patterns
+        text = "推荐码优惠券折扣码点击链接复制口令 点击关注转发有礼阅读原文领取"
+        result = apply_rules(text)
+        assert result.dimension_overrides.get("advertorial_prob", 0) <= 100
