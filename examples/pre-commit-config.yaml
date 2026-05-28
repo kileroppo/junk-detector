@@ -1,0 +1,11 @@
+# Example .pre-commit-config.yaml
+# Add this to your repository root
+
+repos:
+  - repo: https://github.com/kileroppo/junk-detector
+    rev: v0.1.0
+    hooks:
+      - id: junk-detector
+        name: Content Quality Check
+        types: [markdown, text]
+        args: ['--threshold', '50']
