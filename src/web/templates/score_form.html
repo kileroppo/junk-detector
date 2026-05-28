@@ -14,21 +14,30 @@
 
     <!-- Tab Navigation -->
     <div class="border-b border-navy-700">
-        <div class="flex space-x-0">
+        <div class="flex space-x-0" role="tablist" aria-label="输入方式选择">
             <button onclick="switchTab('text')"
                     id="tab-text"
+                    role="tab"
+                    aria-selected="true"
+                    aria-controls="content-text"
                     class="tab-btn active px-6 py-3 text-sm font-medium border-b-2 border-transparent hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 文本
             </button>
             <button onclick="switchTab('url')"
                     id="tab-url"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="content-url"
                     class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
                 URL
             </button>
             <button onclick="switchTab('batch')"
                     id="tab-batch"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="content-batch"
                     class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
                 batch (批量)
@@ -37,7 +46,7 @@
     </div>
 
     <!-- Text Tab Content -->
-    <div id="content-text" class="tab-content active">
+    <div id="content-text" class="tab-content active" role="tabpanel" aria-labelledby="tab-text">
         <form hx-post="/score-submit"
               hx-target="#result-container"
               hx-swap="innerHTML"
@@ -71,7 +80,7 @@
     </div>
 
     <!-- URL Tab Content -->
-    <div id="content-url" class="tab-content">
+    <div id="content-url" class="tab-content" role="tabpanel" aria-labelledby="tab-url">
         <form hx-post="/score-submit"
               hx-target="#result-container"
               hx-swap="innerHTML"
@@ -99,7 +108,7 @@
     <div id="result-container"></div>
 
     <!-- Batch Tab Content -->
-    <div id="content-batch" class="tab-content">
+    <div id="content-batch" class="tab-content" role="tabpanel" aria-labelledby="tab-batch">
         <form hx-post="/score-batch"
               hx-target="#result-container"
               hx-swap="innerHTML"
@@ -108,6 +117,7 @@
               data-use-htmx="true">
             <div>
                 <label for="batch-urls" class="block text-sm font-medium text-gray-300 mb-1">URL 列表（每行一个）</label>
+                <p class="text-xs text-gray-400 mt-1 mb-2">每行输入一个网址，支持 http:// 和 https:// 开头的链接</p>
                 <textarea id="batch-urls" name="urls" rows="8" placeholder="https://example.com/article1&#10;https://example.com/article2&#10;https://example.com/article3"
                           class="w-full bg-navy-900 border border-navy-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 resize-y"
                           required></textarea>
@@ -116,7 +126,7 @@
             <div id="batch-drop-zone"
                  class="border-2 border-dashed border-navy-700 rounded-lg p-6 text-center text-gray-500 hover:border-indigo-500 hover:text-indigo-400 transition-colors cursor-pointer">
                 <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                <p class="text-sm">拖放包含 URL 的文本文件到此处</p>
+                <p class="text-sm">拖放包含 URL 的文本文件到此处，或点击选择文件</p>
             </div>
             <div class="sticky bottom-4 sm:static sm:bottom-auto z-40">
                 <button type="submit"
@@ -131,9 +141,14 @@
 
 <script>
 function switchTab(tab) {
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+    });
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    document.getElementById('tab-' + tab).classList.add('active');
+    var activeBtn = document.getElementById('tab-' + tab);
+    activeBtn.classList.add('active');
+    activeBtn.setAttribute('aria-selected', 'true');
     document.getElementById('content-' + tab).classList.add('active');
 }
 

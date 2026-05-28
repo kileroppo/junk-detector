@@ -39,7 +39,7 @@
     <div>
         <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
             <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z"/></svg>
-            Thunder 信源监控
+            <span title="Thunder: 自动RSS抓取引擎">Thunder 信源监控</span>
         </h2>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="bg-surface rounded-xl p-4 border border-navy-700">
@@ -51,7 +51,7 @@
                 <p class="text-2xl font-bold mt-1 text-blue-400">{{ thunder.items_discovered }}</p>
             </div>
             <div class="bg-surface rounded-xl p-4 border border-navy-700">
-                <p class="text-sm text-gray-400">去重 URL 池</p>
+                <p class="text-sm text-gray-400" title="已抓取过的网址去重记录">去重 URL 池</p>
                 <p class="text-2xl font-bold mt-1">{{ thunder.seen_urls_count }}</p>
             </div>
         </div>
@@ -61,7 +61,7 @@
     <div>
         <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
             <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            Dispatcher 调度器
+            <span title="Dispatcher: 异步评分任务队列">Dispatcher 调度器</span>
         </h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="bg-surface rounded-xl p-4 border border-navy-700">
@@ -88,7 +88,7 @@
     <!-- Token ROI Stats -->
     <div hx-get="/partials/roi-stats" hx-trigger="load, every 30s" hx-swap="innerHTML">
         <div class="bg-surface rounded-xl p-4 border border-navy-700">
-            <p class="text-sm text-gray-400">Token ROI 统计加载中...</p>
+            <p class="text-sm text-gray-400" title="令牌投资回报率 - 每次API调用的价值">Token ROI 统计加载中...</p>
         </div>
     </div>
 

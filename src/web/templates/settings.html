@@ -42,10 +42,10 @@
             评分权重
         </h2>
         <div class="space-y-4">
-            {% for dim_name, dim_label in [('originality', '原创性'), ('info_density', '信息密度'), ('reasoning_quality', '论证质量'), ('readability', '可读性'), ('timeliness', '时效性')] %}
+            {% for dim_name, dim_label, dim_title in [('originality', '原创性', '内容是否为原创而非复制粘贴'), ('info_density', '信息密度', '每段文字包含的有效信息量'), ('reasoning_quality', '论证质量', '论点是否有充分的逻辑和证据支撑'), ('readability', '可读性', '文字是否容易理解，结构是否清晰'), ('timeliness', '时效性', '信息是否过时或仍有参考价值')] %}
             <div>
                 <div class="flex justify-between mb-1">
-                    <label class="text-sm text-gray-600 dark:text-gray-300">{{ dim_label }}</label>
+                    <label class="text-sm text-gray-600 dark:text-gray-300" title="{{ dim_title }}">{{ dim_label }}</label>
                     <span class="text-xs text-gray-500">1.0x</span>
                 </div>
                 <input type="range" min="0" max="200" value="100"
@@ -67,7 +67,7 @@
                 <p class="text-sm text-gray-700 dark:text-gray-300">深色模式</p>
                 <p id="theme-toggle-desc" class="text-xs text-gray-500">当前为深色主题</p>
             </div>
-            <button id="theme-toggle-btn" class="w-12 h-6 rounded-full bg-indigo-600 relative cursor-pointer transition-colors" onclick="toggleTheme()">
+            <button id="theme-toggle-btn" class="w-12 h-6 rounded-full bg-indigo-600 relative cursor-pointer transition-colors" onclick="toggleTheme()" role="switch" aria-checked="true" aria-label="深色模式开关">>
                 <span id="theme-toggle-knob" class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform translate-x-6"></span>
             </button>
         </div>
@@ -84,12 +84,14 @@
                 knob.classList.remove('translate-x-0');
                 btn.classList.add('bg-indigo-600');
                 btn.classList.remove('bg-gray-300');
+                if (btn) btn.setAttribute('aria-checked', 'true');
             } else {
                 knob.classList.add('translate-x-0');
                 knob.classList.remove('translate-x-6');
                 btn.classList.add('bg-gray-300');
                 btn.classList.remove('bg-indigo-600');
                 desc.textContent = '\u5F53\u524D\u4E3A\u6D45\u8272\u4E3B\u9898';
+                if (btn) btn.setAttribute('aria-checked', 'false');
             }
         })();
     </script>

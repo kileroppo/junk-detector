@@ -275,10 +275,21 @@
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                     置信度因子
                 </h3>
+                {% set dim_labels = {
+                    'originality': '原创性',
+                    'info_density': '信息密度',
+                    'reasoning_quality': '论证质量',
+                    'readability': '可读性',
+                    'timeliness': '时效性',
+                    'ai_generated_prob': 'AI生成概率',
+                    'emotional_manipulation': '情绪操纵',
+                    'advertorial_prob': '软文概率',
+                    'scam_prob': '骗局概率'
+                } %}
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {% for dim, source in result.dimension_sources.items() %}
                     <div class="flex items-center gap-2 bg-navy-900/50 rounded px-3 py-1.5">
-                        <span class="text-xs text-gray-400 flex-1">{{ dim }}</span>
+                        <span class="text-xs text-gray-400 flex-1">{{ dim_labels[dim] if dim in dim_labels else dim }}</span>
                         <span class="px-2 py-0.5 rounded text-xs font-medium
                                      {% if source == 'rule' %}bg-amber-900/30 text-amber-300{% else %}bg-purple-900/30 text-purple-300{% endif %}">
                             {% if source == 'rule' %}规则 (高置信){% else %}AI (变量置信){% endif %}

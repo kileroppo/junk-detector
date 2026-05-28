@@ -113,10 +113,18 @@
                     btn.classList.add('bg-gray-300');
                     btn.classList.remove('bg-indigo-600');
                 }
+                btn.setAttribute('aria-checked', isDark ? 'true' : 'false');
             }
             if (desc) {
                 desc.textContent = isDark ? '\u5F53\u524D\u4E3A\u6DF1\u8272\u4E3B\u9898' : '\u5F53\u524D\u4E3A\u6D45\u8272\u4E3B\u9898';
             }
+        }
+
+        function toggleMobileMenu() {
+            var menu = document.getElementById('mobile-menu');
+            var btn = event.currentTarget;
+            var isHidden = menu.classList.toggle('hidden');
+            btn.setAttribute('aria-expanded', !isHidden);
         }
 
         function cycleFontSize() {
@@ -161,7 +169,7 @@
     </a>
 
     <!-- Navigation -->
-    <nav class="bg-white dark:bg-surface border-b border-gray-200 dark:border-navy-700 sticky top-0 z-50">
+    <nav class="bg-white dark:bg-surface border-b border-gray-200 dark:border-navy-700 sticky top-0 z-50" role="navigation" aria-label="主导航">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <!-- Logo -->
@@ -220,7 +228,8 @@
 
                 <!-- Mobile menu button -->
                 <div class="md:hidden">
-                    <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
+                    <button onclick="toggleMobileMenu()"
+                            aria-expanded="false"
                             class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-navy-700 min-w-[44px] min-h-[44px]" aria-label="打开菜单">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
@@ -262,15 +271,15 @@
     </nav>
 
     <!-- Toast notification container -->
-    <div id="toast-container" class="fixed top-20 right-4 z-[60] space-y-2 pointer-events-none"></div>
+    <div id="toast-container" class="fixed top-20 right-4 z-[60] space-y-2 pointer-events-none" aria-live="polite" role="status"></div>
 
     <!-- Main Content -->
-    <main id="main-content" class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 fade-in">
+    <main id="main-content" role="main" class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 fade-in">
         {% block content %}{% endblock %}
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white dark:bg-surface border-t border-gray-200 dark:border-navy-700 py-4">
+    <footer class="bg-white dark:bg-surface border-t border-gray-200 dark:border-navy-700 py-4" role="contentinfo">
         <div class="max-w-7xl mx-auto px-4 text-center text-sm text-gray-500 flex items-center justify-center gap-3">
             <span>Junk Detector v0.1 - AI 内容质量评分系统</span>
             <button id="shortcut-help-btn" onclick="toggleShortcutOverlay()" class="w-11 h-11 rounded-full bg-navy-700 text-gray-400 text-xs font-bold hover:bg-indigo-600 hover:text-white transition-colors" title="键盘快捷键">?</button>

@@ -58,17 +58,18 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="border-b border-navy-700">
-                        <th class="text-left px-4 py-3 text-gray-400 font-medium">时间</th>
-                        <th class="text-left px-4 py-3 text-gray-400 font-medium">来源/标题</th>
-                        <th class="text-center px-4 py-3 text-gray-400 font-medium">评分</th>
-                        <th class="text-left px-4 py-3 text-gray-400 font-medium">标签</th>
-                        <th class="text-left px-4 py-3 text-gray-400 font-medium">摘要</th>
+                        <th scope="col" class="text-left px-4 py-3 text-gray-400 font-medium">时间</th>
+                        <th scope="col" class="text-left px-4 py-3 text-gray-400 font-medium">来源/标题</th>
+                        <th scope="col" class="text-center px-4 py-3 text-gray-400 font-medium">评分</th>
+                        <th scope="col" class="text-left px-4 py-3 text-gray-400 font-medium">标签</th>
+                        <th scope="col" class="text-left px-4 py-3 text-gray-400 font-medium">摘要</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-navy-700">
                     {% for item in results %}
                     <tr class="hover:bg-surface-raised cursor-pointer transition-colors"
-                        onclick="window.location='/result/{{ item.id }}'">
+                        onclick="window.location='/result/{{ item.id }}'"
+                        role="link" tabindex="0" onkeydown="if(event.key==='Enter')this.click()">>
                         <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                             {{ item.scored_at[:16] if item.scored_at else '-' }}
                         </td>
@@ -79,7 +80,8 @@
                             <span class="inline-flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold
                                         {% if item.overall_score > 70 %}bg-green-900/50 text-green-300
                                         {% elif item.overall_score > 40 %}bg-amber-900/50 text-amber-300
-                                        {% else %}bg-red-900/50 text-red-300{% endif %}">
+                                        {% else %}bg-red-900/50 text-red-300{% endif %}"
+                                  aria-label="评分 {{ '%.0f'|format(item.overall_score) }} 分">
                                 {{ "%.0f"|format(item.overall_score) }}
                             </span>
                         </td>
