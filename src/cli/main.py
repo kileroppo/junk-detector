@@ -398,6 +398,9 @@ def quick(
     rules_only: bool = typer.Option(
         False, "--rules-only", "-r", help="Use rules-only evaluation without LLM"
     ),
+    consistent: bool = typer.Option(
+        False, "--consistent", help="Score 3 times and return median for stability"
+    ),
 ) -> None:
     """Quick content screening - single-line pass/fail verdict."""
 
@@ -446,6 +449,82 @@ def quick(
         if not _has_api_key(_config_check.primary_model):
             rules_only = True
             auto_rules_only = True
+
+    # Consistent mode: score multiple times and take median
+    if consistent:
+        if rules_only:
+            # Rules are deterministic - just run once and note it
+            from src.core.rules import apply_rules, should_skip_llm
+
+            rule_result = apply_rules(content.text)
+            skip, _reason = should_skip_llm(rule_result, content.text)
+
+            if skip:
+                overrides = rule_result.dimension_overrides
+                scam_prob = overrides.get("scam_prob", 0.0)
+                advertorial_prob = overrides.get("advertorial_prob", 0.0)
+                emotional_manipulation = overrides.get("emotional_manipulation", 0.0)
+                quick_verdict = 100 - max(scam_prob, advertorial_prob, emotional_manipulation)
+                conf_values = [c for c in rule_result.confidence.values() if c > 0]
+                overall_confidence = min(conf_values) if conf_values else 0.8
+
+                fast_result = FastScoreResult(
+                    quick_verdict=quick_verdict,
+                    scam_prob=scam_prob,
+                    advertorial_prob=advertorial_prob,
+                    emotional_manipulation=emotional_manipulation,
+                    originality=50.0,
+                    summary="\u89c4\u5219\u5f15\u64ce\u5224\u5b9a (deterministic, 1 run)",
+                    confidence=overall_confidence,
+                    model_used="rules_only",
+                )
+            else:
+                fast_result = FastScoreResult(
+                    quick_verdict=50.0,
+                    scam_prob=50.0,
+                    advertorial_prob=50.0,
+                    emotional_manipulation=50.0,
+                    originality=50.0,
+                    summary="\u26a0\ufe0f \u89c4\u5219\u65e0\u6cd5\u5224\u5b9a (\u9700\u8981LLM)",
+                    confidence=0.1,
+                    model_used="rules_only",
+                )
+
+            if json_output:
+                output = fast_result.model_dump(mode="json")
+                typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
+            else:
+                _print_quick_verdict(fast_result)
+                console.print(
+                    "\U0001f4a1 Rules are deterministic - consistent mode ran once.",
+                    style="dim",
+                )
+            raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
+        else:
+            # LLM mode: use score_consistent
+            try:
+                from src.core.config import load_config
+                from src.core.scorer import score_consistent
+
+                config = load_config(override_model=model)
+
+                fast_result: FastScoreResult = asyncio.run(
+                    score_consistent(content.text, n_runs=3, config=config)
+                )
+            except typer.Exit:
+                raise
+            except Exception as exc:
+                console.print(
+                    f"\u274c \u5feb\u901f\u8bc4\u5206\u5931\u8d25: {exc}", style="bold red"
+                )
+                raise typer.Exit(code=2)
+
+            if json_output:
+                output = fast_result.model_dump(mode="json")
+                typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
+            else:
+                _print_quick_verdict(fast_result)
+            raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
 
     # Rules-only mode: skip API key validation and LLM call
     if rules_only:
@@ -909,16 +988,41 @@ def feedback(
     ),
     stats: bool = typer.Option(False, "--stats", help="Show calibration statistics"),
     suggest: bool = typer.Option(False, "--suggest", help="Show rule update suggestions"),
+    auto_rules: bool = typer.Option(
+        False, "--auto-rules", help="Generate rule candidates from feedback patterns"
+    ),
 ) -> None:
     """Record feedback on scored content or view calibration stats."""
     from src.core.calibration import (
         VALID_VERDICTS,
         get_calibration_stats,
+        suggest_new_rules,
         suggest_rule_updates,
     )
     from src.core.calibration import (
         record_feedback as cal_record_feedback,
     )
+
+    # Show auto-generated rule candidates
+    if auto_rules:
+        candidates = suggest_new_rules()
+        console.print()
+        if not candidates:
+            console.print("[dim]No rule candidates available. Record more feedback first.[/dim]")
+            console.print()
+            return
+        console.print("[bold]Auto-Generated Rule Candidates[/bold]")
+        console.print("\u2501" * 40)
+        for rule in candidates:
+            console.print()
+            console.print(f"  name: {rule['name']}")
+            console.print(f"  dimension: {rule['dimension']}")
+            console.print(f"  confidence: {rule['confidence']}")
+            console.print("  keywords:")
+            for kw in rule["keywords"]:
+                console.print(f"    - {kw}")
+        console.print()
+        return
 
     # Show calibration stats
     if stats:

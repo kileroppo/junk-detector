@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import statistics
 from datetime import datetime, timedelta, timezone
 
 from src.core.llm_judge import judge
@@ -17,7 +18,7 @@ from src.core.platform_profiles import (
     detect_platform,
 )
 from src.core.rules import apply_rules, should_skip_llm
-from src.models.score import DimensionScores, ScoreResult, ScoringConfig
+from src.models.score import DimensionScores, FastScoreResult, ScoreResult, ScoringConfig
 
 logger = logging.getLogger(__name__)
 
@@ -473,3 +474,61 @@ async def score(
     result.labels = _generate_labels(result.dimensions, config)
 
     return result
+
+
+async def score_consistent(
+    content_text: str, n_runs: int = 3, config: ScoringConfig | None = None
+) -> FastScoreResult:
+    """Score content N times and return median scores for stability.
+
+    For rules-only mode, rules are deterministic so just run once.
+    For LLM mode, call score_fast() n_runs times and take median of numeric fields.
+
+    Args:
+        content_text: The text content to evaluate.
+        n_runs: Number of scoring runs (default 3).
+        config: Optional scoring configuration.
+
+    Returns:
+        FastScoreResult with median values across runs.
+    """
+    from src.core.fast_scorer import score_fast
+    from src.core.rules import apply_rules as _apply_rules
+
+    if config is None:
+        from src.core.config import load_config
+
+        config = load_config()
+
+    # Check if rules alone can handle it (deterministic - no need for multiple runs)
+    rule_result = _apply_rules(content_text)
+    from src.core.fast_scorer import _rules_only_fast_result
+
+    rules_fast = _rules_only_fast_result(rule_result, content_text)
+    if rules_fast is not None:
+        rules_fast.summary = "规则引擎判定 (deterministic, 1 run)"
+        return rules_fast
+
+    # LLM mode: run n_runs times and take median
+    results: list[FastScoreResult] = []
+    for _ in range(n_runs):
+        result = await score_fast(content_text, config=config)
+        results.append(result)
+
+    # Calculate median of numeric fields
+    quick_verdicts = [r.quick_verdict for r in results]
+    scam_probs = [r.scam_prob for r in results]
+    advertorial_probs = [r.advertorial_prob for r in results]
+    emotional_manipulations = [r.emotional_manipulation for r in results]
+    originalities = [r.originality for r in results]
+
+    return FastScoreResult(
+        quick_verdict=statistics.median(quick_verdicts),
+        scam_prob=statistics.median(scam_probs),
+        advertorial_prob=statistics.median(advertorial_probs),
+        emotional_manipulation=statistics.median(emotional_manipulations),
+        originality=statistics.median(originalities),
+        summary=f"consistent mode ({n_runs} runs)",
+        confidence=statistics.median([r.confidence for r in results]),
+        model_used=results[0].model_used if results else config.primary_model,
+    )
