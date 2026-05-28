@@ -4,23 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from src.storage.db import get_trends
+from src.web.routes.templates import templates
 
 logger = logging.getLogger(__name__)
 
-# Template directory (relative to src/web/)
-_BASE_DIR = Path(__file__).parent.parent
-_TEMPLATES_DIR = _BASE_DIR / "templates"
-
 router = APIRouter()
-templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 
 # ---------------------------------------------------------------------------

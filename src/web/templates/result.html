@@ -367,7 +367,8 @@
 function shareResult() {
     var score = '{{ "%.0f"|format(result.overall_score) }}';
     var verdict = score > 70 ? '可信赖' : (score > 40 ? '谨慎参考' : '不推荐');
-    var summary = '{{ result.summary|default("")|replace("'", "\\'") }}'.substring(0, 100);
+    var summary = {{ (result.summary or "")|tojson }};
+    summary = summary.substring(0, 100);
     var text = 'Junk Detector: ' + score + '/100 (' + verdict + ')';
     if (summary) text += ' - ' + summary;
     navigator.clipboard.writeText(text).then(function() {

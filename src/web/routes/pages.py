@@ -5,25 +5,19 @@ from __future__ import annotations
 import json
 import logging
 import os
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from starlette.responses import StreamingResponse
 
 from src.core.config import get_model_config
 from src.storage.db import count_records, get_history, get_trends, query
+from src.web.routes.templates import templates
 
 logger = logging.getLogger(__name__)
 
-# Template and static directories (relative to src/web/)
-_BASE_DIR = Path(__file__).parent.parent
-_TEMPLATES_DIR = _BASE_DIR / "templates"
-
 router = APIRouter()
-templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 
 # ---------------------------------------------------------------------------

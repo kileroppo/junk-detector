@@ -69,7 +69,7 @@
                     {% for item in results %}
                     <tr class="hover:bg-surface-raised cursor-pointer transition-colors"
                         onclick="window.location='/result/{{ item.id }}'"
-                        role="link" tabindex="0" onkeydown="if(event.key==='Enter')this.click()">>
+                        role="link" tabindex="0" onkeydown="if(event.key==='Enter')this.click()">
                         <td class="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                             {{ item.scored_at[:16] if item.scored_at else '-' }}
                         </td>

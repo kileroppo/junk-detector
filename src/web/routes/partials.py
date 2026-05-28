@@ -3,22 +3,16 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from src.storage.db import get_history
+from src.web.routes.templates import templates
 
 logger = logging.getLogger(__name__)
 
-# Template directory (relative to src/web/)
-_BASE_DIR = Path(__file__).parent.parent
-_TEMPLATES_DIR = _BASE_DIR / "templates"
-
 router = APIRouter()
-templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 
 @router.get("/partials/recent-scores", response_class=HTMLResponse)
