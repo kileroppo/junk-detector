@@ -342,23 +342,24 @@ def save_feedback_with_content(
 
 
 def suggest_new_rules(min_count: int = 3, db_path: str = "junk_detector.db") -> list[dict]:
-    """Analyze false negatives and extract frequent patterns for rule candidates.
+    """Analyze false negatives using TF-IDF scoring to generate rule candidates.
 
-    Looks at feedback where user said 'junk' but system scored as ok/excellent
-    (original_score >= 40 or NULL). Extracts frequent n-grams from content_text,
-    finds patterns appearing in >= min_count texts, and returns structured
-    rule suggestions.
+    Uses TF-IDF-like scoring to find terms distinctive to false negatives
+    (user said 'junk' but system scored as ok/excellent). Terms that appear
+    frequently in false negatives but rarely across all scored content
+    receive the highest scores.
 
     Args:
-        min_count: Minimum number of texts a pattern must appear in.
+        min_count: Minimum number of false negative texts a pattern must appear in.
         db_path: Path to the SQLite database file.
 
     Returns:
-        List of rule candidate dicts with keys:
+        List of rule candidate dicts matching CustomRule schema with keys:
         - name: auto-generated rule name
-        - keywords: list of frequent keywords
-        - dimension: suggested dimension to target
-        - confidence: estimated confidence (0-1)
+        - keywords: list of high TF-IDF keywords
+        - target_dimension: inferred dimension to target
+        - score_contribution: scaled by TF-IDF score (0-100)
+        - confidence: based on coverage of false negatives (0-1)
     """
     _ensure_initialized(db_path)
 
@@ -374,102 +375,219 @@ def suggest_new_rules(min_count: int = 3, db_path: str = "junk_detector.db") -> 
               AND (original_score >= 40 OR original_score IS NULL)
             """
         )
-        rows = cursor.fetchall()
+        fn_rows = cursor.fetchall()
 
-        if not rows:
+        if not fn_rows:
             return []
 
+        # Query ALL feedback content for corpus document frequency
+        cursor = conn.execute(
+            """
+            SELECT content_text
+            FROM feedback
+            WHERE content_text IS NOT NULL
+            """
+        )
+        all_rows = cursor.fetchall()
+
         # Extract n-grams from each false negative text
-        text_ngrams: list[set[str]] = []
-        for row in rows:
+        fn_texts: list[str] = []
+        fn_ngram_sets: list[set[str]] = []
+        for row in fn_rows:
+            text = row["content_text"]
+            if text:
+                fn_texts.append(text)
+                ngrams = set(_extract_ngrams(text, min_n=2, max_n=4))
+                fn_ngram_sets.append(ngrams)
+
+        if not fn_ngram_sets:
+            return []
+
+        # Calculate term frequency in false negatives (how many FN docs contain term)
+        fn_doc_freq: Counter[str] = Counter()
+        for ngram_set in fn_ngram_sets:
+            for ngram in ngram_set:
+                fn_doc_freq[ngram] += 1
+
+        # Calculate document frequency across ALL scored content
+        all_ngram_sets: list[set[str]] = []
+        for row in all_rows:
             text = row["content_text"]
             if text:
                 ngrams = set(_extract_ngrams(text, min_n=2, max_n=4))
-                text_ngrams.append(ngrams)
+                all_ngram_sets.append(ngrams)
 
-        if not text_ngrams:
-            return []
-
-        # Count how many texts each n-gram appears in (document frequency)
-        doc_freq: Counter[str] = Counter()
-        for ngram_set in text_ngrams:
+        total_docs = len(all_ngram_sets) if all_ngram_sets else 1
+        all_doc_freq: Counter[str] = Counter()
+        for ngram_set in all_ngram_sets:
             for ngram in ngram_set:
-                doc_freq[ngram] += 1
+                all_doc_freq[ngram] += 1
 
-        # Filter to n-grams appearing in >= min_count texts
-        frequent = [
-            (ngram, count)
-            for ngram, count in doc_freq.items()
-            if count >= min_count
-        ]
+        # Calculate TF-IDF score for each term
+        # tf = term frequency in false negatives (fraction of FN docs containing term)
+        # idf = log(total_docs / df) where df = document frequency across all content
+        import math
 
-        if not frequent:
+        total_fn = len(fn_ngram_sets)
+        tfidf_scores: dict[str, float] = {}
+
+        for term, fn_count in fn_doc_freq.items():
+            if fn_count < min_count:
+                continue
+            tf = fn_count / total_fn
+            df = all_doc_freq.get(term, 1)
+            idf = math.log(total_docs / df) if df > 0 else 0
+            tfidf_scores[term] = tf * idf
+
+        if not tfidf_scores:
             return []
 
-        # Sort by frequency descending
-        frequent.sort(key=lambda x: x[1], reverse=True)
+        # Sort by TF-IDF score descending
+        sorted_terms = sorted(tfidf_scores.items(), key=lambda x: x[1], reverse=True)
 
-        # Group top keywords into rule candidates
-        # Determine dimension based on keyword characteristics
+        # Group high-scoring terms by co-occurrence patterns
+        # Two terms co-occur if they appear together in >= min_count false negative texts
+        top_terms = [term for term, _ in sorted_terms[:30]]
+        groups = _group_by_cooccurrence(top_terms, fn_ngram_sets, min_count)
+
+        if not groups:
+            # Fall back: use top terms as a single group
+            groups = [top_terms[:5]]
+
+        # Generate rule candidates from groups
         rules: list[dict] = []
-        top_keywords = [ngram for ngram, _ in frequent[:20]]
-
-        # Simple heuristic: check for money/scam indicators vs advertorial indicators
-        scam_indicators = ["赚钱", "暴富", "免费", "中奖", "转账", "加微", "私聊"]
-        advertorial_indicators = ["推荐", "好用", "种草", "链接", "优惠", "折扣", "下单"]
-        emotional_indicators = ["震惊", "泪目", "崩溃", "太可怕", "不敢相信", "赶紧"]
-
-        scam_keywords = [kw for kw in top_keywords if any(ind in kw for ind in scam_indicators)]
-        advert_keywords = [kw for kw in top_keywords if any(ind in kw for ind in advertorial_indicators)]
-        emotional_keywords = [kw for kw in top_keywords if any(ind in kw for ind in emotional_indicators)]
-
-        # Remaining keywords not classified
-        classified = set(scam_keywords + advert_keywords + emotional_keywords)
-        general_keywords = [kw for kw in top_keywords if kw not in classified]
-
-        total_texts = len(text_ngrams)
         rule_index = 0
 
-        if scam_keywords:
-            confidence = min(1.0, len(scam_keywords) / total_texts)
+        for group_keywords in groups:
+            if not group_keywords:
+                continue
+
+            # Infer target dimension from keywords
+            dimension = _infer_dimension(group_keywords)
+
+            # Calculate coverage: fraction of false negatives containing any keyword
+            coverage = 0
+            for ngram_set in fn_ngram_sets:
+                if any(kw in ngram_set for kw in group_keywords):
+                    coverage += 1
+            confidence = round(min(1.0, coverage / total_fn), 2)
+
+            # Scale score_contribution by max TF-IDF score in group
+            max_tfidf = max(tfidf_scores.get(kw, 0) for kw in group_keywords)
+            # Normalize: map tfidf to 15-50 range for score_contribution
+            score_contribution = round(min(50.0, max(15.0, max_tfidf * 100)), 1)
+
+            # Generate name from the top keyword
+            name_suffix = dimension.replace("_prob", "").replace("_", "")
             rules.append({
-                "name": f"auto_rule_{rule_index:03d}_scam",
-                "keywords": scam_keywords[:5],
-                "dimension": "scam_prob",
-                "confidence": round(confidence, 2),
+                "name": f"auto_rule_{rule_index:03d}_{name_suffix}",
+                "keywords": group_keywords[:5],
+                "target_dimension": dimension,
+                "score_contribution": score_contribution,
+                "confidence": confidence,
             })
             rule_index += 1
 
-        if advert_keywords:
-            confidence = min(1.0, len(advert_keywords) / total_texts)
-            rules.append({
-                "name": f"auto_rule_{rule_index:03d}_advertorial",
-                "keywords": advert_keywords[:5],
-                "dimension": "advertorial_prob",
-                "confidence": round(confidence, 2),
-            })
-            rule_index += 1
-
-        if emotional_keywords:
-            confidence = min(1.0, len(emotional_keywords) / total_texts)
-            rules.append({
-                "name": f"auto_rule_{rule_index:03d}_emotional",
-                "keywords": emotional_keywords[:5],
-                "dimension": "emotional_manipulation",
-                "confidence": round(confidence, 2),
-            })
-            rule_index += 1
-
-        if general_keywords and not rules:
-            # If no specific dimension matched, suggest as scam_prob (default)
-            confidence = min(1.0, len(general_keywords) / total_texts)
-            rules.append({
-                "name": f"auto_rule_{rule_index:03d}_general",
-                "keywords": general_keywords[:5],
-                "dimension": "scam_prob",
-                "confidence": round(confidence, 2),
-            })
+            if rule_index >= 5:
+                break
 
         return rules
     finally:
         conn.close()
+
+
+def _group_by_cooccurrence(
+    terms: list[str],
+    doc_sets: list[set[str]],
+    min_count: int,
+) -> list[list[str]]:
+    """Group terms by co-occurrence in documents.
+
+    Two terms are grouped together if they co-occur in at least min_count documents.
+    Returns groups of co-occurring terms.
+
+    Args:
+        terms: List of candidate terms to group.
+        doc_sets: List of document n-gram sets.
+        min_count: Minimum co-occurrence count.
+
+    Returns:
+        List of term groups (each group is a list of co-occurring terms).
+    """
+    if not terms:
+        return []
+
+    # Build co-occurrence counts
+    cooccurrence: Counter[tuple[str, str]] = Counter()
+    for doc_set in doc_sets:
+        present = [t for t in terms if t in doc_set]
+        for i in range(len(present)):
+            for j in range(i + 1, len(present)):
+                pair = (present[i], present[j]) if present[i] < present[j] else (present[j], present[i])
+                cooccurrence[pair] += 1
+
+    # Build adjacency from co-occurring pairs
+    adjacency: dict[str, set[str]] = {t: set() for t in terms}
+    for (t1, t2), count in cooccurrence.items():
+        if count >= min_count:
+            adjacency[t1].add(t2)
+            adjacency[t2].add(t1)
+
+    # Greedy grouping: start from highest-degree nodes
+    used: set[str] = set()
+    groups: list[list[str]] = []
+
+    for term in terms:
+        if term in used:
+            continue
+        neighbors = adjacency[term] - used
+        if neighbors:
+            group = [term] + sorted(neighbors)[:4]
+            groups.append(group)
+            used.update(group)
+        elif not used:
+            # First term with no co-occurrence partners - add as singleton
+            groups.append([term])
+            used.add(term)
+
+    return groups
+
+
+def _infer_dimension(keywords: list[str]) -> str:
+    """Infer the target dimension based on keyword content.
+
+    Checks for overlap with known indicator terms for each dimension.
+
+    Args:
+        keywords: List of keywords to classify.
+
+    Returns:
+        One of: scam_prob, advertorial_prob, emotional_manipulation, ai_generated_prob
+    """
+    scam_indicators = ["赚钱", "暴富", "免费", "中奖", "转账", "加微", "私聊", "投资", "收益", "翻倍"]
+    advertorial_indicators = ["推荐", "好用", "种草", "链接", "优惠", "折扣", "下单", "购买", "代购"]
+    emotional_indicators = ["震惊", "泪目", "崩溃", "太可怕", "不敢相信", "赶紧", "必看", "快看"]
+    ai_indicators = ["众所周知", "综上所述", "值得注意", "需要指出", "不可否认"]
+
+    scores = {
+        "scam_prob": 0,
+        "advertorial_prob": 0,
+        "emotional_manipulation": 0,
+        "ai_generated_prob": 0,
+    }
+
+    for kw in keywords:
+        if any(ind in kw for ind in scam_indicators):
+            scores["scam_prob"] += 1
+        if any(ind in kw for ind in advertorial_indicators):
+            scores["advertorial_prob"] += 1
+        if any(ind in kw for ind in emotional_indicators):
+            scores["emotional_manipulation"] += 1
+        if any(ind in kw for ind in ai_indicators):
+            scores["ai_generated_prob"] += 1
+
+    # Return dimension with highest score, default to scam_prob
+    best = max(scores, key=lambda k: scores[k])
+    if scores[best] == 0:
+        return "scam_prob"
+    return best
