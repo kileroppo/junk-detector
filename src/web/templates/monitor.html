@@ -9,11 +9,13 @@
         <h1 class="text-2xl font-bold">监控状态</h1>
         <div class="flex gap-2">
             <button hx-post="/api/monitor/start" hx-swap="none"
+                    hx-on::after-request="htmx.trigger('#monitor-stats-container', 'load')"
                     class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
                 启动
             </button>
             <button hx-post="/api/monitor/stop" hx-swap="none"
+                    hx-on::after-request="htmx.trigger('#monitor-stats-container', 'load')"
                     class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
                 停止
@@ -33,7 +35,7 @@
     <!-- Monitor Stats (auto-refreshes) -->
     <div id="monitor-stats-container"
          hx-get="/partials/monitor-stats"
-         hx-trigger="load, every 5s"
+         hx-trigger="load, every 5s, refreshMonitorStats from:body"
          hx-swap="innerHTML">
         <!-- Loaded via HTMX -->
         <div class="p-8 text-center text-gray-500">

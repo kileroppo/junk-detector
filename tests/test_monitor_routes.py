@@ -113,3 +113,43 @@ class TestMonitorStatsAfterStartStop:
         assert response.status_code == 200
         # sources_count should be non-zero (from configured feeds)
         assert ">2<" in response.text or ">3<" in response.text
+
+
+class TestMonitorHXTriggerFormat:
+    """Tests verifying HX-Trigger header contains both showToast and refreshMonitorStats."""
+
+    def test_start_hx_trigger_contains_refresh(self, web_client):
+        """POST /api/monitor/start HX-Trigger header contains refreshMonitorStats."""
+        response = web_client.post("/api/monitor/start")
+        assert "HX-Trigger" in response.headers
+        assert "refreshMonitorStats" in response.headers["HX-Trigger"]
+
+    def test_stop_hx_trigger_contains_refresh(self, web_client):
+        """POST /api/monitor/stop HX-Trigger header contains refreshMonitorStats."""
+        response = web_client.post("/api/monitor/stop")
+        assert "HX-Trigger" in response.headers
+        assert "refreshMonitorStats" in response.headers["HX-Trigger"]
+
+    def test_start_hx_trigger_is_valid_json_with_both_keys(self, web_client):
+        """POST /api/monitor/start HX-Trigger is parseable JSON with both keys."""
+        import json
+
+        response = web_client.post("/api/monitor/start")
+        trigger = response.headers["HX-Trigger"]
+        data = json.loads(trigger)
+        assert "showToast" in data
+        assert "refreshMonitorStats" in data
+        assert data["showToast"]["message"] == "Monitor started"
+        assert data["showToast"]["type"] == "success"
+
+    def test_stop_hx_trigger_is_valid_json_with_both_keys(self, web_client):
+        """POST /api/monitor/stop HX-Trigger is parseable JSON with both keys."""
+        import json
+
+        response = web_client.post("/api/monitor/stop")
+        trigger = response.headers["HX-Trigger"]
+        data = json.loads(trigger)
+        assert "showToast" in data
+        assert "refreshMonitorStats" in data
+        assert data["showToast"]["message"] == "Monitor stopped"
+        assert data["showToast"]["type"] == "info"

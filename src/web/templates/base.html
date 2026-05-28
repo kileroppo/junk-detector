@@ -303,5 +303,26 @@
         target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
     </script>
+
+    <!-- HTMX showToast trigger handler -->
+    <script>
+    document.body.addEventListener('showToast', function(evt) {
+        var container = document.getElementById('toast-container');
+        var detail = evt.detail || {};
+        if (detail.value) detail = detail.value;
+        var message = detail.message || 'OK';
+        var type = detail.type || 'info';
+        var toast = document.createElement('div');
+        toast.className = 'pointer-events-auto px-4 py-3 rounded-lg shadow-lg text-sm font-medium toast-enter ' +
+            (type === 'success' ? 'bg-emerald-600 text-white' : type === 'error' ? 'bg-red-600 text-white' : 'bg-indigo-600 text-white');
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(function() {
+            toast.classList.remove('toast-enter');
+            toast.classList.add('toast-exit');
+            setTimeout(function() { toast.remove(); }, 300);
+        }, 3000);
+    });
+    </script>
 </body>
 </html>

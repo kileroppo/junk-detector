@@ -613,7 +613,7 @@ async def api_monitor_start(request: Request):
     service.start()
     return HTMLResponse(
         content="",
-        headers={"HX-Trigger": '{"showToast": {"message": "Monitor started", "type": "success"}}'},
+        headers={"HX-Trigger": json.dumps({"showToast": {"message": "Monitor started", "type": "success"}, "refreshMonitorStats": ""})},
     )
 
 
@@ -626,7 +626,7 @@ async def api_monitor_stop(request: Request):
     service.stop()
     return HTMLResponse(
         content="",
-        headers={"HX-Trigger": '{"showToast": {"message": "Monitor stopped", "type": "info"}}'},
+        headers={"HX-Trigger": json.dumps({"showToast": {"message": "Monitor stopped", "type": "info"}, "refreshMonitorStats": ""})},
     )
 
 
