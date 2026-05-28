@@ -2,7 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, Field
+
+
+class RhythmFingerprintModel(BaseModel):
+    """Writing rhythm fingerprint data for template display."""
+
+    rhythm_uniformity: float = Field(..., ge=0, le=100)
+    sentence_diversity: float = Field(..., ge=0, le=100)
+    topic_drift: float = Field(..., ge=0, le=100)
+    paragraph_count: int = Field(default=0, ge=0)
+    avg_paragraph_length: float = Field(default=0.0, ge=0)
+    length_std_dev: float = Field(default=0.0, ge=0)
 
 
 class SuspiciousParagraph(BaseModel):
@@ -43,4 +56,7 @@ class FocusGuide(BaseModel):
     information_nuggets: list[InformationNugget] = Field(default_factory=list)
     reading_time_saved_percent: int = Field(
         default=0, ge=0, le=100, description="Estimated % of content skippable"
+    )
+    rhythm_fingerprint: Optional[RhythmFingerprintModel] = Field(
+        default=None, description="Writing rhythm analysis data"
     )

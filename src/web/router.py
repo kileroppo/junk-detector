@@ -156,7 +156,38 @@ async def score_submit(
             "title": content.title,
             "source_url": content.source_url,
             "focus_guide": focus_guide,
+            "rule_hits": result.rule_hits,
+            "dimension_sources": result.dimension_sources,
         }
+
+        # Source reputation warning
+        source_warning = None
+        if content.source_url:
+            from urllib.parse import urlparse
+
+            from src.core.source_reputation import check_auto_blacklist, is_blacklisted
+
+            try:
+                parsed = urlparse(content.source_url)
+                domain = parsed.netloc or ""
+                if domain.startswith("www."):
+                    domain = domain[4:]
+
+                if domain:
+                    if is_blacklisted(domain):
+                        source_warning = {
+                            "level": "blacklisted",
+                            "message": "来源已列入黑名单",
+                        }
+                    elif check_auto_blacklist(domain):
+                        source_warning = {
+                            "level": "low_reputation",
+                            "message": "该来源历史评分较低",
+                        }
+            except Exception:
+                pass
+
+        result_data["source_warning"] = source_warning
 
         # Check if HTMX request
         is_htmx = request.headers.get("HX-Request") == "true"
@@ -624,6 +655,10 @@ async def api_feedback(request: Request):
     """Store user feedback (wrong/correct) for a scoring result."""
     from fastapi.responses import JSONResponse
 
+    from src.core.adaptive_weights import (
+        compute_feedback_adjustments,
+        save_weight_adjustment,
+    )
     from src.storage.db import save_feedback
 
     try:
@@ -645,5 +680,15 @@ async def api_feedback(request: Request):
         content_hash=body.get("content_hash", ""),
         verdict=verdict,
     )
+
+    # Compute and store adaptive weight adjustments
+    overall_score = body.get("overall_score")
+    dimensions = body.get("dimensions")
+    user_id = body.get("user_id", "anonymous")
+
+    if verdict == "wrong" and overall_score is not None and dimensions:
+        adjustments = compute_feedback_adjustments(verdict, overall_score, dimensions)
+        for dim, adj in adjustments.items():
+            save_weight_adjustment(user_id=user_id, dimension=dim, adjustment=adj)
 
     return JSONResponse(content={"status": "ok"})
