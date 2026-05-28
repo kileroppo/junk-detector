@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from src.models.score import Content, ScoreResult
 
@@ -535,5 +535,148 @@ def get_daily_stats(db_path: str = "junk_detector.db", target_date: str | None =
         if row is None:
             return {"rules_only_count": 0, "llm_count": 0}
         return {"rules_only_count": row["rules_only_count"], "llm_count": row["llm_count"]}
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Scoring trends (daily aggregates)
+# ---------------------------------------------------------------------------
+
+
+def get_trends(days: int = 28, db_path: str = "junk_detector.db") -> list[dict]:
+    """Get daily score aggregates for the last N days.
+
+    Queries the scores table grouped by date (DATE(scored_at)) and returns
+    average score, count, and junk count per day.
+
+    Args:
+        days: Number of days to look back (default 28).
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        List of dicts: [{date, avg_score, count, junk_count}] ordered by date asc.
+    """
+    _ensure_initialized(db_path)
+
+    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute(
+            """
+            SELECT
+                DATE(scored_at) as day,
+                AVG(overall_score) as avg_score,
+                COUNT(*) as count,
+                SUM(CASE WHEN overall_score < 40 THEN 1 ELSE 0 END) as junk_count
+            FROM scores
+            WHERE DATE(scored_at) >= ?
+            GROUP BY DATE(scored_at)
+            ORDER BY day ASC
+            """,
+            (start_date,),
+        )
+        rows = cursor.fetchall()
+        return [
+            {
+                "date": row["day"],
+                "avg_score": round(row["avg_score"], 1),
+                "count": row["count"],
+                "junk_count": row["junk_count"],
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Feedback storage
+# ---------------------------------------------------------------------------
+
+_CREATE_FEEDBACK_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    score_id INTEGER,
+    content_hash TEXT,
+    verdict TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+"""
+
+_initialized_feedback_dbs: set[str] = set()
+
+
+def init_feedback_table(db_path: str = "junk_detector.db") -> None:
+    """Create the feedback table if it does not exist.
+
+    Args:
+        db_path: Path to the SQLite database file.
+    """
+    if db_path in _initialized_feedback_dbs:
+        return
+    conn = _get_connection(db_path)
+    try:
+        conn.execute(_CREATE_FEEDBACK_TABLE_SQL)
+        conn.commit()
+        _initialized_feedback_dbs.add(db_path)
+    finally:
+        conn.close()
+
+
+def _ensure_feedback_initialized(db_path: str) -> None:
+    """Lazy initialization for feedback table."""
+    if db_path not in _initialized_feedback_dbs:
+        init_feedback_table(db_path)
+
+
+def save_feedback(
+    score_id: int,
+    content_hash: str,
+    verdict: str,
+    db_path: str = "junk_detector.db",
+) -> None:
+    """Save user feedback (wrong/correct) for a scoring result.
+
+    Args:
+        score_id: The ID of the score record.
+        content_hash: The content hash of the scored item.
+        verdict: User verdict - 'wrong' or 'correct'.
+        db_path: Path to the SQLite database file.
+    """
+    _ensure_feedback_initialized(db_path)
+
+    created_at = datetime.now().isoformat()
+    conn = _get_connection(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO feedback (score_id, content_hash, verdict, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (score_id, content_hash, verdict, created_at),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_feedback_count(db_path: str = "junk_detector.db") -> int:
+    """Get total number of feedback records.
+
+    Args:
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        Total count of feedback records.
+    """
+    _ensure_feedback_initialized(db_path)
+
+    conn = _get_connection(db_path)
+    try:
+        cursor = conn.execute("SELECT COUNT(*) FROM feedback")
+        row = cursor.fetchone()
+        return row[0] if row else 0
     finally:
         conn.close()

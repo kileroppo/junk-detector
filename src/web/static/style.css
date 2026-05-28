@@ -655,3 +655,37 @@ html {
     max-width: 400px;
     margin: 0 auto;
 }
+
+/* ==========================================================================
+   Swipe Gestures (Mobile History Cards)
+   ========================================================================== */
+.history-swipe-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.swipe-action-left,
+.swipe-action-right {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.swipe-action-left {
+    right: 0;
+    background: var(--color-red-600);
+}
+
+.swipe-action-right {
+    left: 0;
+    background: var(--color-emerald-600);
+}
+
+.history-swipe-card {
+    will-change: transform;
+    touch-action: pan-y;
+}

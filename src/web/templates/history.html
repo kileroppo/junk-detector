@@ -102,32 +102,43 @@
     <!-- Mobile Card View -->
     <div class="sm:hidden space-y-3 stagger-children">
         {% for item in results %}
-        <a href="/result/{{ item.id }}" class="block bg-surface rounded-xl p-4 border border-navy-700 hover:bg-surface-raised transition-colors">
-            <div class="flex items-start justify-between gap-3">
-                <div class="flex-1 min-w-0">
-                    <p class="font-medium truncate">{{ item.title or item.source_url or '无标题' }}</p>
-                    <p class="text-xs text-gray-500 mt-1">{{ item.scored_at[:16] if item.scored_at else '-' }}</p>
+        <div class="history-swipe-container relative overflow-hidden rounded-xl">
+            <!-- Swipe action panels (behind the card) -->
+            <div class="swipe-action-right absolute inset-y-0 left-0 w-20 bg-emerald-700 flex items-center justify-center rounded-l-xl">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+            </div>
+            <div class="swipe-action-left absolute inset-y-0 right-0 w-20 bg-red-700 flex items-center justify-center rounded-r-xl">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </div>
+            <!-- Card (swipeable) -->
+            <a href="/result/{{ item.id }}" class="history-swipe-card block bg-surface p-4 border border-navy-700 hover:bg-surface-raised transition-transform rounded-xl relative z-10"
+               data-score-id="{{ item.id }}">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium truncate">{{ item.title or item.source_url or '无标题' }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ item.scored_at[:16] if item.scored_at else '-' }}</p>
+                    </div>
+                    <span class="inline-flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold shrink-0
+                                {% if item.overall_score > 70 %}bg-green-900/50 text-green-300
+                                {% elif item.overall_score > 40 %}bg-amber-900/50 text-amber-300
+                                {% else %}bg-red-900/50 text-red-300{% endif %}">
+                        {{ "%.0f"|format(item.overall_score) }}
+                    </span>
                 </div>
-                <span class="inline-flex items-center justify-center w-10 h-10 rounded-full text-sm font-bold shrink-0
-                            {% if item.overall_score > 70 %}bg-green-900/50 text-green-300
-                            {% elif item.overall_score > 40 %}bg-amber-900/50 text-amber-300
-                            {% else %}bg-red-900/50 text-red-300{% endif %}">
-                    {{ "%.0f"|format(item.overall_score) }}
-                </span>
-            </div>
-            {% if item.labels %}
-            <div class="flex flex-wrap gap-1 mt-2">
-                {% for label in item.labels or [] %}
-                <span class="px-2 py-0.5 rounded-full text-xs
-                            {% if '高质量' in label or '原创' in label %}bg-green-900/50 text-green-300
-                            {% elif '骗' in label %}bg-red-900/50 text-red-300
-                            {% else %}bg-navy-700 text-gray-300{% endif %}">
-                    {{ label }}
-                </span>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </a>
+                {% if item.labels %}
+                <div class="flex flex-wrap gap-1 mt-2">
+                    {% for label in item.labels or [] %}
+                    <span class="px-2 py-0.5 rounded-full text-xs
+                                {% if '高质量' in label or '原创' in label %}bg-green-900/50 text-green-300
+                                {% elif '骗' in label %}bg-red-900/50 text-red-300
+                                {% else %}bg-navy-700 text-gray-300{% endif %}">
+                        {{ label }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </a>
+        </div>
         {% endfor %}
     </div>
 
@@ -159,4 +170,57 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+// Mobile swipe gestures on history cards
+(function() {
+    var cards = document.querySelectorAll('.history-swipe-card');
+    cards.forEach(function(card) {
+        var startX = 0;
+        var currentX = 0;
+        var isDragging = false;
+
+        card.addEventListener('touchstart', function(e) {
+            startX = e.touches[0].clientX;
+            currentX = 0;
+            isDragging = true;
+            card.style.transition = 'none';
+        });
+
+        card.addEventListener('touchmove', function(e) {
+            if (!isDragging) return;
+            currentX = e.touches[0].clientX - startX;
+            // Limit swipe range
+            var clamped = Math.max(-120, Math.min(120, currentX));
+            card.style.transform = 'translateX(' + clamped + 'px)';
+        });
+
+        card.addEventListener('touchend', function(e) {
+            isDragging = false;
+            card.style.transition = 'transform 0.3s ease';
+            if (currentX < -80) {
+                // Swipe left: mark wrong
+                var scoreId = card.getAttribute('data-score-id');
+                fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({score_id: parseInt(scoreId), verdict: 'wrong', content_hash: ''})
+                });
+                card.style.transform = 'translateX(-80px)';
+                setTimeout(function() { card.style.transform = ''; }, 1500);
+            } else if (currentX > 80) {
+                // Swipe right: copy URL / share
+                var url = card.getAttribute('href');
+                if (url && navigator.clipboard) {
+                    navigator.clipboard.writeText(window.location.origin + url);
+                }
+                card.style.transform = 'translateX(80px)';
+                setTimeout(function() { card.style.transform = ''; }, 1500);
+            } else {
+                card.style.transform = '';
+            }
+        });
+    });
+})();
+</script>
 {% endblock %}

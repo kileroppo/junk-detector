@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.responses import StreamingResponse
 
 from src.core.config import get_model_config
-from src.storage.db import count_records, get_history, query
+from src.storage.db import count_records, get_history, get_trends, query
 
 # Template and static directories (relative to this file)
 _BASE_DIR = Path(__file__).parent
@@ -69,10 +69,17 @@ async def dashboard(request: Request):
         records = []
 
     stats = _compute_stats(records)
+
+    # Get trend data for chart
+    try:
+        trends = get_trends(days=28)
+    except Exception:
+        trends = []
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"stats": stats},
+        {"stats": stats, "trends": trends},
     )
 
 
@@ -520,3 +527,123 @@ async def api_monitor_stop(request: Request):
         content="",
         headers={"HX-Trigger": '{"showToast": {"message": "Monitor stopped", "type": "info"}}'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Batch scoring endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.post("/score-batch", response_class=HTMLResponse)
+async def score_batch(
+    request: Request,
+    urls: str = Form(default=""),
+):
+    """Batch score multiple URLs (one per line).
+
+    Accepts newline-separated URLs, validates each one, scores them
+    sequentially, and returns results as a list of cards.
+    """
+    from src.core.scorer import score
+    from src.extractors.web import extract_from_url
+    from src.storage.db import save
+
+    raw_urls = [u.strip() for u in urls.strip().splitlines() if u.strip()]
+
+    if not raw_urls:
+        return HTMLResponse(
+            content='<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">请输入至少一个 URL</div>',
+            status_code=422,
+        )
+
+    # Validate URLs
+    valid_urls = []
+    for u in raw_urls:
+        if u.startswith(("http://", "https://")):
+            valid_urls.append(u)
+
+    if not valid_urls:
+        return HTMLResponse(
+            content='<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">未找到有效的 URL（需以 http:// 或 https:// 开头）</div>',
+            status_code=422,
+        )
+
+    results = []
+    for url in valid_urls:
+        try:
+            content = await extract_from_url(url)
+            result = await score(content.text)
+            try:
+                save(result, content)
+            except Exception:
+                pass
+            results.append({
+                "url": url,
+                "title": content.title or url,
+                "overall_score": result.overall_score,
+                "summary": result.summary,
+                "success": True,
+            })
+        except Exception as e:
+            results.append({
+                "url": url,
+                "title": url,
+                "overall_score": 0,
+                "summary": str(e),
+                "success": False,
+            })
+
+    return templates.TemplateResponse(
+        request,
+        "partials/batch_results.html",
+        {"results": results},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Trends API endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/trends")
+async def api_trends(request: Request, days: int = 28):
+    """Return daily score trend data as JSON for the last N days."""
+    from fastapi.responses import JSONResponse
+
+    trends = get_trends(days=days)
+    return JSONResponse(content={"trends": trends})
+
+
+# ---------------------------------------------------------------------------
+# Feedback endpoint
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/feedback")
+async def api_feedback(request: Request):
+    """Store user feedback (wrong/correct) for a scoring result."""
+    from fastapi.responses import JSONResponse
+
+    from src.storage.db import save_feedback
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(content={"error": "Invalid JSON"}, status_code=400)
+
+    score_id = body.get("score_id")
+    verdict = body.get("verdict")
+
+    if score_id is None or verdict not in ("wrong", "correct"):
+        return JSONResponse(
+            content={"error": "score_id and verdict (wrong/correct) required"},
+            status_code=422,
+        )
+
+    save_feedback(
+        score_id=int(score_id),
+        content_hash=body.get("content_hash", ""),
+        verdict=verdict,
+    )
+
+    return JSONResponse(content={"status": "ok"})
