@@ -166,20 +166,30 @@ class MonitorService:
                             "source": feed_name,
                             "fetched_at": datetime.now(timezone.utc).isoformat()[:19],
                             "score": None,
+                            "quick_score": None,
+                            "full_score": None,
+                            "status": "quick_scored",
                         }
 
                         if self._auto_score and title:
                             try:
-                                score = self._score_item(title)
-                                item_data["score"] = score
-                                self._dispatcher["total_scored"] += 1
+                                quick = self._score_item(title)
+                                item_data["score"] = quick
+                                item_data["quick_score"] = quick
                             except Exception as e:
-                                logger.debug("Failed to score item: %s", e)
-                                self._dispatcher["total_failed"] += 1
+                                logger.debug("Failed to quick-score item: %s", e)
 
                         self._recent_items.insert(0, item_data)
                         # Keep only last 20 items
                         self._recent_items = self._recent_items[:20]
+
+                        # Spawn background full-score task
+                        if self._auto_score and link:
+                            try:
+                                loop = asyncio.get_running_loop()
+                                loop.create_task(self._full_score_item(item_data))
+                            except RuntimeError:
+                                pass  # No event loop (sync context)
 
                 except Exception as e:
                     logger.debug("Failed to fetch feed %s: %s", feed_name, e)
@@ -207,6 +217,37 @@ class MonitorService:
         config = load_config()
         overall = _calculate_overall(dimensions, config)
         return overall
+
+    async def _full_score_item(self, item_data: dict) -> None:
+        """Background task: extract URL content and run full scoring.
+
+        Updates item in _recent_items from 'quick_scored' to 'fully_scored'.
+        """
+        link = item_data.get("link", "")
+        if not link:
+            return
+
+        try:
+            item_data["status"] = "scoring_full"
+
+            from src.extractors.web import extract_from_url
+
+            content = await extract_from_url(link)
+
+            from src.core.scorer import score
+
+            result = await score(content.text)
+
+            item_data["full_score"] = result.overall_score
+            item_data["score"] = result.overall_score
+            item_data["status"] = "fully_scored"
+            self._dispatcher["total_scored"] += 1
+
+        except Exception as e:
+            logger.debug("Full scoring failed for %s: %s", link, e)
+            # Keep quick_scored status, don't update score
+            item_data["status"] = "quick_scored"
+            self._dispatcher["total_failed"] += 1
 
     def add_feed(self, name: str, url: str) -> None:
         """Add a new feed to the internal feeds list.

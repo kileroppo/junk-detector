@@ -237,7 +237,8 @@ class TestRSSMonitorFetch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            await service.fetch_feeds()
+            with patch.object(service, "_full_score_item", new_callable=AsyncMock):
+                await service.fetch_feeds()
 
         # Should have discovered 3 items
         assert service._thunder["items_discovered"] == 3
@@ -292,14 +293,15 @@ class TestRSSMonitorFetch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            await service.fetch_feeds()
+            with patch.object(service, "_full_score_item", new_callable=AsyncMock):
+                await service.fetch_feeds()
 
-        # All items should have been scored
-        assert service._dispatcher["total_scored"] == 3
-        # Each item should have a score
+        # Each item should have a quick_score from rules-only scoring
         for item in service._recent_items:
             assert item["score"] is not None
             assert 0 <= item["score"] <= 100
+            assert item["quick_score"] is not None
+            assert item["status"] == "quick_scored"
 
 
 class TestRSSMonitorStartStop:

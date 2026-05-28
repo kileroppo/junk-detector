@@ -132,6 +132,13 @@
                             {% else %}
                             <span class="text-gray-500">-</span>
                             {% endif %}
+                            {% if item.status == "fully_scored" %}
+                            <span class="ml-1 px-1.5 py-0.5 rounded text-xs bg-emerald-900/30 text-emerald-400">完整</span>
+                            {% elif item.status == "scoring_full" %}
+                            <span class="ml-1 px-1.5 py-0.5 rounded text-xs bg-blue-900/30 text-blue-400">分析中...</span>
+                            {% elif item.status == "quick_scored" %}
+                            <span class="ml-1 px-1.5 py-0.5 rounded text-xs bg-gray-800/50 text-gray-400">快速</span>
+                            {% endif %}
                         </td>
                         <td class="px-4 py-2 text-right text-gray-500 text-xs">{{ item.fetched_at }}</td>
                     </tr>
