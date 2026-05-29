@@ -194,6 +194,16 @@ Reproduce:
 python benchmark/run_benchmark.py
 ```
 
+### Real Data Benchmark (100 samples)
+
+Tested against 100 hand-labeled real-world Chinese content samples:
+
+```bash
+python benchmark/run_real_benchmark.py
+```
+
+See [benchmark/real_data/results.md](benchmark/real_data/results.md) for detailed results.
+
 ## Custom Rules
 
 Define your own detection rules in `.junk-rules.yaml`:
