@@ -10,6 +10,15 @@
   "use strict";
 
   /**
+   * Detect if the page is being viewed on a mobile device.
+   * @returns {boolean}
+   */
+  function isMobile() {
+    return document.documentElement.clientWidth < 768 ||
+      document.querySelector('meta[name="viewport"][content*="width=device-width"]') !== null;
+  }
+
+  /**
    * Extract article body text based on the current site's DOM structure.
    * @returns {string} The extracted text content.
    */
@@ -18,10 +27,16 @@
     let contentEl = null;
 
     if (host.includes("mp.weixin.qq.com")) {
-      // WeChat articles
+      // WeChat articles - desktop and mobile
       contentEl =
         document.getElementById("js_content") ||
         document.querySelector(".rich_media_content");
+      // Mobile-specific fallbacks
+      if (!contentEl && isMobile()) {
+        contentEl =
+          document.querySelector(".weui-article__section") ||
+          document.querySelector(".rich_media_area_primary");
+      }
     } else if (host.includes("xiaohongshu.com")) {
       // Xiaohongshu notes
       contentEl =

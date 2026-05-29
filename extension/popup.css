@@ -293,3 +293,113 @@ body {
   color: #6b7280;
   line-height: 1.4;
 }
+
+/* Share button */
+.share-btn {
+  display: inline-block;
+  font-size: 13px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 16px;
+  background-color: #007AFF;
+  color: #ffffff;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: background-color 0.2s ease;
+}
+
+.share-btn:hover {
+  background-color: #005ECB;
+}
+
+.share-toast {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background-color: #10B981;
+  color: #ffffff;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.share-toast.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* History section */
+.history-section {
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.section-title {
+  font-size: 11px;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6b7280;
+  padding: 4px 0;
+}
+
+.history-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.history-dot.quality {
+  background-color: #10B981;
+}
+
+.history-dot.suspicious {
+  background-color: #F59E0B;
+}
+
+.history-dot.junk {
+  background-color: #EF4444;
+}
+
+.history-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Daily stats */
+.daily-stats {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.daily-stats.hidden {
+  display: none;
+}

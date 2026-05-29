@@ -178,6 +178,10 @@ def explain_result(
     if "ai_generated_signals" in matched:
         signals.append("疑似AI生成内容")
 
+    # Honest uncertainty for borderline cases (score 40-55 with few signals)
+    if 40 <= overall < 55 and len(signals) <= 1:
+        return "\U0001f914 信号不够明确。建议结合其他信息源判断，不要完全依赖单一评分。"
+
     # Count total matched rules (excluding combos for display)
     non_combo_count = len([r for r in matched if not r.startswith("combo_")])
 

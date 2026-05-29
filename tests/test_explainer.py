@@ -181,8 +181,9 @@ class TestExplainBorderlineContent:
         score_result = _make_score_result(50.0)
         explanation = explain_result(score_result, rule_result)
 
-        assert "\u26a0\ufe0f" in explanation
-        assert "人工复查" in explanation or "LLM" in explanation
+        # Honest uncertainty messaging for borderline cases with few signals
+        assert "\U0001f914" in explanation
+        assert "信号不够明确" in explanation
 
 
 class TestExplainEmptyRules:

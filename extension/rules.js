@@ -99,13 +99,15 @@ function countMatches(text, keywords) {
  * Score content text using local keyword rules.
  *
  * @param {string} text - Article body text to analyze.
+ * @param {object} [options] - Optional settings.
+ * @param {string} [options.sensitivity] - 'strict', 'standard', or 'relaxed'.
  * @returns {{score: number, verdict: string, matchedKeywords: string[], explanation: string}}
  *   score: 0 (clean) to 100 (junk)
  *   verdict: 'quality' | 'suspicious' | 'junk'
  *   matchedKeywords: array of matched keyword strings
  *   explanation: one-line Chinese explanation
  */
-function scoreContent(text) {
+function scoreContent(text, options) {
   if (!text || text.trim().length === 0) {
     return {
       score: 0,
@@ -113,6 +115,18 @@ function scoreContent(text) {
       matchedKeywords: [],
       explanation: "\u2705 \u65e0\u5185\u5bb9\u53ef\u5206\u6790"
     };
+  }
+
+  var sensitivity = (options && options.sensitivity) || "standard";
+  // Threshold for junk verdict based on sensitivity
+  var junkThreshold = 60;
+  var suspiciousThreshold = 30;
+  if (sensitivity === "strict") {
+    junkThreshold = 50;
+    suspiciousThreshold = 20;
+  } else if (sensitivity === "relaxed") {
+    junkThreshold = 75;
+    suspiciousThreshold = 40;
   }
 
   const scamResult = countMatches(text, SCAM_KEYWORDS);
@@ -138,22 +152,29 @@ function scoreContent(text) {
 
   // Determine verdict
   let verdict;
-  if (score >= 60) {
+  let explanation;
+  if (score >= junkThreshold) {
     verdict = "junk";
-  } else if (score >= 30) {
+  } else if (score >= 25 && score < 45) {
+    // Low confidence zone - honest uncertainty
+    verdict = "suspicious";
+    explanation = "\ud83e\udd14 \u4e0d\u592a\u786e\u5b9a\u3002\u53d1\u73b0\u4e00\u4e9b\u53ef\u7591\u4fe1\u53f7\u4f46\u4e0d\u8db3\u4ee5\u4e0b\u7ed3\u8bba\u3002\u5efa\u8bae\u8c28\u614e\u9605\u8bfb\u3002";
+  } else if (score >= suspiciousThreshold) {
     verdict = "suspicious";
   } else {
     verdict = "quality";
   }
 
-  // Generate Chinese explanation
-  const explanation = generateExplanation(
-    verdict,
-    score,
-    scamResult,
-    anxietyResult,
-    advertorialResult
-  );
+  // Generate Chinese explanation (only if not already set by uncertainty handler)
+  if (!explanation) {
+    explanation = generateExplanation(
+      verdict,
+      score,
+      scamResult,
+      anxietyResult,
+      advertorialResult
+    );
+  }
 
   return { score, verdict, matchedKeywords: allMatched, explanation };
 }

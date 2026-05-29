@@ -16,20 +16,27 @@
   /**
    * Update the popup UI with scoring results.
    * @param {object|null} result
+   * @param {string|null} pageTitle - Title of the active tab
    */
-  function displayResult(result) {
+  function displayResult(result, pageTitle) {
     const iconEl = document.getElementById("verdict-icon");
     const explanationEl = document.getElementById("explanation");
     const scoreEl = document.getElementById("score-value");
     const keywordsEl = document.getElementById("keywords-list");
+    const dailyStatsEl = document.getElementById("daily-stats");
 
     if (!result) {
       iconEl.textContent = "\u2753";
       explanationEl.textContent = "\u8bf7\u5728\u652f\u6301\u7684\u7f51\u7ad9\u4e0a\u6253\u5f00\u6587\u7ae0\u540e\u518d\u68c0\u6d4b";
       scoreEl.textContent = "--";
       scoreEl.className = "score-value";
+      // Show daily stats when no active result
+      showDailyStats(dailyStatsEl);
       return;
     }
+
+    // Hide daily stats when there is an active result
+    dailyStatsEl.classList.add("hidden");
 
     iconEl.textContent = VERDICT_ICONS[result.verdict] || "\u2753";
     explanationEl.textContent = result.explanation || "";
@@ -78,6 +85,91 @@
     } else {
       keywordsEl.innerHTML = '<span class="no-result">\u672a\u53d1\u73b0\u95ee\u9898\u5173\u952e\u8bcd</span>';
     }
+
+    // Setup share button with context
+    setupShareButton(pageTitle, result);
+  }
+
+  /**
+   * Show daily stats summary when no active page result.
+   * @param {HTMLElement} el
+   */
+  function showDailyStats(el) {
+    var today = new Date().toISOString().slice(0, 10);
+    var statsKey = "stats_" + today;
+    chrome.storage.local.get([statsKey, "streak"], function (data) {
+      var stats = data[statsKey];
+      var streak = data["streak"] || 0;
+      if (!stats || stats.total === 0) {
+        el.classList.add("hidden");
+        return;
+      }
+      var lines = [];
+      lines.push("\u4eca\u65e5\u5df2\u68c0\u6d4b " + stats.total + " \u7bc7\u5185\u5bb9\uff1a" +
+        stats.quality + " \u6b63\u5e38\u3001" + stats.suspicious + " \u5b58\u7591\u3001" + stats.junk + " \u9ad8\u98ce\u9669");
+      if (streak > 1) {
+        lines.push("\u8fde\u7eed " + streak + " \u5929\u4f7f\u7528\u9274\u771f\u4fdd\u62a4\u4f60\u7684\u9605\u8bfb\u8d28\u91cf \ud83c\udfaf");
+      }
+      el.textContent = lines.join("\n");
+      el.classList.remove("hidden");
+    });
+  }
+
+  /**
+   * Setup share button click handler.
+   * @param {string|null} pageTitle
+   * @param {object} result
+   */
+  function setupShareButton(pageTitle, result) {
+    var shareBtn = document.getElementById("share-btn");
+    // Remove old listeners by replacing element
+    var newBtn = shareBtn.cloneNode(true);
+    shareBtn.parentNode.replaceChild(newBtn, shareBtn);
+
+    newBtn.addEventListener("click", function () {
+      var verdictEmoji = VERDICT_ICONS[result.verdict] || "\u2753";
+      var title = pageTitle || "\u672a\u77e5\u9875\u9762";
+      var text = "\ud83d\udd0d \u9274\u771f\u68c0\u6d4b\uff1a" + title + " " + verdictEmoji + " " + (result.explanation || "");
+      navigator.clipboard.writeText(text).then(function () {
+        var toast = document.getElementById("share-toast");
+        toast.classList.remove("hidden");
+        setTimeout(function () {
+          toast.classList.add("hidden");
+        }, 2000);
+      });
+    });
+  }
+
+  /**
+   * Load and render the history list.
+   */
+  function loadHistory() {
+    chrome.storage.local.get("history", function (data) {
+      var history = data["history"] || [];
+      var listEl = document.getElementById("history-list");
+      listEl.innerHTML = "";
+      if (history.length === 0) {
+        listEl.innerHTML = '<span class="no-result">\u6682\u65e0\u8bb0\u5f55</span>';
+        return;
+      }
+      // Show most recent first
+      history.slice().reverse().forEach(function (entry) {
+        var item = document.createElement("div");
+        item.className = "history-item";
+        var dot = document.createElement("span");
+        dot.className = "history-dot " + (entry.verdict || "quality");
+        var titleEl = document.createElement("span");
+        titleEl.className = "history-title";
+        var displayTitle = entry.title || "\u672a\u77e5\u9875\u9762";
+        if (displayTitle.length > 30) {
+          displayTitle = displayTitle.substring(0, 30) + "...";
+        }
+        titleEl.textContent = displayTitle;
+        item.appendChild(dot);
+        item.appendChild(titleEl);
+        listEl.appendChild(item);
+      });
+    });
   }
 
   /**
@@ -86,15 +178,17 @@
   function loadResult() {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       if (!tabs || tabs.length === 0) {
-        displayResult(null);
+        displayResult(null, null);
         return;
       }
 
-      const tabId = tabs[0].id;
+      const tab = tabs[0];
+      const tabId = tab.id;
+      const pageTitle = tab.title || null;
       const key = "result_" + tabId;
       chrome.storage.local.get(key, function (data) {
         const result = data[key] || null;
-        displayResult(result);
+        displayResult(result, pageTitle);
       });
     });
   }
@@ -115,6 +209,7 @@
     arrow.classList.toggle("expanded");
   });
 
-  // Load result on popup open
+  // Load result and history on popup open
   loadResult();
+  loadHistory();
 })();

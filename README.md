@@ -6,6 +6,21 @@
 
 **零配置即用**：安装后无需任何 API key，规则引擎直接识别明显垃圾内容。
 
+## 30 秒体验
+
+```bash
+# 无需任何配置，立即体验
+junk-detector demo
+
+# 或直接检测文本
+junk-detector quick --text "日入过万 躺赚 限时免费 加微信领取"
+# 🚨 疑似垃圾内容 (score: 5)
+
+# 管道输入
+echo "月入百万 暴利项目 零成本 稳赚不赔" | junk-detector quick
+# 🚨 疑似垃圾内容 (score: 5)
+```
+
 ## 安装
 
 ```bash
@@ -19,11 +34,6 @@ pip install -e .
 ```bash
 # 检测文本
 junk-detector quick --text "日入过万 躺赚 财富自由 限时免费 加微信领取"
-# 🚨 疑似垃圾内容 (score: 5)
-
-# 管道输入
-echo "月入百万 暴利项目 零成本 稳赚不赔" | junk-detector quick
-# 🚨 疑似垃圾内容 (score: 5)
 
 # 检测网页
 junk-detector quick --url "https://example.com/article"
