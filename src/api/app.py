@@ -111,6 +111,22 @@ class ScoreRequest(BaseModel):
     title: Optional[str] = Field(default=None, description="Optional title for text input")
 
 
+class BatchScoreRequest(BaseModel):
+    """Request body for /score/batch endpoint."""
+
+    items: list[ScoreRequest] = Field(
+        ..., min_length=1, max_length=50, description="List of items to score"
+    )
+
+
+class BatchScoreResponse(BaseModel):
+    """Response for /score/batch endpoint."""
+
+    results: list = Field(..., description="Scoring results in same order as input")
+    total: int = Field(..., description="Total items processed")
+    errors: int = Field(default=0, description="Number of items that failed")
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -259,3 +275,61 @@ async def get_history(
         raise HTTPException(status_code=500, detail=f"Storage error: {e}")
 
     return results
+
+
+@app.post("/score/batch", response_model=None)
+async def score_batch(
+    request: BatchScoreRequest,
+    current_user: User | None = Depends(get_optional_user),
+):
+    """Score multiple items concurrently.
+
+    Accepts a list of items (text or URL), scores them with
+    max 5 concurrent operations, and broadcasts each result via WebSocket.
+    """
+    import asyncio
+
+    semaphore = asyncio.Semaphore(5)
+    user_id = current_user.id if current_user is not None else None
+
+    async def score_single(item: ScoreRequest, index: int) -> ScoreResult | dict:
+        async with semaphore:
+            try:
+                if not item.url and not item.text:
+                    return {"error": "Either 'url' or 'text' must be provided", "index": index}
+
+                # Extract content
+                if item.url:
+                    content = await extract_from_url(item.url)
+                else:
+                    content = extract_from_text(item.text, title=item.title)
+
+                # Score
+                result = await score(content.text, source_url=item.url)
+
+                # Save
+                try:
+                    save(result, content, user_id=user_id)
+                except Exception:
+                    pass
+
+                # Notify per-item completion
+                try:
+                    await dispatcher.notify_score_completed(result.model_dump())
+                except Exception:
+                    pass
+
+                return result
+            except Exception as e:
+                return {"error": str(e), "index": index}
+
+    tasks = [score_single(item, i) for i, item in enumerate(request.items)]
+    results = await asyncio.gather(*tasks)
+
+    errors = sum(1 for r in results if isinstance(r, dict) and "error" in r)
+
+    return BatchScoreResponse(
+        results=list(results),
+        total=len(results),
+        errors=errors,
+    )
