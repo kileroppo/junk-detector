@@ -55,13 +55,13 @@ _NEGATION_KEYWORDS: list[str] = [
 
 
 def _has_negation_context(content: str, match_start: int, match_end: int) -> bool:
-    """Check if negation keywords appear within 20 chars before/after a match.
+    """Check if negation keywords appear within 30 chars before/after a match.
 
     If negation context is detected, the keyword is likely being discussed/analyzed
     rather than being used to deceive.
     """
-    window_start = max(0, match_start - 20)
-    window_end = min(len(content), match_end + 20)
+    window_start = max(0, match_start - 30)
+    window_end = min(len(content), match_end + 30)
     window = content[window_start:window_end]
     return any(neg_kw in window for neg_kw in _NEGATION_KEYWORDS)
 
@@ -190,19 +190,25 @@ def _check_scam_keywords(content: str) -> Optional[tuple[float, float]]:
 
     Returns (score, confidence) or None if not triggered.
     Uses negation context to reduce weight of keywords being discussed/analyzed.
+    Tracks negated and non-negated hits separately so that fully-negated keywords
+    cannot trigger the high-confidence tier.
     """
-    hit_count = 0.0
+    non_negated_hits = 0.0
+    negated_hits = 0.0
     for pattern in _SCAM_PATTERNS:
         match = pattern.search(content)
         if match:
             if _has_negation_context(content, match.start(), match.end()):
-                hit_count += 0.25
+                negated_hits += 1.0
             else:
-                hit_count += 1.0
+                non_negated_hits += 1.0
 
-    if hit_count >= 3:
+    # Effective hits: non-negated count fully, negated contribute only 10%
+    effective_hits = non_negated_hits + negated_hits * 0.1
+
+    if effective_hits >= 3:
         return (95.0, 0.95)
-    elif hit_count >= 1:
+    elif effective_hits >= 1:
         return (75.0, 0.8)
     return None
 
@@ -279,14 +285,15 @@ def _check_excessive_punctuation(content: str) -> bool:
 def _check_anxiety_phrases(content: str) -> float:
     """Count how many anxiety phrase patterns match, weighted by negation context.
 
-    Returns a float hit count (negated matches count as 0.25).
+    Returns a float hit count. Negated matches contribute only 0.1 to prevent
+    fully-negated analytical content from accumulating to threshold.
     """
     hit_count = 0.0
     for pattern in _ANXIETY_PATTERNS:
         match = pattern.search(content)
         if match:
             if _has_negation_context(content, match.start(), match.end()):
-                hit_count += 0.25
+                hit_count += 0.1
             else:
                 hit_count += 1.0
     return hit_count
@@ -375,29 +382,42 @@ def _check_advertorial(content: str) -> Optional[tuple[float, float]]:
 
     Returns (score, confidence) or None if not triggered.
     Uses negation context to reduce weight of keywords being discussed/analyzed.
+    Checks ALL occurrences of each keyword (not just the first).
+    Tracks negated and non-negated hits separately so that fully-negated keywords
+    cannot trigger the high-confidence tier.
     """
-    keyword_hits = 0.0
+    non_negated_hits = 0.0
+    negated_hits = 0.0
     for kw in _ADVERTORIAL_KEYWORDS:
-        idx = content.find(kw)
-        if idx != -1:
+        # Find all occurrences of this keyword
+        start = 0
+        while True:
+            idx = content.find(kw, start)
+            if idx == -1:
+                break
             if _has_negation_context(content, idx, idx + len(kw)):
-                keyword_hits += 0.25
+                negated_hits += 1.0
             else:
-                keyword_hits += 1.0
+                non_negated_hits += 1.0
+            start = idx + len(kw)
+
+    # Effective hits: non-negated count fully, negated contribute only 10%
+    effective_hits = non_negated_hits + negated_hits * 0.1
+
     link_count = len(_HTTP_LINK_PATTERN.findall(content))
 
     # High link density (3+ links) combined with promo keywords
     has_high_link_density = link_count >= 3
 
-    if keyword_hits >= 1 and has_high_link_density:
+    if effective_hits >= 1 and has_high_link_density:
         return (80.0, 0.85)
 
     # Promo keywords alone (2+)
-    if keyword_hits >= 2:
+    if effective_hits >= 2:
         return (80.0, 0.85)
 
     # Single promo keyword
-    if keyword_hits >= 1:
+    if effective_hits >= 1:
         return (60.0, 0.7)
 
     # High link density alone

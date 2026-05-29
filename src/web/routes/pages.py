@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.responses import StreamingResponse
 
 from src.core.config import get_model_config
+from src.core.verdict_generator import generate_verdict
 from src.storage.db import count_records, get_history, get_trends, query
 from src.web.routes.templates import templates
 
@@ -174,8 +175,6 @@ async def score_submit(
         }
 
         # Generate verdict for simple-first UX
-        from src.core.verdict_generator import generate_verdict
-
         verdict_data = generate_verdict(
             overall_score=report.result.overall_score,
             dimensions=report.result.dimensions.model_dump(),

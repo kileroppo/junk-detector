@@ -151,8 +151,8 @@ def get_savings_report(days: int = 30, db_path: str = "junk_detector.db") -> dic
             )
             row = cursor.fetchone()
             junk_blocked_count = row[0] if row else 0
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to query junk_blocked_count: %s", e)
 
         # Time saved: assume 4 minutes average reading time per junk article
         time_saved_reading_minutes = junk_blocked_count * 4
@@ -168,8 +168,8 @@ def get_savings_report(days: int = 30, db_path: str = "junk_detector.db") -> dic
             )
             row = cursor.fetchone()
             scam_detected_count = row[0] if row else 0
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to query scam_detected_count: %s", e)
 
         # Count high quality items (score > 75)
         high_quality_found_count = 0
@@ -180,8 +180,8 @@ def get_savings_report(days: int = 30, db_path: str = "junk_detector.db") -> dic
             )
             row = cursor.fetchone()
             high_quality_found_count = row[0] if row else 0
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to query high_quality_found_count: %s", e)
 
         return {
             "total_scores": total_scores,

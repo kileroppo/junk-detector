@@ -32,9 +32,9 @@ class TestNegationContextFunction:
         assert _has_negation_context(content, 0, 4) is False
 
     def test_negation_keyword_too_far_away(self):
-        """Negation keyword beyond 20 chars does NOT count."""
-        # Put 25+ chars of padding between negation keyword and match
-        content = "识别" + "一" * 25 + "日入过万"
+        """Negation keyword beyond 30 chars does NOT count."""
+        # Put 35+ chars of padding between negation keyword and match
+        content = "识别" + "一" * 35 + "日入过万"
         match_start = content.index("日入过万")
         match_end = match_start + 4
         assert _has_negation_context(content, match_start, match_end) is False
@@ -136,9 +136,9 @@ class TestAdvertorialNegationContext:
         assert negated_score < plain_score
 
     def test_far_negation_does_not_reduce(self):
-        """Negation keyword far away (>20 chars) does NOT reduce advertorial scores."""
-        # "揭露" is more than 20 chars away from both "推荐码" and "优惠券"
-        padding = "这是一段非常非常非常非常非常非常长的填充文字内容"
+        """Negation keyword far away (>30 chars) does NOT reduce advertorial scores."""
+        # "揭露" is more than 30 chars away from both "推荐码" and "优惠券"
+        padding = "这是一段非常非常非常非常非常非常非常非常非常非常长的填充文字内容用于测试"
         far_negation = apply_rules("揭露" + padding + "推荐码注册优惠券")
         plain = apply_rules("推荐码注册优惠券")
 
