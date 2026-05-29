@@ -209,3 +209,81 @@ class TestStartupValidation:
         with pytest.raises(RuntimeError, match="No LLM API key configured"):
             with TestClient(app):
                 pass
+
+
+class TestMultiTenantIsolation:
+    """Tests for multi-tenant data isolation via user_id."""
+
+    @patch("src.api.app.save")
+    @patch("src.api.app.score")
+    def test_authenticated_score_passes_user_id(self, mock_score, mock_save, set_api_key):
+        """Authenticated user's score is saved with their user_id."""
+        mock_result = ScoreResult(
+            overall_score=70.0,
+            dimensions=DimensionScores(
+                originality=70,
+                info_density=70,
+                reasoning_quality=70,
+                readability=70,
+                timeliness=70,
+                ai_generated_prob=30,
+                emotional_manipulation=10,
+                advertorial_prob=10,
+                scam_prob=5,
+            ),
+            labels=[],
+            summary="Test",
+            confidence=0.9,
+            model_used="test-model",
+            cost=0.0,
+            scored_at=datetime(2024, 1, 1, 12, 0, 0),
+        )
+        mock_score.return_value = mock_result
+        mock_save.return_value = None
+
+        from src.auth.dependencies import get_optional_user
+        from src.auth.models import User
+
+        mock_user = User(
+            id=7, username="testuser", api_key="test-key", created_at=datetime(2024, 1, 1)
+        )
+
+        from src.api.app import app
+
+        app.dependency_overrides[get_optional_user] = lambda: mock_user
+        try:
+            with TestClient(app) as c:
+                response = c.post("/score", json={"text": "Test content for user 7"})
+        finally:
+            app.dependency_overrides.pop(get_optional_user, None)
+
+        assert response.status_code == 200
+        mock_save.assert_called_once()
+        _, kwargs = mock_save.call_args
+        assert kwargs.get("user_id") == 7
+
+    @patch("src.api.app.query")
+    def test_authenticated_history_filters_by_user_id(self, mock_query, set_api_key):
+        """Authenticated user's history request filters by their user_id."""
+        mock_query.return_value = []
+
+        from src.auth.dependencies import get_optional_user
+        from src.auth.models import User
+
+        mock_user = User(
+            id=5, username="histuser", api_key="test-key", created_at=datetime(2024, 1, 1)
+        )
+
+        from src.api.app import app
+
+        app.dependency_overrides[get_optional_user] = lambda: mock_user
+        try:
+            with TestClient(app) as c:
+                response = c.get("/history")
+        finally:
+            app.dependency_overrides.pop(get_optional_user, None)
+
+        assert response.status_code == 200
+        mock_query.assert_called_once()
+        _, kwargs = mock_query.call_args
+        assert kwargs.get("user_id") == 5

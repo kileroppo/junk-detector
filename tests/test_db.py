@@ -6,7 +6,7 @@ Verifies query_by_domain wildcard escaping and query_by_content_hash behavior.
 from __future__ import annotations
 
 from src.models.score import Content, DimensionScores, InputType, ScoreResult
-from src.storage.db import init_db, query_by_content_hash, query_by_domain, save
+from src.storage.db import init_db, query, query_by_content_hash, query_by_domain, save
 
 
 def _make_result(
@@ -120,3 +120,41 @@ class TestQueryByContentHash:
         assert result is not None
         assert result["overall_score"] == 72.0
         assert "dimensions" in result
+
+
+class TestSaveWithUserId:
+    """Tests for save() and query() with user_id parameter."""
+
+    def test_save_with_user_id_stores_value(self, tmp_db_path):
+        """Saving with user_id stores the value in the user_id column."""
+        init_db(tmp_db_path)
+        result, content = _make_result(65.0, "https://example.com/user42")
+        save(result, content, db_path=tmp_db_path, user_id=42)
+
+        rows = query(db_path=tmp_db_path)
+        assert len(rows) == 1
+        assert rows[0]["user_id"] == 42
+
+    def test_save_without_user_id_stores_null(self, tmp_db_path):
+        """Saving without user_id stores NULL."""
+        init_db(tmp_db_path)
+        result, content = _make_result(55.0, "https://example.com/anon")
+        save(result, content, db_path=tmp_db_path)
+
+        rows = query(db_path=tmp_db_path)
+        assert len(rows) == 1
+        assert rows[0]["user_id"] is None
+
+    def test_query_filters_by_user_id(self, tmp_db_path):
+        """Query with user_id returns only that user's records."""
+        init_db(tmp_db_path)
+        result1, content1 = _make_result(70.0, "https://example.com/user1")
+        save(result1, content1, db_path=tmp_db_path, user_id=1)
+
+        result2, content2 = _make_result(80.0, "https://example.com/user2")
+        save(result2, content2, db_path=tmp_db_path, user_id=2)
+
+        rows = query(db_path=tmp_db_path, user_id=1)
+        assert len(rows) == 1
+        assert rows[0]["overall_score"] == 70.0
+        assert rows[0]["user_id"] == 1

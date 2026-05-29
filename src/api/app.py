@@ -190,7 +190,7 @@ async def score_content(
 
     # Save to storage (user_id available if authenticated)
     try:
-        save(result, content)
+        save(result, content, user_id=current_user.id if current_user is not None else None)
     except Exception:
         # Storage failure should not block returning the result
         pass
@@ -226,7 +226,11 @@ async def get_history(
         filters["date_from"] = date_from
 
     try:
-        results = query(filters=filters if filters else None, limit=limit)
+        results = query(
+            filters=filters if filters else None,
+            limit=limit,
+            user_id=current_user.id if current_user is not None else None,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Storage error: {e}")
 

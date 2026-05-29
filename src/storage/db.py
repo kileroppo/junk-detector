@@ -92,6 +92,7 @@ def save(
     content: Content,
     db_path: str = "junk_detector.db",
     embedding: list[float] | None = None,
+    user_id: int | None = None,
 ) -> None:
     """Save a scoring result to the database.
 
@@ -102,6 +103,7 @@ def save(
         content: The Content that was scored.
         db_path: Path to the SQLite database file.
         embedding: Optional embedding vector to store alongside the score.
+        user_id: Optional user ID for multi-tenant isolation.
     """
     _ensure_initialized(db_path)
 
@@ -118,8 +120,9 @@ def save(
             INSERT INTO scores (
                 input_type, source_url, title, content_hash, scored_at,
                 overall_score, dimensions_json, labels_json, summary,
-                model_used, cost, rule_hits_json, confidence, embedding_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                model_used, cost, rule_hits_json, confidence, embedding_json,
+                user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(content_hash) DO UPDATE SET
                 input_type = excluded.input_type,
                 source_url = excluded.source_url,
@@ -133,7 +136,8 @@ def save(
                 cost = excluded.cost,
                 rule_hits_json = excluded.rule_hits_json,
                 confidence = excluded.confidence,
-                embedding_json = excluded.embedding_json
+                embedding_json = excluded.embedding_json,
+                user_id = excluded.user_id
             """,
             (
                 content.input_type.value,
@@ -150,6 +154,7 @@ def save(
                 rule_hits_json,
                 result.confidence,
                 embedding_json,
+                user_id,
             ),
         )
         conn.commit()
@@ -198,6 +203,10 @@ def _build_filter_clause(filters: dict | None) -> tuple[str, list]:
             sql += " AND scored_at <= ?"
             params.append(filters["date_to"])
 
+        if "user_id" in filters:
+            sql += " AND user_id = ?"
+            params.append(filters["user_id"])
+
     return sql, params
 
 
@@ -206,6 +215,7 @@ def query(
     limit: int = 20,
     db_path: str = "junk_detector.db",
     offset: int = 0,
+    user_id: int | None = None,
 ) -> list[dict]:
     """Query scoring history with optional filters.
 
@@ -215,17 +225,24 @@ def query(
         - label (str): labels_json LIKE '%label%'
         - date_from (str): scored_at >= value (ISO format)
         - date_to (str): scored_at <= value (ISO format)
+        - user_id (int): filter by user_id
 
     Args:
         filters: Optional dictionary of filter conditions.
         limit: Maximum number of results to return.
         db_path: Path to the SQLite database file.
         offset: Number of rows to skip (for pagination).
+        user_id: Optional user ID to filter results by owner.
 
     Returns:
         List of score records as dictionaries.
     """
     _ensure_initialized(db_path)
+
+    if user_id is not None:
+        if filters is None:
+            filters = {}
+        filters["user_id"] = user_id
 
     filter_clause, params = _build_filter_clause(filters)
     sql = "SELECT * FROM scores WHERE 1=1" + filter_clause
@@ -269,17 +286,18 @@ def count_records(
         conn.close()
 
 
-def get_history(limit: int = 20, db_path: str = "junk_detector.db") -> list[dict]:
+def get_history(limit: int = 20, db_path: str = "junk_detector.db", user_id: int | None = None) -> list[dict]:
     """Shortcut to get recent scoring history.
 
     Args:
         limit: Maximum number of results to return.
         db_path: Path to the SQLite database file.
+        user_id: Optional user ID to filter results by owner.
 
     Returns:
         List of recent score records as dictionaries.
     """
-    return query(filters=None, limit=limit, db_path=db_path)
+    return query(filters=None, limit=limit, db_path=db_path, user_id=user_id)
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
