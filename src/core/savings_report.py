@@ -141,6 +141,48 @@ def get_savings_report(days: int = 30, db_path: str = "junk_detector.db") -> dic
         time_saved_seconds = max(0, estimated_time_if_manual - our_total_seconds)
         time_saved_minutes = round(time_saved_seconds / 60, 1)
 
+        # --- User-facing metrics ---
+        # Count items with overall_score < 40 in the period
+        junk_blocked_count = 0
+        try:
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM scores WHERE overall_score < 40 AND DATE(scored_at) >= ?",
+                (start_date,),
+            )
+            row = cursor.fetchone()
+            junk_blocked_count = row[0] if row else 0
+        except Exception:
+            pass
+
+        # Time saved: assume 4 minutes average reading time per junk article
+        time_saved_reading_minutes = junk_blocked_count * 4
+
+        # Count scam-detected items (scam_prob > 60)
+        scam_detected_count = 0
+        try:
+            cursor = conn.execute(
+                """SELECT COUNT(*) FROM scores
+                   WHERE DATE(scored_at) >= ?
+                   AND json_extract(dimensions_json, '$.scam_prob') > 60""",
+                (start_date,),
+            )
+            row = cursor.fetchone()
+            scam_detected_count = row[0] if row else 0
+        except Exception:
+            pass
+
+        # Count high quality items (score > 75)
+        high_quality_found_count = 0
+        try:
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM scores WHERE overall_score > 75 AND DATE(scored_at) >= ?",
+                (start_date,),
+            )
+            row = cursor.fetchone()
+            high_quality_found_count = row[0] if row else 0
+        except Exception:
+            pass
+
         return {
             "total_scores": total_scores,
             "rules_only_count": rules_only_count,
@@ -152,6 +194,10 @@ def get_savings_report(days: int = 30, db_path: str = "junk_detector.db") -> dic
             "avg_response_time_ms": avg_response_time_ms,
             "estimated_time_if_manual": estimated_time_if_manual,
             "time_saved_minutes": time_saved_minutes,
+            "junk_blocked_count": junk_blocked_count,
+            "time_saved_reading_minutes": time_saved_reading_minutes,
+            "scam_detected_count": scam_detected_count,
+            "high_quality_found_count": high_quality_found_count,
         }
 
     except Exception as e:
@@ -167,6 +213,10 @@ def get_savings_report(days: int = 30, db_path: str = "junk_detector.db") -> dic
             "avg_response_time_ms": 0,
             "estimated_time_if_manual": 0,
             "time_saved_minutes": 0.0,
+            "junk_blocked_count": 0,
+            "time_saved_reading_minutes": 0,
+            "scam_detected_count": 0,
+            "high_quality_found_count": 0,
         }
     finally:
         conn.close()

@@ -81,32 +81,55 @@
             <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             本月节省报告
         </h2>
+        <!-- User-centric metrics (primary display) -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
-                <p class="text-xs text-gray-500 dark:text-gray-400">总评分次数</p>
-                <p class="text-lg font-bold text-gray-700 dark:text-gray-200">{{ savings.total_scores }}</p>
+            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+                <p class="text-xs text-gray-500 dark:text-gray-400">本月拦截低质量内容</p>
+                <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ savings.junk_blocked_count }} 篇</p>
             </div>
-            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
-                <p class="text-xs text-gray-500 dark:text-gray-400">规则直接判定 (零成本)</p>
-                <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400">{{ savings.rules_only_count }}</p>
+            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+                <p class="text-xs text-gray-500 dark:text-gray-400">为你节省阅读时间</p>
+                <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400">约 {{ savings.time_saved_reading_minutes }} 分钟</p>
             </div>
-            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
-                <p class="text-xs text-gray-500 dark:text-gray-400">缓存命中</p>
-                <p class="text-lg font-bold text-gray-700 dark:text-gray-200">{{ savings.cached_count }}</p>
+            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+                <p class="text-xs text-gray-500 dark:text-gray-400">发现疑似骗局</p>
+                <p class="text-2xl font-bold text-amber-600 dark:text-amber-400">{{ savings.scam_detected_count }} 篇</p>
             </div>
-            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
-                <p class="text-xs text-gray-500 dark:text-gray-400">Token 节省</p>
-                <p class="text-lg font-bold text-indigo-600 dark:text-indigo-400">{{ savings.token_savings_percent }}%</p>
-            </div>
-            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
-                <p class="text-xs text-gray-500 dark:text-gray-400">估算省钱</p>
-                <p class="text-lg font-bold text-amber-600 dark:text-amber-400">&yen;{{ savings.estimated_cost_saved_yuan }}</p>
-            </div>
-            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
-                <p class="text-xs text-gray-500 dark:text-gray-400">估算省时</p>
-                <p class="text-lg font-bold text-amber-600 dark:text-amber-400">{{ savings.time_saved_minutes }} 分钟</p>
+            <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-4 border border-gray-200 dark:border-navy-700">
+                <p class="text-xs text-gray-500 dark:text-gray-400">推荐高质量内容</p>
+                <p class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{{ savings.high_quality_found_count }} 篇</p>
             </div>
         </div>
+        <!-- Collapsed technical details -->
+        <details class="mt-4">
+            <summary class="text-sm text-gray-500 cursor-pointer hover:text-gray-400">技术细节</summary>
+            <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">总评分次数</p>
+                    <p class="text-lg font-bold text-gray-700 dark:text-gray-200">{{ savings.total_scores }}</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">规则直接判定 (零成本)</p>
+                    <p class="text-lg font-bold text-emerald-600 dark:text-emerald-400">{{ savings.rules_only_count }}</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">缓存命中</p>
+                    <p class="text-lg font-bold text-gray-700 dark:text-gray-200">{{ savings.cached_count }}</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Token 节省</p>
+                    <p class="text-lg font-bold text-indigo-600 dark:text-indigo-400">{{ savings.token_savings_percent }}%</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">估算省钱</p>
+                    <p class="text-lg font-bold text-amber-600 dark:text-amber-400">&yen;{{ savings.estimated_cost_saved_yuan }}</p>
+                </div>
+                <div class="bg-gray-50 dark:bg-navy-900 rounded-lg p-3 border border-gray-200 dark:border-navy-700">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">估算省时</p>
+                    <p class="text-lg font-bold text-amber-600 dark:text-amber-400">{{ savings.time_saved_minutes }} 分钟</p>
+                </div>
+            </div>
+        </details>
     </div>
 
     <!-- About -->

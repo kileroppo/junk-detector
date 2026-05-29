@@ -22,7 +22,39 @@
     </div>
     {% endif %}
 
-    <!-- Credibility Passport -->
+    <!-- Verdict Card (simple-first UX) -->
+    {% if result.verdict_data %}
+    <div class="bg-surface rounded-xl p-6 border border-navy-700" id="verdict-card">
+        <div class="flex items-start gap-4">
+            {% if result.verdict_data.severity == 'safe' %}
+            <div class="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            {% elif result.verdict_data.severity == 'warning' %}
+            <div class="w-14 h-14 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            </div>
+            {% else %}
+            <div class="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
+                <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            {% endif %}
+            <div class="flex-1">
+                <p class="text-xl font-bold {% if result.verdict_data.severity == 'safe' %}text-emerald-400{% elif result.verdict_data.severity == 'warning' %}text-amber-400{% else %}text-red-400{% endif %}">
+                    {{ result.verdict_data.verdict }}
+                </p>
+                <p class="text-base text-gray-300 mt-2">{{ result.verdict_data.action }}</p>
+                <div class="flex items-center gap-3 mt-3 text-sm text-gray-400">
+                    {% if result.content_type_label %}
+                    <span class="px-2 py-0.5 rounded bg-navy-900 border border-navy-700 text-xs">{{ result.content_type_label }}</span>
+                    {% endif %}
+                    <span>{{ result.verdict_data.read_time_minutes }} 分钟阅读</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Fallback: Credibility Passport for old results without verdict_data -->
     <div class="bg-surface rounded-xl p-5 border border-navy-700 flex items-center gap-4" id="credibility-passport">
         {% if result.overall_score > 70 %}
         <div class="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
@@ -50,6 +82,15 @@
         </div>
         {% endif %}
     </div>
+    {% endif %}
+
+    <!-- Expandable Detailed Analysis -->
+    <details class="bg-surface rounded-xl border border-navy-700 overflow-hidden">
+        <summary class="px-6 py-4 cursor-pointer text-lg font-semibold hover:bg-surface-raised transition-colors flex items-center gap-2">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            查看详细分析
+        </summary>
+        <div class="px-6 pb-6 space-y-6">
 
     <!-- Overall Score with SVG Ring -->
     <div class="bg-surface rounded-xl p-5 border border-navy-700 text-center">
@@ -323,6 +364,10 @@
         </div>
     </details>
     {% endif %}
+
+        </div>
+    </details>
+    <!-- End of expandable detailed analysis -->
 
     <!-- Metadata (collapsible) -->
     <details class="bg-surface rounded-xl border border-navy-700 overflow-hidden">

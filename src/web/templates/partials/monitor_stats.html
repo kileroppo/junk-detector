@@ -94,6 +94,78 @@
 
     <!-- Recent Items Table -->
     {% if recent_items %}
+    <!-- Daily Digest Summary Card -->
+    <div class="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-xl p-4 border border-indigo-700/50">
+        <h2 class="text-lg font-semibold mb-1 flex items-center gap-2">
+            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+            每日精选
+        </h2>
+        {% set ns = namespace(recommended_count=0, junk_count=0) %}
+        {% for item in recent_items %}
+            {% if item.score is not none and item.score > 70 %}
+                {% set ns.recommended_count = ns.recommended_count + 1 %}
+            {% endif %}
+            {% if item.score is not none and item.score < 40 %}
+                {% set ns.junk_count = ns.junk_count + 1 %}
+            {% endif %}
+        {% endfor %}
+        <p class="text-sm text-gray-300">
+            {{ feeds|length }} 个信源发了 {{ recent_items|length }} 篇新文章，其中
+            <span class="text-emerald-400 font-medium">{{ ns.recommended_count }} 篇值得看</span>
+        </p>
+    </div>
+
+    <!-- Recommended Reading (score > 70) -->
+    {% set ns2 = namespace(has_recommended=false) %}
+    {% for item in recent_items %}
+        {% if item.score is not none and item.score > 70 %}
+            {% set ns2.has_recommended = true %}
+        {% endif %}
+    {% endfor %}
+    {% if ns2.has_recommended %}
+    <div>
+        <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+            推荐阅读
+        </h2>
+        <div class="space-y-2">
+            {% for item in recent_items %}
+            {% if item.score is not none and item.score > 70 %}
+            <div class="bg-surface rounded-lg p-3 border border-navy-700 flex items-center gap-3">
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-emerald-900/30 text-emerald-300">{{ "%.0f"|format(item.score) }}</span>
+                <a href="{{ item.link }}" target="_blank" class="text-indigo-400 hover:underline text-sm truncate flex-1">
+                    {{ item.title[:60] }}{% if item.title|length > 60 %}...{% endif %}
+                </a>
+                <span class="text-xs text-gray-500">{{ item.source }}</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Low Quality Items (collapsed) -->
+    {% if ns.junk_count > 0 %}
+    <details class="bg-surface rounded-xl border border-navy-700 overflow-hidden">
+        <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-gray-400 hover:text-gray-300 transition-colors">
+            低质量内容 ({{ ns.junk_count }} 篇)
+        </summary>
+        <div class="px-4 pb-4 space-y-2">
+            {% for item in recent_items %}
+            {% if item.score is not none and item.score < 40 %}
+            <div class="flex items-center gap-3">
+                <span class="px-2 py-0.5 rounded text-xs font-medium bg-red-900/30 text-red-300">{{ "%.0f"|format(item.score) }}</span>
+                <a href="{{ item.link }}" target="_blank" class="text-gray-400 hover:underline text-sm truncate flex-1">
+                    {{ item.title[:60] }}{% if item.title|length > 60 %}...{% endif %}
+                </a>
+                <span class="text-xs text-gray-500">{{ item.source }}</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
     <div>
         <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
             <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>

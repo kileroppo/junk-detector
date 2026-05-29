@@ -312,3 +312,141 @@ class TestCalculationCorrectness:
         result = get_savings_report(days=30, db_path=db_path)
         # Should return zeros without crashing
         assert result["total_scores"] == 0
+
+
+class TestUserFacingMetrics:
+    """Test new user-centric savings metrics."""
+
+    def test_junk_blocked_count(self, setup_db):
+        """Items with overall_score < 40 are counted as junk blocked."""
+        conn = sqlite3.connect(setup_db)
+        now = datetime.now()
+
+        # Add 3 junk items (score < 40)
+        for i in range(3):
+            scored_at = (now - timedelta(days=i)).isoformat()
+            conn.execute(
+                """INSERT INTO scores (input_type, content_hash, scored_at,
+                   overall_score, dimensions_json, labels_json, summary, model_used)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                ("text", f"junk_{i}", scored_at, 25.0, "{}", "[]", "junk", "deepseek"),
+            )
+
+        # Add 2 good items (score >= 40)
+        for i in range(2):
+            scored_at = (now - timedelta(days=i)).isoformat()
+            conn.execute(
+                """INSERT INTO scores (input_type, content_hash, scored_at,
+                   overall_score, dimensions_json, labels_json, summary, model_used)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                ("text", f"good_{i}", scored_at, 65.0, "{}", "[]", "good", "deepseek"),
+            )
+
+        conn.commit()
+        conn.close()
+
+        result = get_savings_report(days=30, db_path=setup_db)
+        assert result["junk_blocked_count"] == 3
+
+    def test_time_saved_reading_minutes(self, setup_db):
+        """Time saved is junk_blocked_count * 4 minutes."""
+        conn = sqlite3.connect(setup_db)
+        now = datetime.now()
+
+        # Add 5 junk items
+        for i in range(5):
+            scored_at = (now - timedelta(days=i)).isoformat()
+            conn.execute(
+                """INSERT INTO scores (input_type, content_hash, scored_at,
+                   overall_score, dimensions_json, labels_json, summary, model_used)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                ("text", f"junk_{i}", scored_at, 20.0, "{}", "[]", "junk", "deepseek"),
+            )
+
+        conn.commit()
+        conn.close()
+
+        result = get_savings_report(days=30, db_path=setup_db)
+        assert result["junk_blocked_count"] == 5
+        assert result["time_saved_reading_minutes"] == 20  # 5 * 4
+
+    def test_high_quality_found_count(self, setup_db):
+        """Items with overall_score > 75 are counted as high quality."""
+        conn = sqlite3.connect(setup_db)
+        now = datetime.now()
+
+        # Add 4 high quality items (score > 75)
+        for i in range(4):
+            scored_at = (now - timedelta(days=i)).isoformat()
+            conn.execute(
+                """INSERT INTO scores (input_type, content_hash, scored_at,
+                   overall_score, dimensions_json, labels_json, summary, model_used)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                ("text", f"hq_{i}", scored_at, 85.0, "{}", "[]", "high quality", "deepseek"),
+            )
+
+        # Add 2 mediocre items (score <= 75)
+        for i in range(2):
+            scored_at = (now - timedelta(days=i)).isoformat()
+            conn.execute(
+                """INSERT INTO scores (input_type, content_hash, scored_at,
+                   overall_score, dimensions_json, labels_json, summary, model_used)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                ("text", f"med_{i}", scored_at, 60.0, "{}", "[]", "mediocre", "deepseek"),
+            )
+
+        conn.commit()
+        conn.close()
+
+        result = get_savings_report(days=30, db_path=setup_db)
+        assert result["high_quality_found_count"] == 4
+
+    def test_scam_detected_count(self, setup_db):
+        """Items with scam_prob > 60 in dimensions_json are counted as scams."""
+        conn = sqlite3.connect(setup_db)
+        now = datetime.now()
+        import json as _json
+
+        # Add 2 scam items (scam_prob > 60)
+        for i in range(2):
+            scored_at = (now - timedelta(days=i)).isoformat()
+            dims = _json.dumps({"scam_prob": 75, "advertorial_prob": 10})
+            conn.execute(
+                """INSERT INTO scores (input_type, content_hash, scored_at,
+                   overall_score, dimensions_json, labels_json, summary, model_used)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                ("text", f"scam_{i}", scored_at, 30.0, dims, "[]", "scam", "deepseek"),
+            )
+
+        # Add 3 non-scam items (scam_prob <= 60)
+        for i in range(3):
+            scored_at = (now - timedelta(days=i)).isoformat()
+            dims = _json.dumps({"scam_prob": 20, "advertorial_prob": 10})
+            conn.execute(
+                """INSERT INTO scores (input_type, content_hash, scored_at,
+                   overall_score, dimensions_json, labels_json, summary, model_used)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                ("text", f"safe_{i}", scored_at, 70.0, dims, "[]", "safe", "deepseek"),
+            )
+
+        conn.commit()
+        conn.close()
+
+        result = get_savings_report(days=30, db_path=setup_db)
+        assert result["scam_detected_count"] == 2
+
+    def test_user_metrics_with_empty_db(self, setup_db):
+        """User-facing metrics return 0 on empty database."""
+        result = get_savings_report(days=30, db_path=setup_db)
+        assert result["junk_blocked_count"] == 0
+        assert result["time_saved_reading_minutes"] == 0
+        assert result["scam_detected_count"] == 0
+        assert result["high_quality_found_count"] == 0
+
+    def test_user_metrics_keys_present(self, setup_db):
+        """All user-facing metric keys are present in the result."""
+        result = get_savings_report(days=30, db_path=setup_db)
+        assert "junk_blocked_count" in result
+        assert "time_saved_reading_minutes" in result
+        assert "scam_detected_count" in result
+        assert "high_quality_found_count" in result

@@ -173,6 +173,17 @@ async def score_submit(
             "content_type_label": report.result.content_type_label,
         }
 
+        # Generate verdict for simple-first UX
+        from src.core.verdict_generator import generate_verdict
+
+        verdict_data = generate_verdict(
+            overall_score=report.result.overall_score,
+            dimensions=report.result.dimensions.model_dump(),
+            content_type=report.result.content_type,
+            content_text=content.text,
+        )
+        result_data["verdict_data"] = verdict_data
+
         # Check if HTMX request
         is_htmx = request.headers.get("HX-Request") == "true"
         if is_htmx:
@@ -486,6 +497,10 @@ async def settings_page(request: Request):
             "avg_response_time_ms": 0,
             "estimated_time_if_manual": 0,
             "time_saved_minutes": 0.0,
+            "junk_blocked_count": 0,
+            "time_saved_reading_minutes": 0,
+            "scam_detected_count": 0,
+            "high_quality_found_count": 0,
         }
 
     return templates.TemplateResponse(
