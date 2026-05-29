@@ -158,3 +158,55 @@ class TestSaveWithUserId:
         assert len(rows) == 1
         assert rows[0]["overall_score"] == 70.0
         assert rows[0]["user_id"] == 1
+
+    def test_save_different_user_same_content_does_not_overwrite(self, tmp_db_path):
+        """Saving with different user_id on same content_hash does not corrupt first user's data."""
+        init_db(tmp_db_path)
+        # User A scores content first
+        result_a, content_a = _make_result(70.0, "https://example.com/shared")
+        save(result_a, content_a, db_path=tmp_db_path, user_id=1)
+
+        # User B scores identical content (same content_hash)
+        result_b, content_b = _make_result(85.0, "https://example.com/shared")
+        # content_b has same content_hash as content_a since same URL/text
+        save(result_b, content_b, db_path=tmp_db_path, user_id=2)
+
+        # User A's row should be unchanged
+        rows_a = query(db_path=tmp_db_path, user_id=1)
+        assert len(rows_a) == 1
+        assert rows_a[0]["user_id"] == 1
+        assert rows_a[0]["overall_score"] == 70.0
+
+        # User B should have no record (upsert was skipped due to WHERE clause)
+        rows_b = query(db_path=tmp_db_path, user_id=2)
+        assert len(rows_b) == 0
+
+    def test_save_same_user_same_content_does_update(self, tmp_db_path):
+        """Saving with same user_id on same content_hash updates the row."""
+        init_db(tmp_db_path)
+        result1, content1 = _make_result(70.0, "https://example.com/rescore")
+        save(result1, content1, db_path=tmp_db_path, user_id=1)
+
+        # Same user re-scores: should update
+        result2, content2 = _make_result(85.0, "https://example.com/rescore")
+        save(result2, content2, db_path=tmp_db_path, user_id=1)
+
+        rows = query(db_path=tmp_db_path, user_id=1)
+        assert len(rows) == 1
+        assert rows[0]["overall_score"] == 85.0
+
+    def test_save_null_user_then_authenticated_user_updates(self, tmp_db_path):
+        """Anonymous save (user_id=NULL) can be updated by any user."""
+        init_db(tmp_db_path)
+        # Anonymous user scores first
+        result1, content1 = _make_result(60.0, "https://example.com/anon-first")
+        save(result1, content1, db_path=tmp_db_path, user_id=None)
+
+        # Authenticated user scores same content - should update (WHERE user_id IS NULL)
+        result2, content2 = _make_result(75.0, "https://example.com/anon-first")
+        save(result2, content2, db_path=tmp_db_path, user_id=5)
+
+        rows = query(db_path=tmp_db_path)
+        assert len(rows) == 1
+        # The row was updated (user_id stays NULL because user_id is not in UPDATE SET)
+        assert rows[0]["overall_score"] == 75.0

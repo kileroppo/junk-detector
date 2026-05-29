@@ -89,6 +89,7 @@ class PostgresBackend:
                     cost = EXCLUDED.cost,
                     rule_hits_json = EXCLUDED.rule_hits_json,
                     confidence = EXCLUDED.confidence
+                WHERE scores.user_id IS NULL OR scores.user_id = $14
                 """,
                 content.input_type.value,
                 content.source_url,

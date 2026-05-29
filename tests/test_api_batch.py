@@ -104,7 +104,7 @@ class TestBatchScoreEndpoint:
     @patch("src.api.app.save")
     @patch("src.api.app.score")
     def test_batch_notifies_per_item(self, mock_score, mock_save, mock_notify, client):
-        """Each scored item triggers a WebSocket notification."""
+        """Anonymous batch scoring does NOT trigger WebSocket notifications."""
         mock_score.return_value = _mock_score_result()
         mock_save.return_value = None
 
@@ -118,7 +118,8 @@ class TestBatchScoreEndpoint:
             },
         )
         assert response.status_code == 200
-        assert mock_notify.call_count == 2
+        # Anonymous scoring should NOT broadcast to all clients
+        mock_notify.assert_not_called()
 
     def test_batch_empty_items_rejected(self, client):
         """Empty items list returns 422."""

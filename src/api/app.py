@@ -229,13 +229,12 @@ async def score_content(
         # Storage failure should not block returning the result
         pass
 
-    # Notify via WebSocket (fire-and-forget, don't block response)
+    # Notify via WebSocket (scoped to user, skip for anonymous)
     try:
         if current_user is not None:
             from src.api.websocket import manager as ws_manager
             await ws_manager.send_to_user(current_user.id, "score_completed", result.model_dump())
-        else:
-            await dispatcher.notify_score_completed(result.model_dump())
+        # Anonymous scoring: no WebSocket notification (no targeted audience)
     except Exception:
         pass  # Notification failure should never block scoring response
 
@@ -317,13 +316,12 @@ async def score_batch(
                 except Exception:
                     pass
 
-                # Notify per-item completion
+                # Notify per-item completion (scoped to user, skip for anonymous)
                 try:
                     if user_id is not None:
                         from src.api.websocket import manager as ws_manager
                         await ws_manager.send_to_user(user_id, "score_completed", result.model_dump())
-                    else:
-                        await dispatcher.notify_score_completed(result.model_dump())
+                    # Anonymous scoring: no WebSocket notification (no targeted audience)
                 except Exception:
                     pass
 

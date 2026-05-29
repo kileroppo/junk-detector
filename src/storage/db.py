@@ -137,6 +137,7 @@ def save(
                 rule_hits_json = excluded.rule_hits_json,
                 confidence = excluded.confidence,
                 embedding_json = excluded.embedding_json
+            WHERE scores.user_id IS NULL OR scores.user_id = ?
             """,
             (
                 content.input_type.value,
@@ -153,6 +154,7 @@ def save(
                 rule_hits_json,
                 result.confidence,
                 embedding_json,
+                user_id,
                 user_id,
             ),
         )

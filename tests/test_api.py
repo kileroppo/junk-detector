@@ -220,7 +220,7 @@ class TestNotificationDispatch:
     def test_score_triggers_notification(
         self, mock_score, mock_save, mock_notify, client
     ):
-        """Anonymous scoring triggers notify_score_completed with the result data."""
+        """Anonymous scoring does NOT trigger notify_score_completed (no broadcast)."""
         mock_result = ScoreResult(
             overall_score=65.0,
             dimensions=DimensionScores(
@@ -246,9 +246,8 @@ class TestNotificationDispatch:
 
         response = client.post("/score", json={"text": "Test article for notifications."})
         assert response.status_code == 200
-        mock_notify.assert_called_once()
-        call_args = mock_notify.call_args[0][0]
-        assert call_args["overall_score"] == 65.0
+        # Anonymous scoring should NOT broadcast to all clients
+        mock_notify.assert_not_called()
 
     @patch("src.api.websocket.manager.send_to_user", new_callable=AsyncMock)
     @patch("src.api.app.dispatcher.notify_score_completed", new_callable=AsyncMock)
