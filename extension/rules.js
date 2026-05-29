@@ -118,6 +118,7 @@ function scoreContent(text, options) {
   }
 
   var sensitivity = (options && options.sensitivity) || "standard";
+  var customKeywords = (options && options.customKeywords) || [];
   // Threshold for junk verdict based on sensitivity
   var junkThreshold = 60;
   var suspiciousThreshold = 30;
@@ -129,7 +130,17 @@ function scoreContent(text, options) {
     suspiciousThreshold = 40;
   }
 
-  const scamResult = countMatches(text, SCAM_KEYWORDS);
+  // Merge custom keywords with built-in scam keywords for this scoring call
+  var effectiveScamKeywords = SCAM_KEYWORDS.slice();
+  if (customKeywords.length > 0) {
+    customKeywords.forEach(function (kw) {
+      if (effectiveScamKeywords.indexOf(kw) === -1) {
+        effectiveScamKeywords.push(kw);
+      }
+    });
+  }
+
+  const scamResult = countMatches(text, effectiveScamKeywords);
   const anxietyResult = countMatches(text, ANXIETY_PHRASES);
   const advertorialResult = countMatches(text, ADVERTORIAL_KEYWORDS);
 

@@ -42,7 +42,23 @@
       // Sound toggle
       var soundToggle = document.getElementById("sound-toggle");
       soundToggle.checked = settings.sound_enabled === true;
+
+      // Custom keywords
+      var kwTextarea = document.getElementById("custom-keywords");
+      if (kwTextarea) {
+        chrome.storage.sync.get("custom_keywords", function (kwData) {
+          kwTextarea.value = kwData.custom_keywords || "";
+        });
+      }
     });
+
+    // Silent mode toggle
+    var silentToggle = document.getElementById("silent-toggle");
+    if (silentToggle) {
+      chrome.storage.local.get("silent_until", function (data) {
+        silentToggle.checked = data.silent_until && Date.now() < data.silent_until;
+      });
+    }
   }
 
   /**
@@ -135,6 +151,29 @@
   document.getElementById("excluded-sites").addEventListener("input", saveSettings);
   document.getElementById("notifications-toggle").addEventListener("change", saveSettings);
   document.getElementById("sound-toggle").addEventListener("change", saveSettings);
+
+  // Silent mode toggle
+  var silentToggle = document.getElementById("silent-toggle");
+  if (silentToggle) {
+    silentToggle.addEventListener("change", function () {
+      if (silentToggle.checked) {
+        chrome.storage.local.set({ silent_until: Date.now() + 30 * 60 * 1000 });
+      } else {
+        chrome.storage.local.remove("silent_until");
+      }
+      showSaveMessage();
+    });
+  }
+
+  // Custom keywords textarea
+  var kwTextarea = document.getElementById("custom-keywords");
+  if (kwTextarea) {
+    kwTextarea.addEventListener("input", function () {
+      chrome.storage.sync.set({ custom_keywords: kwTextarea.value }, function () {
+        showSaveMessage();
+      });
+    });
+  }
 
   // History management buttons
   document.getElementById("export-history-btn").addEventListener("click", exportHistory);

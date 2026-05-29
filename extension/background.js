@@ -229,6 +229,27 @@ function checkSoundAlert(verdict) {
   });
 }
 
+/**
+ * Update top sites tracking data after scoring.
+ * @param {string} url - The tab URL
+ * @param {object} result - The scoring result
+ */
+function updateTopSites(url, result) {
+  if (!url) return;
+  try {
+    var domain = new URL(url).hostname;
+    chrome.storage.local.get("top_sites", function (data) {
+      var sites = data.top_sites || {};
+      if (!sites[domain]) sites[domain] = { count: 0, totalScore: 0 };
+      sites[domain].count += 1;
+      sites[domain].totalScore += (100 - result.score);
+      chrome.storage.local.set({ top_sites: sites });
+    });
+  } catch (e) {
+    // Invalid URL, skip
+  }
+}
+
 // Listen for messages from content scripts
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
   if (message.type === "SCORE_CONTENT" && message.text) {
@@ -247,28 +268,37 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
       return true;
     }
 
-    var rawResult = scoreContent(message.text);
-
-    // Apply calibration adjustment
-    applyCalibration(rawResult, function (result) {
-      // Cache the result by URL
-      if (tabUrl) {
-        resultCache.set(tabUrl, result);
+    // Read custom keywords from storage, then score
+    chrome.storage.sync.get("custom_keywords", function (kwData) {
+      var customKeywords = [];
+      if (kwData.custom_keywords && typeof kwData.custom_keywords === "string") {
+        customKeywords = kwData.custom_keywords.split("\n").map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
       }
 
-      if (tabId) {
-        updateBadge(tabId, result);
-        updateActionIcon(tabId, result.verdict);
-        storeResult(tabId, result);
-        if (sender.tab) {
-          pushToHistory(sender.tab, result);
+      var rawResult = scoreContent(message.text, { customKeywords: customKeywords });
+
+      // Apply calibration adjustment
+      applyCalibration(rawResult, function (result) {
+        // Cache the result by URL
+        if (tabUrl) {
+          resultCache.set(tabUrl, result);
         }
-        incrementDailyStats(result.verdict);
-        incrementGlobalScoreCount();
-        checkSoundAlert(result.verdict);
-      }
 
-      sendResponse({ result: result });
+        if (tabId) {
+          updateBadge(tabId, result);
+          updateActionIcon(tabId, result.verdict);
+          storeResult(tabId, result);
+          if (sender.tab) {
+            pushToHistory(sender.tab, result);
+          }
+          incrementDailyStats(result.verdict);
+          incrementGlobalScoreCount();
+          checkSoundAlert(result.verdict);
+          updateTopSites(tabUrl, result);
+        }
+
+        sendResponse({ result: result });
+      });
     });
   } else if (message.type === "DISMISS_URL") {
     // Track dismiss for calibration

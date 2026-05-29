@@ -36,6 +36,10 @@
     btn.addEventListener("click", function () {
       panel.classList.toggle("hidden");
       btn.classList.toggle("active");
+      if (!panel.classList.contains("hidden")) {
+        displayReadingTimeSaved();
+        displayTopSiteStat();
+      }
     });
   }
 
@@ -111,10 +115,14 @@
     const keywordsEl = document.getElementById("keywords-list");
     const dailyStatsEl = document.getElementById("daily-stats");
     const dismissBtn = document.getElementById("dismiss-btn");
+    const container = document.querySelector(".container");
 
-    if (!result) {
-      iconEl.textContent = "\u2753";
-      explanationEl.textContent = "\u8bf7\u5728\u652f\u6301\u7684\u7f51\u7ad9\u4e0a\u6253\u5f00\u6587\u7ae0\u540e\u518d\u68c0\u6d4b";
+    if (!result || result.verdict === "quality") {
+      // Calm state: show reassuring message
+      iconEl.textContent = "\u2728";
+      iconEl.classList.add("breathing");
+      explanationEl.textContent = "\u5f53\u524d\u9875\u9762\u672a\u53d1\u73b0\u5f02\u5e38";
+      container.classList.add("calm-state");
       scoreEl.textContent = "--";
       scoreEl.className = "score-value";
       dismissBtn.classList.add("hidden");
@@ -123,6 +131,10 @@
       showDailyStats(dailyStatsEl);
       return;
     }
+
+    // Remove calm state classes
+    iconEl.classList.remove("breathing");
+    container.classList.remove("calm-state");
 
     // Hide daily stats when there is an active result
     dailyStatsEl.classList.add("hidden");
@@ -469,6 +481,120 @@
     });
   }
 
+  /**
+   * Calculate and display reading time saved in menu panel.
+   * Formula: articles warned (suspicious + junk) this month * 3 minutes avg.
+   */
+  function displayReadingTimeSaved() {
+    var el = document.getElementById("reading-time");
+    if (!el) return;
+    var now = new Date();
+    var year = now.getFullYear();
+    var month = String(now.getMonth() + 1).padStart(2, "0");
+    var daysInMonth = new Date(year, now.getMonth() + 1, 0).getDate();
+    var keys = [];
+    for (var d = 1; d <= daysInMonth; d++) {
+      var day = String(d).padStart(2, "0");
+      keys.push("stats_" + year + "-" + month + "-" + day);
+    }
+    chrome.storage.local.get(keys, function (data) {
+      var totalWarned = 0;
+      keys.forEach(function (key) {
+        var stats = data[key];
+        if (stats) {
+          totalWarned += (stats.suspicious || 0) + (stats.junk || 0);
+        }
+      });
+      var minutesSaved = totalWarned * 3;
+      if (minutesSaved > 0) {
+        el.textContent = "\u672c\u6708\u9274\u771f\u5e2e\u4f60\u907f\u514d\u4e86\u7ea6 " + minutesSaved + " \u5206\u949f\u7684\u4f4e\u8d28\u91cf\u9605\u8bfb";
+        el.classList.remove("hidden");
+      } else {
+        el.classList.add("hidden");
+      }
+    });
+  }
+
+  /**
+   * Display top site stat in menu panel.
+   * Shows the most visited domain and its average quality score.
+   */
+  function displayTopSiteStat() {
+    var el = document.getElementById("top-site-stat");
+    if (!el) return;
+    chrome.storage.local.get("top_sites", function (data) {
+      var sites = data.top_sites || {};
+      var topDomain = null;
+      var topCount = 0;
+      Object.keys(sites).forEach(function (domain) {
+        if (sites[domain].count > topCount) {
+          topCount = sites[domain].count;
+          topDomain = domain;
+        }
+      });
+      if (topDomain && topCount > 0) {
+        var avg = Math.round(sites[topDomain].totalScore / sites[topDomain].count);
+        el.textContent = "\u4f60\u6700\u5e38\u9605\u8bfb\u7684 " + topDomain + " \u5185\u5bb9\u8d28\u91cf\u5e73\u5747\u5206 " + avg;
+        el.classList.remove("hidden");
+      } else {
+        el.classList.add("hidden");
+      }
+    });
+  }
+
+  /**
+   * Check for update notification flag and show overlay.
+   * Auto-dismisses after 5 seconds.
+   */
+  function checkUpdateNotification() {
+    chrome.storage.local.get(["updated", "previousVersion"], function (data) {
+      if (!data.updated) return;
+      var el = document.getElementById("update-notification");
+      if (!el) return;
+      var version = "0.1.0";
+      if (chrome.runtime.getManifest) {
+        version = chrome.runtime.getManifest().version;
+      }
+      el.textContent = "\ud83c\udf89 v" + version + ": \u65b0\u529f\u80fd\u5df2\u66f4\u65b0";
+      el.classList.remove("hidden");
+      // Remove the updated flag
+      chrome.storage.local.remove(["updated", "previousVersion"]);
+      // Auto-dismiss after 5 seconds
+      setTimeout(function () {
+        el.style.opacity = "0";
+        setTimeout(function () {
+          el.classList.add("hidden");
+          el.style.opacity = "";
+        }, 500);
+      }, 5000);
+    });
+  }
+
+  /**
+   * Check for 7-day streak and show celebration if not already shown.
+   */
+  function checkStreakCelebration() {
+    chrome.storage.local.get(["streak", "streak_celebrated_7"], function (data) {
+      var streak = data.streak || 0;
+      if (streak >= 7 && !data.streak_celebrated_7) {
+        var el = document.getElementById("streak-celebration");
+        if (!el) return;
+        el.textContent = "\ud83c\udf89 \u8fde\u7eed\u4f7f\u7528 7 \u5929\uff01\u4f60\u7684\u4fe1\u606f\u7d20\u517b\u53ef\u80fd\u5df2\u7ecf\u63d0\u5347\u4e86\u3002";
+        el.classList.remove("hidden");
+        // Set flag so it only shows once
+        chrome.storage.local.set({ streak_celebrated_7: true });
+        // Auto-dismiss after 6 seconds
+        setTimeout(function () {
+          el.style.opacity = "0";
+          setTimeout(function () {
+            el.classList.add("hidden");
+            el.style.opacity = "";
+          }, 500);
+        }, 6000);
+      }
+    });
+  }
+
   // Initialize popup
   checkOffline();
   setupHamburgerMenu();
@@ -480,4 +606,6 @@
   setupHighlightButton();
   displayVersion();
   loadSocialProof();
+  checkUpdateNotification();
+  checkStreakCelebration();
 })();

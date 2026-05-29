@@ -338,40 +338,47 @@
    * Main execution: extract text, score it, and display result.
    */
   function run() {
-    // Check if URL is dismissed within last 24 hours
-    checkDismissed(function (isDismissed) {
-      if (isDismissed) return;
+    // Check silent mode first
+    chrome.storage.local.get("silent_until", function (silentData) {
+      if (silentData.silent_until && Date.now() < silentData.silent_until) {
+        return; // Silent mode active, skip scoring
+      }
 
-      // Check whitelist before scoring
-      checkWhitelist(function (shouldProceed) {
-        if (!shouldProceed) return;
+      // Check if URL is dismissed within last 24 hours
+      checkDismissed(function (isDismissed) {
+        if (isDismissed) return;
 
-        // Check for paywalled content
-        if (detectPaywall()) {
-          showPaywallIndicator();
-          return;
-        }
+        // Check whitelist before scoring
+        checkWhitelist(function (shouldProceed) {
+          if (!shouldProceed) return;
 
-        var text = extractArticleText();
-        if (!text || text.trim().length < 20) {
-          return; // Not enough content to analyze
-        }
+          // Check for paywalled content
+          if (detectPaywall()) {
+            showPaywallIndicator();
+            return;
+          }
 
-        // Send to background script for scoring
-        try {
-          chrome.runtime.sendMessage(
-            { type: "SCORE_CONTENT", text: text },
-            function (response) {
-              if (chrome.runtime.lastError) return;
-              if (response && response.result) {
-                showIndicator(response.result);
-                showToastNotification(response.result);
+          var text = extractArticleText();
+          if (!text || text.trim().length < 20) {
+            return; // Not enough content to analyze
+          }
+
+          // Send to background script for scoring
+          try {
+            chrome.runtime.sendMessage(
+              { type: "SCORE_CONTENT", text: text },
+              function (response) {
+                if (chrome.runtime.lastError) return;
+                if (response && response.result) {
+                  showIndicator(response.result);
+                  showToastNotification(response.result);
+                }
               }
-            }
-          );
-        } catch (e) {
-          // Gracefully handle disconnected extension context
-        }
+            );
+          } catch (e) {
+            // Gracefully handle disconnected extension context
+          }
+        });
       });
     });
   }
@@ -409,6 +416,41 @@
   }
 
   /**
+   * Show a brief "re-scoring" indicator at bottom-right.
+   */
+  function showRescoringIndicator() {
+    var existing = document.getElementById("junk-detector-rescore");
+    if (existing) existing.remove();
+
+    var indicator = document.createElement("div");
+    indicator.id = "junk-detector-rescore";
+    indicator.textContent = "\u91cd\u65b0\u68c0\u6d4b\u4e2d...";
+    Object.assign(indicator.style, {
+      position: "fixed",
+      bottom: "20px",
+      right: "20px",
+      zIndex: "2147483647",
+      padding: "6px 12px",
+      borderRadius: "16px",
+      backgroundColor: "#f9fafb",
+      border: "1px solid #e5e7eb",
+      fontSize: "12px",
+      color: "#6b7280",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      opacity: "0.9"
+    });
+    document.body.appendChild(indicator);
+  }
+
+  /**
+   * Remove the re-scoring indicator.
+   */
+  function removeRescoringIndicator() {
+    var el = document.getElementById("junk-detector-rescore");
+    if (el) el.remove();
+  }
+
+  /**
    * Observe DOM mutations for content container changes.
    * This catches in-page content swaps that don't change the URL
    * (e.g., Zhihu answer expansion, Xiaohongshu modal overlays).
@@ -423,9 +465,10 @@
         var hash = simpleHash(text);
         if (hash !== lastContentHash && text.length > 50) {
           lastContentHash = hash;
+          showRescoringIndicator();
           scoreAndDisplay(text);
         }
-      }, 500);
+      }, 2000);
     });
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
   }
@@ -440,6 +483,7 @@
       chrome.runtime.sendMessage(
         { type: "SCORE_CONTENT", text: text },
         function (response) {
+          removeRescoringIndicator();
           if (chrome.runtime.lastError) return;
           if (response && response.result) {
             showIndicator(response.result);
@@ -447,6 +491,7 @@
         }
       );
     } catch (e) {
+      removeRescoringIndicator();
       // Gracefully handle disconnected extension context
     }
   }

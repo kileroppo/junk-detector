@@ -9,11 +9,11 @@
 <body>
   <div class="container">
     <div id="offline-badge" class="offline-badge hidden">离线模式 - 使用本地规则引擎</div>
-    <div class="hamburger-btn" id="hamburger-btn">&#9776;</div>
-    <div id="verdict-icon" class="verdict-icon">&#9203;</div>
+    <div class="hamburger-btn" id="hamburger-btn" aria-label="打开菜单">&#9776;</div>
+    <div id="verdict-icon" class="verdict-icon" aria-live="polite">&#9203;</div>
     <div id="severity-badge" class="severity-badge hidden"></div>
-    <div id="explanation" class="explanation">正在检测...</div>
-    <button id="dismiss-btn" class="dismiss-btn hidden">这次忽略</button>
+    <div id="explanation" class="explanation" role="status">正在检测...</div>
+    <button id="dismiss-btn" class="dismiss-btn hidden" aria-label="忽略此次检测">这次忽略</button>
     <div id="alternatives-section" class="alternatives-section hidden">
       <div class="alternatives-title">搜索其他来源验证</div>
       <div id="alternatives-links" class="alternatives-links"></div>
@@ -25,10 +25,10 @@
         <span id="score-value" class="score-value">--</span>
         <span class="score-hint">100=优质 0=垃圾</span>
       </div>
-      <button id="share-btn" class="share-btn">&#128203; 分享结果</button>
+      <button id="share-btn" class="share-btn" aria-label="分享结果">&#128203; 分享结果</button>
       <div id="share-toast" class="share-toast hidden">已复制!</div>
-      <button id="highlight-btn" class="highlight-btn">&#128397;&#65039; 标记问题词</button>
-      <button id="feedback-btn" class="feedback-btn">&#128078; 结果不对？点击反馈</button>
+      <button id="highlight-btn" class="highlight-btn" aria-label="标记页面问题词">&#128397;&#65039; 标记问题词</button>
+      <button id="feedback-btn" class="feedback-btn" aria-label="反馈结果不准确">&#128078; 结果不对？点击反馈</button>
       <div id="feedback-toast" class="feedback-toast hidden">感谢反馈!</div>
       <div class="details-toggle" id="details-toggle">
         <span>查看详情</span>
@@ -46,11 +46,15 @@
         </div>
       </div>
       <div id="daily-stats" class="daily-stats hidden"></div>
+      <div id="reading-time" class="daily-stats hidden"></div>
+      <div id="top-site-stat" class="daily-stats hidden"></div>
       <div id="history-section" class="history-section">
         <div class="section-title">最近检测</div>
         <div id="history-list" class="history-list"></div>
       </div>
     </div>
+    <div id="update-notification" class="update-notification hidden"></div>
+    <div id="streak-celebration" class="streak-celebration hidden"></div>
     <div class="popup-footer">
       <div id="social-proof" class="social-proof"></div>
       <span class="limitations-text">&#9881;&#65039; 暂不支持：视频/图片/加密内容/需登录页面</span>

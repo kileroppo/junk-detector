@@ -10,6 +10,15 @@
   }
 }
 
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+.verdict-icon.breathing {
+  animation: breathe 3s ease-in-out infinite;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -826,4 +835,52 @@ body {
 .severity-safe {
   color: #34C759;
   font-weight: 500;
+}
+
+/* Calm state */
+.container.calm-state .verdict-icon {
+  color: #34C759;
+}
+
+/* Update notification overlay */
+.update-notification {
+  width: 100%;
+  padding: 12px 16px;
+  background-color: #ecfdf5;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #065f46;
+  text-align: center;
+  margin-bottom: 8px;
+  animation: fadeIn 0.3s ease;
+  transition: opacity 0.5s ease;
+}
+
+.update-notification.hidden {
+  display: none;
+}
+
+/* Streak celebration */
+.streak-celebration {
+  width: 100%;
+  padding: 12px 16px;
+  background-color: #fef3c7;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #92400e;
+  text-align: center;
+  margin-bottom: 8px;
+  animation: fadeIn 0.4s ease;
+  transition: opacity 0.5s ease;
+}
+
+.streak-celebration.hidden {
+  display: none;
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .verdict-icon { font-size: 28px; }
+  .explanation { font-weight: 600; font-size: 14px; }
+  body { border: 2px solid currentColor; }
 }
