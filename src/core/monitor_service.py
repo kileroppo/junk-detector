@@ -38,6 +38,7 @@ class MonitorService:
             return
         self._initialized = True
         self._running = False
+        self._sources: dict[str, Any] = {}
         self._feeds: list[dict[str, str]] = []
         self._seen_urls: set[str] = set()
         self._recent_items: list[dict[str, Any]] = []
@@ -207,6 +208,22 @@ class MonitorService:
         config = load_config()
         overall = _calculate_overall(dimensions, config)
         return overall
+
+    def register_source(self, source_type: str, fetcher: Any) -> None:
+        """Register a content source fetcher by type name."""
+        self._sources[source_type] = fetcher
+
+    async def fetch_source(self, source_type: str) -> list:
+        """Fetch items from a registered source by type name."""
+        fetcher = self._sources.get(source_type)
+        if fetcher is None:
+            logger.warning("Source %s not registered", source_type)
+            return []
+        return await fetcher.fetch_items()
+
+    def get_registered_sources(self) -> list[str]:
+        """Return list of registered source type names."""
+        return list(self._sources.keys())
 
     def get_stats(self) -> dict:
         """Return current stats for thunder and dispatcher, plus recent items."""
