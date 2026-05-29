@@ -139,6 +139,19 @@ rate_limiting:
   burst_allowance: 5          # extra burst allowed above limit
 
 
+# Storage backend configuration
+storage:
+  backend: "sqlite"  # "sqlite" (default) or "postgres"
+  sqlite:
+    path: "junk_detector.db"
+  # postgres:
+  #   host: "localhost"
+  #   port: 5432
+  #   dbname: "junk_detector"
+  #   user: "postgres"
+  #   password: ""
+  #   dsn: ""  # Alternative: full DSN string (overrides individual params)
+
 # Monitor configuration (RSS feed fetching)
 monitor:
   feeds:
