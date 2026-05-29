@@ -195,6 +195,38 @@ class TestDedupBehavior:
         assert mock_score.call_count == 2
 
 
+class TestDemoEndpoint:
+    """Tests for GET /demo."""
+
+    def test_demo_default_sample(self, client):
+        """Demo endpoint returns scoring result for default sample text."""
+        response = client.get("/demo")
+        assert response.status_code == 200
+        data = response.json()
+        assert "overall_score" in data
+        assert "verdict" in data
+        assert "explanation" in data
+        assert data["is_custom_text"] is False
+
+    def test_demo_custom_text(self, client):
+        """Demo endpoint scores custom text when text parameter is provided."""
+        response = client.get("/demo?text=这是一篇普通的技术分享文章")
+        assert response.status_code == 200
+        data = response.json()
+        assert "overall_score" in data
+        assert "verdict" in data
+        assert data["is_custom_text"] is True
+        assert data["text_scored"] == "这是一篇普通的技术分享文章"
+
+    def test_demo_custom_junk_text(self, client):
+        """Demo endpoint correctly scores obvious junk text."""
+        response = client.get("/demo?text=日入过万 加微信 财富自由 限时免费")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["verdict"] == "junk"
+        assert data["is_custom_text"] is True
+
+
 class TestStartupValidation:
     """Tests for the lifespan startup validation."""
 

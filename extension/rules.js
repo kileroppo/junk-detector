@@ -160,31 +160,52 @@ function scoreContent(text) {
 
 /**
  * Generate a one-line Chinese explanation of the scoring result.
+ * Uses varied sentence structures for natural-sounding output.
  */
 function generateExplanation(verdict, score, scamResult, anxietyResult, advertorialResult) {
   if (verdict === "quality") {
-    return "\u2705 \u5185\u5bb9\u8d28\u91cf\u6b63\u5e38\uff0c\u672a\u53d1\u73b0\u660e\u663e\u95ee\u9898\u3002";
+    var qualityTemplates = [
+      "\u2705 \u5185\u5bb9\u8d28\u91cf\u6b63\u5e38\uff0c\u672a\u53d1\u73b0\u660e\u663e\u95ee\u9898\u3002",
+      "\u2705 \u672a\u68c0\u6d4b\u5230\u5783\u573e\u4fe1\u606f\u7279\u5f81\uff0c\u5185\u5bb9\u53ef\u4fe1\u3002",
+      "\u2705 \u89c4\u5219\u5f15\u64ce\u672a\u53d1\u73b0\u98ce\u9669\u4fe1\u53f7\uff0c\u9605\u8bfb\u65e0\u865e\u3002"
+    ];
+    return qualityTemplates[Math.floor(Math.random() * qualityTemplates.length)];
   }
 
-  const parts = [];
+  var parts = [];
 
   if (scamResult.count > 0) {
-    const examples = scamResult.matched.slice(0, 2).map(k => `\u201c${k}\u201d`).join("");
-    parts.push(`${scamResult.count} \u5904\u8bc8\u9a97\u5173\u952e\u8bcd\uff08${examples}\uff09`);
+    var examples = scamResult.matched.slice(0, 2).map(function(k) { return "\u201c" + k + "\u201d"; }).join("\u3001");
+    var scamTemplates = [
+      "\u542b\u6709\u5178\u578b\u8bc8\u9a97\u8bdd\u672f\uff1a" + examples,
+      "\u53d1\u73b0 " + scamResult.count + " \u5904\u6295\u8d44\u8bf1\u5bfc\u7528\u8bed\uff08" + examples + "\uff09",
+      "\u591a\u5904\u8bc8\u9a97\u5173\u952e\u8bcd\uff1a" + examples
+    ];
+    parts.push(scamTemplates[Math.floor(Math.random() * scamTemplates.length)]);
   }
 
   if (anxietyResult.count > 0) {
-    const examples = anxietyResult.matched.slice(0, 2).map(k => `\u201c${k}\u201d`).join("");
-    parts.push(`${anxietyResult.count} \u5904\u7126\u8651\u8425\u9500\u8bcd\uff08${examples}\uff09`);
+    var examples = anxietyResult.matched.slice(0, 2).map(function(k) { return "\u201c" + k + "\u201d"; }).join("\u3001");
+    var anxietyTemplates = [
+      "\u9891\u7e41\u4f7f\u7528\u9650\u65f6\u7d27\u8feb\u8bdd\u672f\uff1a" + examples,
+      "\u542b\u6709 " + anxietyResult.count + " \u5904\u7126\u8651\u8425\u9500\u8bcd\uff08" + examples + "\uff09",
+      "\u5229\u7528\u60c5\u7eea\u64cd\u63a7\u8bfb\u8005\uff1a" + examples
+    ];
+    parts.push(anxietyTemplates[Math.floor(Math.random() * anxietyTemplates.length)]);
   }
 
   if (advertorialResult.count > 0) {
-    const examples = advertorialResult.matched.slice(0, 2).map(k => `\u201c${k}\u201d`).join("");
-    parts.push(`${advertorialResult.count} \u5904\u5e7f\u544a\u63a8\u5e7f\u8bcd\uff08${examples}\uff09`);
+    var examples = advertorialResult.matched.slice(0, 2).map(function(k) { return "\u201c" + k + "\u201d"; }).join("\u3001");
+    var advertorialTemplates = [
+      "\u7591\u4f3c\u5e26\u8d27\u63a8\u5e7f\uff1a" + examples,
+      "\u68c0\u6d4b\u5230\u5546\u4e1a\u63a8\u5e7f\u8bcd\u6c47\uff1a" + examples,
+      "\u542b\u6709 " + advertorialResult.count + " \u5904\u5e7f\u544a\u5f15\u5bfc\u7528\u8bed\uff08" + examples + "\uff09"
+    ];
+    parts.push(advertorialTemplates[Math.floor(Math.random() * advertorialTemplates.length)]);
   }
 
-  const prefix = verdict === "junk" ? "\ud83d\udea8 \u9ad8\u98ce\u9669\u5185\u5bb9\u3002" : "\u26a0\ufe0f \u5185\u5bb9\u53ef\u7591\u3002";
-  return `${prefix}\u53d1\u73b0${parts.join("\u3001")}\u3002`;
+  var prefix = verdict === "junk" ? "\ud83d\udea8 \u9ad8\u98ce\u9669\u5185\u5bb9\u3002" : "\u26a0\ufe0f \u5185\u5bb9\u53ef\u7591\u3002";
+  return prefix + parts.join("\uff1b") + "\u3002";
 }
 
 // Export for use in background.js (via importScripts) and tests

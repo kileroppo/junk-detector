@@ -164,16 +164,22 @@ async def health(deep: bool = False):
 
 
 @app.get("/demo")
-async def demo_score():
-    """Demo endpoint - scores a sample text without authentication.
+async def demo_score(text: Optional[str] = None):
+    """Demo endpoint - scores text using rules-only without authentication.
 
-    Try-before-buy for API evaluation. Returns a full scoring result
-    for a hardcoded sample junk content text.
+    Try-before-buy for API evaluation. If `text` query parameter is provided,
+    scores that text with the rules engine. Otherwise uses a default sample.
+
+    Examples:
+        GET /demo
+        GET /demo?text=日入过万加微信领取
     """
-    sample_text = (
+    default_sample = (
         "想要财富自由吗？加入我们的区块链投资群，日入过万不是梦！"
         "限时免费名额，加微信领取。"
     )
+    sample_text = text or default_sample
+
     from src.core.rules import apply_rules, should_skip_llm
 
     rule_result = apply_rules(sample_text)
@@ -194,14 +200,39 @@ async def demo_score():
     # Compute overall score (inverted: high junk = low score)
     overall_score = max(0, 100 - max_junk)
 
+    # Generate explanation using the explainer
+    from src.core.explainer import explain_result
+    from src.models.score import DimensionScores, ScoreResult
+
+    mock_score = ScoreResult(
+        overall_score=overall_score,
+        dimensions=DimensionScores(
+            originality=50, info_density=50, reasoning_quality=50,
+            readability=50, timeliness=50, ai_generated_prob=0,
+            emotional_manipulation=rule_result.dimension_overrides.get("emotional_manipulation", 0),
+            advertorial_prob=rule_result.dimension_overrides.get("advertorial_prob", 0),
+            scam_prob=rule_result.dimension_overrides.get("scam_prob", 0),
+        ),
+        labels=[], summary="demo", confidence=0.0, model_used="rules-only", cost=0.0,
+    )
+    explanation = explain_result(mock_score, rule_result, content=sample_text)
+
+    is_custom = text is not None
+    note = (
+        "使用您提供的文本进行规则引擎评分（零成本，毫秒级响应）。"
+        if is_custom
+        else "这是默认样本的评分结果。传入 ?text=你的内容 来测试自己的文本。"
+    )
+
     return {
         "overall_score": overall_score,
-        "explanation": f"检测到明显的垃圾信息特征: {', '.join(rule_result.matched_rules[:5])}",
+        "explanation": explanation,
         "evidence": rule_result.matched_rules,
         "verdict": verdict,
         "dimensions": rule_result.dimension_overrides,
-        "sample_text": sample_text,
-        "note": "这是一个演示端点，使用固定的样本文本。正式使用请调用 POST /score",
+        "text_scored": sample_text,
+        "is_custom_text": is_custom,
+        "note": note,
     }
 
 

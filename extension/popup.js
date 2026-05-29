@@ -33,7 +33,10 @@
 
     iconEl.textContent = VERDICT_ICONS[result.verdict] || "\u2753";
     explanationEl.textContent = result.explanation || "";
-    scoreEl.textContent = String(result.score);
+
+    // Invert score: display as quality score (100 = best, 0 = worst)
+    var qualityScore = 100 - (result.score || 0);
+    scoreEl.textContent = String(qualityScore);
     scoreEl.className = "score-value " + result.verdict;
 
     // Render matched keywords

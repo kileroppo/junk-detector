@@ -182,7 +182,7 @@ class TestExplainBorderlineContent:
         explanation = explain_result(score_result, rule_result)
 
         assert "\u26a0\ufe0f" in explanation
-        assert "一般" in explanation or "偏低" in explanation
+        assert "人工复查" in explanation or "LLM" in explanation
 
 
 class TestExplainEmptyRules:
@@ -210,7 +210,7 @@ class TestExplainEmptyRules:
         explanation = explain_result(score_result, rule_result)
 
         assert "\U0001f6a8" in explanation
-        assert "综合评分" in explanation or "多项" in explanation
+        assert "未匹配" in explanation or "人工复查" in explanation
 
     def test_empty_rules_mid_score(self):
         rule_result = RuleResult(

@@ -196,7 +196,7 @@ def explain_result(
             detail = "；".join(signals)
             return f"\u26a0\ufe0f 内容存在风险信号。{detail}，建议人工复核。"
         else:
-            return "\u26a0\ufe0f 内容质量一般，未发现明显风险但得分偏低。"
+            return "\u26a0\ufe0f 规则引擎未发现明显信号，得分偏低，建议人工复查或使用 LLM 深度分析。"
 
     else:
         # Junk / high-risk content
@@ -208,4 +208,4 @@ def explain_result(
             else:
                 return f"\U0001f6a8 高风险内容。{detail}。"
         else:
-            return "\U0001f6a8 高风险内容。综合评分极低，存在多项质量问题。"
+            return "\U0001f6a8 高风险内容。未匹配到已知模式，建议人工复查或启用 LLM 深度分析。"

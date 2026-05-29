@@ -154,10 +154,51 @@
     );
   }
 
+  // Track current URL for SPA navigation detection
+  let lastUrl = window.location.href;
+
+  /**
+   * Watch for SPA navigation via URL polling.
+   * Most supported platforms (Zhihu, Xiaohongshu, Weibo, Juejin)
+   * use client-side routing without full page reloads.
+   */
+  function watchForNavigation() {
+    setInterval(function () {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        // Delay re-scoring to allow new content to render
+        setTimeout(run, 800);
+      }
+    }, 1000);
+  }
+
+  /**
+   * Also observe DOM mutations for content container changes.
+   * This catches in-page content swaps that don't change the URL.
+   */
+  function observeContentChanges() {
+    var debounceTimer = null;
+    var observer = new MutationObserver(function (mutations) {
+      // Only re-score if URL actually changed (avoid scoring on minor DOM updates)
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(run, 800);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
   // Run after page load with a small delay to ensure DOM is ready
   if (document.readyState === "complete") {
     setTimeout(run, 1000);
+    watchForNavigation();
+    observeContentChanges();
   } else {
-    window.addEventListener("load", () => setTimeout(run, 1000));
+    window.addEventListener("load", function () {
+      setTimeout(run, 1000);
+      watchForNavigation();
+      observeContentChanges();
+    });
   }
 })();

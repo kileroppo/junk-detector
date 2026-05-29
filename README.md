@@ -204,6 +204,8 @@ Tested against 100 hand-labeled real-world Chinese content samples:
 python benchmark/run_real_benchmark.py
 ```
 
+**Important caveat**: The rules engine excels at detecting keyword-obvious junk (scam 100%, advertorial 80%) and has zero false positives on quality content. However, **borderline content recall is only 20%** -- the engine essentially cannot distinguish "suspicious but legitimate" from "clean" content without LLM assistance. The 79% overall accuracy reflects perfect performance on clear-cut cases, not general-purpose detection. For borderline/subtle content, the LLM judge fallback is essential.
+
 See [benchmark/real_data/results.md](benchmark/real_data/results.md) for detailed results.
 
 ## Custom Rules
@@ -343,14 +345,6 @@ ruff format --check src/ tests/
 - 微博 (weibo.com)
 
 安装后访问支持的平台文章页面，右下角会自动显示内容质量指示器。
-
-## Docker 部署
-
-```bash
-docker run -p 8000:8000 junk-detector
-```
-
-> 注：Dockerfile 尚未创建，计划在后续版本中提供。目前请使用 `junk-detector serve` 启动 API 服务。
 
 ## MCP 配置 (Cursor / Claude Code)
 
