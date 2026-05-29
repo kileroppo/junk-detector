@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "鉴真 - 内容质量检测",
+  "version": "0.1.0",
+  "description": "一眼看穿垃圾信息 - 本地规则引擎实时检测",
+  "permissions": ["activeTab", "storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-gray-16.png",
+      "48": "icons/icon-gray-48.png",
+      "128": "icons/icon-gray-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [{
+    "matches": ["*://mp.weixin.qq.com/*", "*://*.xiaohongshu.com/*", "*://*.zhihu.com/*"],
+    "js": ["rules.js", "content.js"]
+  }],
+  "icons": {
+    "16": "icons/icon-gray-16.png",
+    "48": "icons/icon-gray-48.png",
+    "128": "icons/icon-gray-128.png"
+  }
+}

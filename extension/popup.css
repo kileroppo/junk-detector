@@ -1,0 +1,154 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  width: 280px;
+  background: #ffffff;
+  color: #1d1d1f;
+}
+
+.container {
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.verdict-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.explanation {
+  font-size: 14px;
+  color: #333;
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  padding: 0 8px;
+}
+
+.score-display {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.score-label {
+  font-size: 12px;
+  color: #86868b;
+}
+
+.score-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.score-value.quality {
+  color: #34C759;
+}
+
+.score-value.suspicious {
+  color: #FF9500;
+}
+
+.score-value.junk {
+  color: #FF3B30;
+}
+
+.details-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #007AFF;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+  user-select: none;
+}
+
+.details-toggle:hover {
+  background-color: #f5f5f7;
+}
+
+.toggle-arrow {
+  font-size: 10px;
+  transition: transform 0.3s ease;
+  display: inline-block;
+}
+
+.toggle-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.details-section {
+  width: 100%;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  transition: opacity 0.3s ease, max-height 0.3s ease;
+  overflow: hidden;
+  max-height: 200px;
+  opacity: 1;
+}
+
+.details-section.hidden {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+.details-title {
+  font-size: 11px;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.keywords-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.keyword-tag {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background-color: #f5f5f7;
+  color: #333;
+}
+
+.keyword-tag.scam {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.keyword-tag.anxiety {
+  background-color: #fff3e0;
+  color: #e65100;
+}
+
+.keyword-tag.advertorial {
+  background-color: #e3f2fd;
+  color: #1565c0;
+}
+
+.no-result {
+  font-size: 13px;
+  color: #86868b;
+  text-align: center;
+  padding: 20px 0;
+}

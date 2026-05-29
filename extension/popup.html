@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鉴真 - 内容质量检测</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div id="verdict-icon" class="verdict-icon">⏳</div>
+    <div id="explanation" class="explanation">正在检测...</div>
+    <div id="score-display" class="score-display">
+      <span class="score-label">风险分数</span>
+      <span id="score-value" class="score-value">--</span>
+    </div>
+    <div class="details-toggle" id="details-toggle">
+      <span>查看详情</span>
+      <span id="toggle-arrow" class="toggle-arrow">▼</span>
+    </div>
+    <div id="details-section" class="details-section hidden">
+      <div class="details-title">匹配关键词</div>
+      <div id="keywords-list" class="keywords-list"></div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
