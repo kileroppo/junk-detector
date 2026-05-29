@@ -11,13 +11,14 @@ import logging
 import statistics
 from datetime import datetime, timedelta, timezone
 
+from src.core.explainer import explain_result
 from src.core.llm_judge import judge
 from src.core.platform_profiles import (
     apply_platform_weights,
     check_platform_extra_rules,
     detect_platform,
 )
-from src.core.rules import apply_rules, should_skip_llm
+from src.core.rules import RuleResult, apply_rules, should_skip_llm
 from src.models.score import DimensionScores, FastScoreResult, ScoreResult, ScoringConfig
 
 logger = logging.getLogger(__name__)
@@ -142,6 +143,7 @@ async def score(
             model_used="content_filter",
             cost=0.0,
             rule_hits=filter_result.matched_patterns,
+            explanation=f"\U0001f6a8 高风险内容。触发内容过滤器：{filter_result.violation_type}。",
         )
 
     # Cache check: return cached result if scored within 7 days
@@ -168,6 +170,7 @@ async def score(
                         model_used="cache",
                         cost=0.0,
                         rule_hits=cached.get("rule_hits", []),
+                        explanation=cached.get("explanation", ""),
                     )
     except Exception as e:
         logger.debug("Cache lookup failed: %s", e)
@@ -261,6 +264,9 @@ async def score(
 
         # 8. Generate labels from thresholds
         result.labels = _generate_labels(result.dimensions, config)
+
+        # 9. Generate explanation
+        result.explanation = explain_result(result, rule_result)
 
         # Track stats
         try:
@@ -472,6 +478,9 @@ async def score(
 
     # 8. Generate labels from thresholds
     result.labels = _generate_labels(result.dimensions, config)
+
+    # 9. Generate explanation
+    result.explanation = explain_result(result, rule_result)
 
     return result
 

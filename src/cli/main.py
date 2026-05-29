@@ -128,6 +128,8 @@ def _pretty_print_result(result: ScoreResult, content: Content) -> None:
     labels_str = ", ".join(result.labels) if result.labels else "无"
     console.print(f"🏷️  标签: {labels_str}")
     console.print(f"💬 总结: {result.summary}")
+    if result.explanation:
+        console.print(f"📝 解释: {result.explanation}")
     console.print()
 
 
@@ -375,8 +377,10 @@ def _extract_content(
     raise ValueError("No input source provided")
 
 
-def _print_quick_verdict(result: FastScoreResult, threshold: int = 60) -> None:
+def _print_quick_verdict(result: FastScoreResult, threshold: int = 60, explanation: str = "") -> None:
     """Print a single-line verdict based on the fast score result."""
+    if explanation:
+        console.print(explanation)
     score_val = result.quick_verdict
     if score_val >= threshold:
         verdict = f"\u2705 \u770b\u8d77\u6765\u6b63\u5e38 (score: {score_val:.0f})"

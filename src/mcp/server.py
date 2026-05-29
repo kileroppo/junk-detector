@@ -30,6 +30,23 @@ def score_text(text: str) -> dict:
             emotional = overrides.get("emotional_manipulation", 0.0)
             score = 100 - max(scam_prob, advertorial_prob, emotional)
             status = "junk" if score < 40 else "suspicious" if score <= 60 else "normal" if score <= 80 else "quality"
+
+            # Generate explanation
+            from src.core.explainer import explain_result as _explain
+            from src.models.score import DimensionScores, ScoreResult
+
+            _dims = DimensionScores(
+                originality=50, info_density=50, reasoning_quality=50,
+                readability=50, timeliness=50, ai_generated_prob=0,
+                emotional_manipulation=emotional, advertorial_prob=advertorial_prob,
+                scam_prob=scam_prob,
+            )
+            _score_result = ScoreResult(
+                overall_score=score, dimensions=_dims, labels=[], summary="",
+                rule_hits=rule_result.matched_rules,
+            )
+            explanation = _explain(_score_result, rule_result)
+
             return {
                 "score": round(score),
                 "is_junk": score < 60,
@@ -38,6 +55,7 @@ def score_text(text: str) -> dict:
                 "summary": f"Rules engine detected: {', '.join(rule_result.matched_rules)}",
                 "method": "rules_only",
                 "status": status,
+                "explanation": explanation,
             }
         else:
             # Rules not confident - still return what we have
@@ -50,6 +68,7 @@ def score_text(text: str) -> dict:
                 "method": "rules_partial",
                 "status": "inconclusive",
                 "message": "规则引擎无法确定，建议使用完整LLM评分",
+                "explanation": "",
             }
     except Exception as e:
         logger.error("score_text failed: %s", e)
@@ -96,6 +115,7 @@ def quick_check(text: str) -> dict:
             "score": score_val,
             "reason": reason,
             "status": result.get("status", ""),
+            "explanation": result.get("explanation", ""),
         }
     except Exception as e:
         logger.error("quick_check failed: %s", e)

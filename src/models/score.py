@@ -64,6 +64,7 @@ class ScoreResult(BaseModel):
         default_factory=dict, description="每个维度的来源: 'rule' or 'llm'"
     )
     status: str = Field(default="", description="Content quality status: junk/suspicious/normal/quality")
+    explanation: str = Field(default="", description="自然语言解释")
 
     @model_validator(mode='after')
     def _compute_status(self) -> 'ScoreResult':
