@@ -1218,5 +1218,13 @@ def rules(
     console.print("Use --list, --init, or --validate. Run 'junk-detector rules --help' for details.")
 
 
+@app.command()
+def mcp_server() -> None:
+    """Start the MCP server for AI tool integration."""
+    from src.mcp.server import mcp as mcp_app
+
+    mcp_app.run()
+
+
 if __name__ == "__main__":
     app()

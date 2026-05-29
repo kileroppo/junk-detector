@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "junk-detector": {
+      "command": "junk-detector",
+      "args": ["mcp-server"]
+    }
+  }
+}
