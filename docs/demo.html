@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>鉴真 - 内容质量检测演示</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f8f9fa;
+  color: #1a1a1a;
+  line-height: 1.6;
+  padding: 2rem 1rem;
+}
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+.tagline {
+  color: #666;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+.description {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  color: #444;
+}
+textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 0.75rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+textarea:focus {
+  border-color: #007AFF;
+}
+.btn {
+  display: inline-block;
+  margin-top: 0.75rem;
+  padding: 0.6rem 1.5rem;
+  background: #007AFF;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn:hover {
+  background: #005ecb;
+}
+.btn:active {
+  background: #004aaa;
+}
+.result {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border-radius: 8px;
+  display: none;
+}
+.result.show { display: block; }
+.result.junk { background: #fff0f0; border: 1px solid #FF3B30; }
+.result.suspicious { background: #fff8e6; border: 1px solid #FF9500; }
+.result.quality { background: #f0fff4; border: 1px solid #34C759; }
+.result-header {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.result-score {
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+.result-keywords {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+.result-keywords span {
+  display: inline-block;
+  background: rgba(0,0,0,0.05);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin: 0.15rem 0.2rem 0.15rem 0;
+}
+@media (max-width: 480px) {
+  body { padding: 1rem 0.75rem; }
+  h1 { font-size: 1.3rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>鉴真 - 内容质量检测</h1>
+  <p class="tagline">一眼看穿垃圾信息 | 纯客户端，无需服务器</p>
+  <div class="description">
+    在下方输入或粘贴一段中文内容，点击"检测"按钮即可获得质量评分。
+    本演示完全在浏览器中运行，使用本地规则引擎检测诈骗话术、情绪操纵和软文推广。
+    不会上传任何数据。
+  </div>
+  <textarea id="input" placeholder="在此输入待检测的文本内容..."></textarea>
+  <button class="btn" id="scoreBtn" onclick="runScore()">检测</button>
+  <div class="result" id="result">
+    <div class="result-header" id="resultHeader"></div>
+    <div class="result-score" id="resultScore"></div>
+    <div class="result-explanation" id="resultExplanation"></div>
+    <div class="result-keywords" id="resultKeywords"></div>
+  </div>
+</div>
+
+<script>
+// --- Rules Engine (ported from extension/rules.js) ---
+
+const SCAM_KEYWORDS = [
+  "日入过万","躺赚","财富自由","限时免费","私聊领取",
+  "月入百万","被动收入","零成本","稳赚不赔","加微信",
+  "免费领取","名额有限","最后一天","一夜暴富","轻松月入",
+  "保证赚钱","包赚","只赚不赔","暴利项目","拉人头"
+];
+
+const ANXIETY_PHRASES = [
+  "再不.*就晚了","99%的人不知道","震惊","必看","紧急",
+  "全网疯传","错过就没了","最后机会","不看后悔","手慢无",
+  "揭秘","惊人发现","万万没想到","细思极恐","删前速看"
+];
+
+const ADVERTORIAL_KEYWORDS = [
+  "推荐码","优惠券","折扣码","点击链接","复制口令",
+  "返利","佣金","分销","带货","种草",
+  "好物推荐","安利","亲测有效","良心推荐","粉丝专属"
+];
+
+function countMatches(text, keywords) {
+  var matched = [];
+  var count = 0;
+  for (var i = 0; i < keywords.length; i++) {
+    try {
+      var regex = new RegExp(keywords[i]);
+      if (regex.test(text)) {
+        count++;
+        matched.push(keywords[i]);
+      }
+    } catch (e) {
+      if (text.indexOf(keywords[i]) !== -1) {
+        count++;
+        matched.push(keywords[i]);
+      }
+    }
+  }
+  return { count: count, matched: matched };
+}
+
+function scoreContent(text) {
+  if (!text || text.trim().length === 0) {
+    return { score: 0, verdict: "quality", matchedKeywords: [], explanation: "\u2705 \u65e0\u5185\u5bb9\u53ef\u5206\u6790" };
+  }
+
+  var scamResult = countMatches(text, SCAM_KEYWORDS);
+  var anxietyResult = countMatches(text, ANXIETY_PHRASES);
+  var advertorialResult = countMatches(text, ADVERTORIAL_KEYWORDS);
+
+  var allMatched = scamResult.matched.concat(anxietyResult.matched, advertorialResult.matched);
+
+  var scamScore = Math.min(scamResult.count * 15, 60);
+  var anxietyScore = Math.min(anxietyResult.count * 10, 30);
+  var advertorialScore = Math.min(advertorialResult.count * 8, 30);
+
+  var rawScore = scamScore + anxietyScore + advertorialScore;
+  var score = Math.min(rawScore, 100);
+
+  var verdict;
+  if (score >= 60) {
+    verdict = "junk";
+  } else if (score >= 30) {
+    verdict = "suspicious";
+  } else {
+    verdict = "quality";
+  }
+
+  var explanation = generateExplanation(verdict, score, scamResult, anxietyResult, advertorialResult);
+
+  return { score: score, verdict: verdict, matchedKeywords: allMatched, explanation: explanation };
+}
+
+function generateExplanation(verdict, score, scamResult, anxietyResult, advertorialResult) {
+  if (verdict === "quality") {
+    return "\u2705 \u5185\u5bb9\u8d28\u91cf\u6b63\u5e38\uff0c\u672a\u53d1\u73b0\u660e\u663e\u95ee\u9898\u3002";
+  }
+
+  var parts = [];
+
+  if (scamResult.count > 0) {
+    var examples = scamResult.matched.slice(0, 2).map(function(k) { return "\u201c" + k + "\u201d"; }).join("\u3001");
+    parts.push("\u542b\u6709\u8bc8\u9a97\u8bdd\u672f\uff1a" + examples);
+  }
+
+  if (anxietyResult.count > 0) {
+    var examples = anxietyResult.matched.slice(0, 2).map(function(k) { return "\u201c" + k + "\u201d"; }).join("\u3001");
+    parts.push("\u7126\u8651\u8425\u9500\u8bcd\uff1a" + examples);
+  }
+
+  if (advertorialResult.count > 0) {
+    var examples = advertorialResult.matched.slice(0, 2).map(function(k) { return "\u201c" + k + "\u201d"; }).join("\u3001");
+    parts.push("\u5546\u4e1a\u63a8\u5e7f\u8bcd\uff1a" + examples);
+  }
+
+  var prefix = verdict === "junk" ? "\ud83d\udea8 \u9ad8\u98ce\u9669\u5185\u5bb9\u3002" : "\u26a0\ufe0f \u5185\u5bb9\u53ef\u7591\u3002";
+  return prefix + parts.join("\uff1b") + "\u3002";
+}
+
+// --- UI Logic ---
+
+function runScore() {
+  var text = document.getElementById("input").value;
+  var result = scoreContent(text);
+  var el = document.getElementById("result");
+  var header = document.getElementById("resultHeader");
+  var scoreEl = document.getElementById("resultScore");
+  var explanationEl = document.getElementById("resultExplanation");
+  var keywordsEl = document.getElementById("resultKeywords");
+
+  el.className = "result show " + result.verdict;
+
+  var verdictLabels = { junk: "\ud83d\udea8 \u5783\u573e\u5185\u5bb9", suspicious: "\u26a0\ufe0f \u53ef\u7591\u5185\u5bb9", quality: "\u2705 \u5185\u5bb9\u6b63\u5e38" };
+  header.textContent = verdictLabels[result.verdict];
+  scoreEl.textContent = "\u98ce\u9669\u5206\u6570: " + result.score + " / 100";
+  explanationEl.textContent = result.explanation;
+
+  if (result.matchedKeywords.length > 0) {
+    keywordsEl.innerHTML = "\u547d\u4e2d\u5173\u952e\u8bcd: " + result.matchedKeywords.map(function(k) { return "<span>" + k + "</span>"; }).join("");
+  } else {
+    keywordsEl.innerHTML = "";
+  }
+}
+</script>
+</body>
+</html>
