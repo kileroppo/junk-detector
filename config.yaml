@@ -61,6 +61,29 @@ summarization:
   max_chars_before_summarize: 5000  # articles longer than this get summarized first
   model: null  # null = use same as active_model primary
 
+# Scoring profiles - named presets for different use cases
+profiles:
+  strict:  # 严格模式 - 对可疑内容零容忍
+    description: "严格模式：更激进地标记可疑内容"
+    threshold: 50
+    scoring_overrides:
+      emotional_manipulation: -1.5
+      advertorial_prob: -1.5
+      scam_prob: -1.8
+
+  standard:  # 标准模式 - 默认平衡设置
+    description: "标准模式：平衡准确率与误报率"
+    threshold: 60
+    scoring_overrides: {}
+
+  relaxed:  # 宽松模式 - 只标记明确的垃圾内容
+    description: "宽松模式：只标记高置信度的垃圾内容"
+    threshold: 75
+    scoring_overrides:
+      emotional_manipulation: -0.6
+      advertorial_prob: -0.6
+      scam_prob: -0.8
+
 
 # Source reputation system
 sources:

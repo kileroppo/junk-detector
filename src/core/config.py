@@ -101,6 +101,26 @@ def get_model_config(override_model: str | None = None) -> dict[str, Any]:
     }
 
 
+def load_profile(name: str) -> dict:
+    """Load a named scoring profile from config.yaml.
+
+    Args:
+        name: Profile name ('strict', 'standard', 'relaxed')
+
+    Returns:
+        Dict with 'description', 'threshold', and 'scoring_overrides' keys.
+
+    Raises:
+        ValueError: If profile name is not found in config.
+    """
+    data = _load_yaml()
+    profiles = data.get("profiles", {})
+    if name not in profiles:
+        available = list(profiles.keys())
+        raise ValueError(f"Profile '{name}' not found. Available: {available}")
+    return profiles[name]
+
+
 def load_config(override_model: str | None = None) -> ScoringConfig:
     """Load full ScoringConfig from config.yaml with env overrides.
 

@@ -30,7 +30,14 @@ app = typer.Typer(
     help="鉴真 — AI 内容质量检测工具，一眼看穿垃圾信息。",
 )
 
-console = Console()
+# Detect non-interactive (piped/redirected) output
+_IS_INTERACTIVE = sys.stdout.isatty()
+
+# Use plain console when output is piped
+if _IS_INTERACTIVE:
+    console = Console()
+else:
+    console = Console(no_color=True, highlight=False, force_terminal=False)
 
 
 # ---------------------------------------------------------------------------
@@ -317,7 +324,10 @@ def score(
         _validate_api_key(config.primary_model)
 
         if not json_output:
-            with console.status("[bold cyan]\u6b63\u5728\u6df1\u5ea6\u5206\u6790...[/bold cyan]", spinner="dots"):
+            if _IS_INTERACTIVE:
+                with console.status("[bold cyan]\u6b63\u5728\u6df1\u5ea6\u5206\u6790...[/bold cyan]", spinner="dots"):
+                    result: ScoreResult = asyncio.run(do_score(content.text, config=config))
+            else:
                 result: ScoreResult = asyncio.run(do_score(content.text, config=config))
         else:
             result: ScoreResult = asyncio.run(do_score(content.text, config=config))
@@ -390,6 +400,18 @@ def _print_quick_verdict(result: FastScoreResult, threshold: int = 60, explanati
         console.print(explanation)
 
     score_val = result.quick_verdict
+
+    # Non-interactive: plain text output
+    if not _IS_INTERACTIVE:
+        if score_val >= threshold:
+            prefix = "[OK]"
+        elif score_val >= 40:
+            prefix = "[WARN]"
+        else:
+            prefix = "[DANGER]"
+        summary_text = result.summary or ""
+        typer.echo(f"{prefix} score={score_val:.0f} {summary_text}")
+        return
 
     # Determine verdict info
     if score_val >= threshold:
@@ -496,6 +518,10 @@ def quick(
     ),
     threshold: int = typer.Option(60, "--threshold", help="Score threshold for pass/fail (default 60)"),
     output_format: str = typer.Option("human", "--format", help="Output format: human, json, csv"),
+    profile: Optional[str] = typer.Option(
+        None, "--profile", "-p",
+        help="Scoring profile: strict (严格), standard (标准), relaxed (宽松)"
+    ),
 ) -> None:
     """Quick content screening - single-line pass/fail verdict."""
 
@@ -534,6 +560,18 @@ def quick(
     except Exception as exc:
         console.print(f"\u274c \u672a\u77e5\u9519\u8bef: {exc}", style="bold red")
         raise typer.Exit(code=2)
+
+    # Apply profile if specified
+    if profile:
+        from src.core.config import load_profile as _load_profile
+        try:
+            profile_config = _load_profile(profile)
+            threshold = profile_config.get("threshold", threshold)
+            if _IS_INTERACTIVE:
+                console.print(f"\U0001f4cb \u4f7f\u7528\u914d\u7f6e: {profile_config.get('description', profile)}", style="dim")
+        except ValueError as e:
+            console.print(f"\u274c {e}", style="bold red")
+            raise typer.Exit(code=2)
 
     # Auto rules-only when no API key is available
     auto_rules_only = False
@@ -670,7 +708,12 @@ def quick(
         config = load_config(override_model=model)
 
         if not json_output and output_format != "json":
-            with console.status("[bold cyan]\u6b63\u5728\u5206\u6790...[/bold cyan]", spinner="dots"):
+            if _IS_INTERACTIVE:
+                with console.status("[bold cyan]\u6b63\u5728\u5206\u6790...[/bold cyan]", spinner="dots"):
+                    fast_result: FastScoreResult = asyncio.run(
+                        score_fast(content.text, config=config, max_retries=retry)
+                    )
+            else:
                 fast_result: FastScoreResult = asyncio.run(
                     score_fast(content.text, config=config, max_retries=retry)
                 )
@@ -821,6 +864,17 @@ def _batch_verdict_emoji(score: float) -> str:
 
 def _batch_table_output(results: list[dict]) -> None:
     """Print batch results as a Rich table."""
+    # Non-interactive: tab-separated values
+    if not _IS_INTERACTIVE:
+        typer.echo("URL\tScore\tVerdict\tSummary")
+        for item in results:
+            if item["error"]:
+                typer.echo(f"{item['url']}\t--\tERROR\t{item['error'][:50]}")
+            else:
+                verdict_text = _batch_verdict_text(item["score"])
+                typer.echo(f"{item['url']}\t{item['score']:.0f}\t{verdict_text}\t{(item.get('summary', '') or '')[:50]}")
+        return
+
     table = Table(title="批量评分结果", show_lines=False)
     table.add_column("URL", max_width=40, overflow="ellipsis")
     table.add_column("Score", justify="right", width=6)
