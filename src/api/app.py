@@ -76,6 +76,7 @@ app.include_router(auth_router)
 
 # Include WebSocket router
 from src.api.websocket import router as ws_router
+
 app.include_router(ws_router)
 
 
