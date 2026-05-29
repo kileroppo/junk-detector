@@ -7,8 +7,6 @@ from __future__ import annotations
 import logging
 import time
 
-import httpx
-
 from src.extractors.sources import MonitorItem
 
 logger = logging.getLogger(__name__)
@@ -38,10 +36,11 @@ class ZhihuHotFetcher:
                 "Referer": "https://www.zhihu.com/hot",
             }
 
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(self._ENDPOINT, headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
+            from src.extractors.http_pool import get_client
+            client = get_client()
+            resp = await client.get(self._ENDPOINT, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
 
             self._last_fetch = time.time()
 

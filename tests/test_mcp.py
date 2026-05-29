@@ -46,6 +46,12 @@ class TestScoreText:
         result = score_text("")
         assert result.get("error") is None or result.get("score") is not None
 
+    def test_score_text_includes_status(self):
+        """score_text includes a 'status' key in its result."""
+        result = score_text("日入过万 躺赚 财富自由 限时免费 加微信领取")
+        assert "status" in result
+        assert result["status"] in ("junk", "suspicious", "normal", "quality", "inconclusive")
+
 
 class TestQuickCheck:
     """Tests for quick_check tool."""
@@ -66,6 +72,12 @@ class TestQuickCheck:
         result = quick_check("测试内容")
         assert "reason" in result
         assert isinstance(result["reason"], str)
+
+    def test_quick_check_includes_status(self):
+        """quick_check includes a 'status' key in its result."""
+        result = quick_check("日入过万 躺赚 财富自由 加微信")
+        assert "status" in result
+        assert result["status"] in ("junk", "suspicious", "normal", "quality", "inconclusive")
 
 
 class TestScoreUrl:
@@ -98,3 +110,18 @@ class TestScoreUrl:
             assert result["error"] is not None
             assert result["url"] == "https://bad-url.example.com"
             assert result["score"] is None
+
+
+class TestInconclusiveMessage:
+    """Tests for inconclusive status and message."""
+
+    def test_inconclusive_has_message(self):
+        """score_text with clean text (method=rules_partial) returns status='inconclusive' and message field."""
+        result = score_text(
+            "近年来人工智能技术在自然语言处理领域取得了显著进展。"
+            "基于Transformer架构的大语言模型展现了强大的文本理解能力。"
+        )
+        assert result.get("method") == "rules_partial"
+        assert result["status"] == "inconclusive"
+        assert "message" in result
+        assert result["message"] == "规则引擎无法确定，建议使用完整LLM评分"

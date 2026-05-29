@@ -8,7 +8,6 @@ import logging
 import random
 import time
 
-import httpx
 from bs4 import BeautifulSoup
 
 from src.extractors.sources import MonitorItem
@@ -52,9 +51,10 @@ class WechatSogouFetcher:
                 "query": self._query,
             }
 
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                resp = await client.get(self._ENDPOINT, headers=headers, params=params)
-                resp.raise_for_status()
+            from src.extractors.http_pool import get_client
+            client = get_client()
+            resp = await client.get(self._ENDPOINT, headers=headers, params=params)
+            resp.raise_for_status()
 
             self._last_fetch = time.time()
 

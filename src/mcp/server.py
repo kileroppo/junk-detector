@@ -29,6 +29,7 @@ def score_text(text: str) -> dict:
             advertorial_prob = overrides.get("advertorial_prob", 0.0)
             emotional = overrides.get("emotional_manipulation", 0.0)
             score = 100 - max(scam_prob, advertorial_prob, emotional)
+            status = "junk" if score < 40 else "suspicious" if score <= 60 else "normal" if score <= 80 else "quality"
             return {
                 "score": round(score),
                 "is_junk": score < 60,
@@ -36,6 +37,7 @@ def score_text(text: str) -> dict:
                 "matched_rules": rule_result.matched_rules,
                 "summary": f"Rules engine detected: {', '.join(rule_result.matched_rules)}",
                 "method": "rules_only",
+                "status": status,
             }
         else:
             # Rules not confident - still return what we have
@@ -46,6 +48,8 @@ def score_text(text: str) -> dict:
                 "matched_rules": rule_result.matched_rules,
                 "summary": "Rules inconclusive - LLM scoring recommended for full analysis",
                 "method": "rules_partial",
+                "status": "inconclusive",
+                "message": "规则引擎无法确定，建议使用完整LLM评分",
             }
     except Exception as e:
         logger.error("score_text failed: %s", e)
@@ -72,30 +76,27 @@ async def score_url(url: str) -> dict:
 def quick_check(text: str) -> dict:
     """Fast rules-only check. Returns is_junk, score, and reason."""
     try:
-        from src.core.rules import apply_rules, should_skip_llm
+        result = score_text(text)
+        if "error" in result:
+            return {"is_junk": None, "score": None, "reason": f"Error: {result['error']}"}
 
-        rule_result = apply_rules(text)
-        skip, reason = should_skip_llm(rule_result, text)
+        # Transform score_text result into quick_check format
+        is_junk = result.get("is_junk", False)
+        score_val = result.get("score", 50)
 
-        if skip:
-            overrides = rule_result.dimension_overrides
-            scam_prob = overrides.get("scam_prob", 0.0)
-            advertorial_prob = overrides.get("advertorial_prob", 0.0)
-            emotional = overrides.get("emotional_manipulation", 0.0)
-            score = round(100 - max(scam_prob, advertorial_prob, emotional))
-            is_junk = score < 60
-            rules_hit = ", ".join(rule_result.matched_rules) or "none"
-            return {
-                "is_junk": is_junk,
-                "score": score,
-                "reason": f"Rules matched: {rules_hit}",
-            }
+        # Build reason from matched_rules or summary
+        matched = result.get("matched_rules", [])
+        if matched:
+            reason = f"Rules matched: {', '.join(matched)}"
         else:
-            return {
-                "is_junk": False,
-                "score": 50,
-                "reason": "No strong signals detected by rules engine",
-            }
+            reason = result.get("summary", "No strong signals detected by rules engine")
+
+        return {
+            "is_junk": is_junk,
+            "score": score_val,
+            "reason": reason,
+            "status": result.get("status", ""),
+        }
     except Exception as e:
         logger.error("quick_check failed: %s", e)
         return {"is_junk": None, "score": None, "reason": f"Error: {e}"}

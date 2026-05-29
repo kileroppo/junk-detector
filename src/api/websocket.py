@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from src.auth.service import AuthService
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -20,23 +22,23 @@ class ConnectionManager:
     """Manages active WebSocket connections."""
 
     def __init__(self) -> None:
-        self._connections: list[WebSocket] = []
+        self._connections: dict[WebSocket, int | None] = {}
 
     @property
     def active_count(self) -> int:
         """Number of active connections."""
         return len(self._connections)
 
-    async def connect(self, websocket: WebSocket) -> None:
+    async def connect(self, websocket: WebSocket, user_id: int | None = None) -> None:
         """Accept and register a new WebSocket connection."""
         await websocket.accept()
-        self._connections.append(websocket)
+        self._connections[websocket] = user_id
         logger.info("WebSocket connected. Active: %d", self.active_count)
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection."""
         if websocket in self._connections:
-            self._connections.remove(websocket)
+            del self._connections[websocket]
         logger.info("WebSocket disconnected. Active: %d", self.active_count)
 
     async def broadcast(self, event: str, data: dict) -> None:
@@ -61,6 +63,28 @@ class ConnectionManager:
         for conn in disconnected:
             self.disconnect(conn)
 
+    async def send_to_user(self, user_id: int, event: str, data: dict) -> None:
+        """Send a message only to connections belonging to a specific user."""
+        if not self._connections:
+            return
+
+        message = json.dumps({
+            "event": event,
+            "data": data,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }, ensure_ascii=False)
+
+        disconnected: list[WebSocket] = []
+        for connection, conn_user_id in self._connections.items():
+            if conn_user_id == user_id:
+                try:
+                    await connection.send_text(message)
+                except Exception:
+                    disconnected.append(connection)
+
+        for conn in disconnected:
+            self.disconnect(conn)
+
 
 # Global connection manager instance
 manager = ConnectionManager()
@@ -69,7 +93,18 @@ manager = ConnectionManager()
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for receiving real-time notifications."""
-    await manager.connect(websocket)
+    token = websocket.query_params.get("token")
+    user_id: int | None = None
+
+    if token:
+        try:
+            payload = AuthService.verify_token(token)
+            user_id = payload["user_id"]
+        except ValueError:
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+
+    await manager.connect(websocket, user_id=user_id)
     try:
         while True:
             # Keep connection alive, handle incoming messages (ping/pong)

@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class InputType(str, Enum):
@@ -63,6 +63,19 @@ class ScoreResult(BaseModel):
     dimension_sources: dict[str, str] = Field(
         default_factory=dict, description="每个维度的来源: 'rule' or 'llm'"
     )
+    status: str = Field(default="", description="Content quality status: junk/suspicious/normal/quality")
+
+    @model_validator(mode='after')
+    def _compute_status(self) -> 'ScoreResult':
+        if self.overall_score < 40:
+            self.status = "junk"
+        elif self.overall_score <= 60:
+            self.status = "suspicious"
+        elif self.overall_score <= 80:
+            self.status = "normal"
+        else:
+            self.status = "quality"
+        return self
 
 
 class FastScoreResult(BaseModel):

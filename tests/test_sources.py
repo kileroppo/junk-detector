@@ -71,7 +71,10 @@ class TestWeiboHotFetcher:
         mock_response.json.return_value = mock_data
         mock_response.raise_for_status = MagicMock()
 
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_response):
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("src.extractors.http_pool.get_client", return_value=mock_client):
             fetcher = WeiboHotFetcher()
             fetcher._last_fetch = 0  # bypass rate limit
             items = await fetcher.fetch_items()
@@ -84,7 +87,10 @@ class TestWeiboHotFetcher:
     @pytest.mark.asyncio
     async def test_fetch_network_error_returns_empty(self):
         """Network error returns empty list without raising."""
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, side_effect=Exception("Network error")):
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=Exception("Network error"))
+
+        with patch("src.extractors.http_pool.get_client", return_value=mock_client):
             fetcher = WeiboHotFetcher()
             fetcher._last_fetch = 0
             items = await fetcher.fetch_items()
@@ -110,7 +116,10 @@ class TestZhihuHotFetcher:
         mock_response.json.return_value = mock_data
         mock_response.raise_for_status = MagicMock()
 
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_response):
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("src.extractors.http_pool.get_client", return_value=mock_client):
             fetcher = ZhihuHotFetcher()
             fetcher._last_fetch = 0
             items = await fetcher.fetch_items()
@@ -123,7 +132,10 @@ class TestZhihuHotFetcher:
     @pytest.mark.asyncio
     async def test_fetch_network_error_returns_empty(self):
         """Network error returns empty list without raising."""
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, side_effect=Exception("Timeout")):
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=Exception("Timeout"))
+
+        with patch("src.extractors.http_pool.get_client", return_value=mock_client):
             fetcher = ZhihuHotFetcher()
             fetcher._last_fetch = 0
             items = await fetcher.fetch_items()
@@ -150,7 +162,10 @@ class TestWechatSogouFetcher:
         mock_response.text = html_content
         mock_response.raise_for_status = MagicMock()
 
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_response):
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("src.extractors.http_pool.get_client", return_value=mock_client):
             fetcher = WechatSogouFetcher(query="test")
             fetcher._last_fetch = 0
             items = await fetcher.fetch_items()
@@ -162,7 +177,10 @@ class TestWechatSogouFetcher:
     @pytest.mark.asyncio
     async def test_fetch_network_error_returns_empty(self):
         """Network error returns empty list without raising."""
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, side_effect=Exception("Blocked")):
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(side_effect=Exception("Blocked"))
+
+        with patch("src.extractors.http_pool.get_client", return_value=mock_client):
             fetcher = WechatSogouFetcher()
             fetcher._last_fetch = 0
             items = await fetcher.fetch_items()
@@ -177,7 +195,10 @@ class TestWechatSogouFetcher:
         mock_response.text = "<html><body></body></html>"
         mock_response.raise_for_status = MagicMock()
 
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_response):
+        mock_client = MagicMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+
+        with patch("src.extractors.http_pool.get_client", return_value=mock_client):
             fetcher = WechatSogouFetcher()
             fetcher._last_fetch = 0
             items = await fetcher.fetch_items()

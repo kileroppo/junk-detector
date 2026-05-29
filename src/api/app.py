@@ -14,10 +14,12 @@ load_dotenv()
 import logging
 from pathlib import Path
 
+import yaml
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from src.api.notifications import NotificationDispatcher
 from src.api.rate_limit import RateLimitConfig, RateLimitMiddleware
 from src.auth.dependencies import get_optional_user
 from src.auth.models import User
@@ -29,6 +31,19 @@ from src.models.score import ScoreResult
 from src.preferences.router import router as preferences_router
 from src.storage.db import query, save
 from src.web import web_router
+
+# Load notification config from config.yaml
+_notification_config = {}
+try:
+    _config_path = Path(__file__).parent.parent.parent / "config.yaml"
+    if _config_path.exists():
+        with open(_config_path) as f:
+            _full_config = yaml.safe_load(f)
+            _notification_config = _full_config.get("notification", {})
+except Exception:
+    pass
+
+dispatcher = NotificationDispatcher(_notification_config)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +65,9 @@ async def lifespan(app: FastAPI):
                 "DEEPSEEK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
             )
     yield
+    # Shutdown: close shared HTTP client
+    from src.extractors.http_pool import close_client
+    await close_client()
 
 
 app = FastAPI(
@@ -91,6 +109,22 @@ class ScoreRequest(BaseModel):
     url: Optional[str] = Field(default=None, description="URL to fetch and score")
     text: Optional[str] = Field(default=None, max_length=50000, description="Raw text to score")
     title: Optional[str] = Field(default=None, description="Optional title for text input")
+
+
+class BatchScoreRequest(BaseModel):
+    """Request body for /score/batch endpoint."""
+
+    items: list[ScoreRequest] = Field(
+        ..., min_length=1, max_length=50, description="List of items to score"
+    )
+
+
+class BatchScoreResponse(BaseModel):
+    """Response for /score/batch endpoint."""
+
+    results: list = Field(..., description="Scoring results in same order as input")
+    total: int = Field(..., description="Total items processed")
+    errors: int = Field(default=0, description="Number of items that failed")
 
 
 # ---------------------------------------------------------------------------
@@ -190,10 +224,19 @@ async def score_content(
 
     # Save to storage (user_id available if authenticated)
     try:
-        save(result, content)
+        save(result, content, user_id=current_user.id if current_user is not None else None)
     except Exception:
         # Storage failure should not block returning the result
         pass
+
+    # Notify via WebSocket (scoped to user, skip for anonymous)
+    try:
+        if current_user is not None:
+            from src.api.websocket import manager as ws_manager
+            await ws_manager.send_to_user(current_user.id, "score_completed", result.model_dump())
+        # Anonymous scoring: no WebSocket notification (no targeted audience)
+    except Exception:
+        pass  # Notification failure should never block scoring response
 
     return result
 
@@ -226,8 +269,73 @@ async def get_history(
         filters["date_from"] = date_from
 
     try:
-        results = query(filters=filters if filters else None, limit=limit)
+        results = query(
+            filters=filters if filters else None,
+            limit=limit,
+            user_id=current_user.id if current_user is not None else None,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Storage error: {e}")
 
     return results
+
+
+@app.post("/score/batch", response_model=None)
+async def score_batch(
+    request: BatchScoreRequest,
+    current_user: User | None = Depends(get_optional_user),
+):
+    """Score multiple items concurrently.
+
+    Accepts a list of items (text or URL), scores them with
+    max 5 concurrent operations, and broadcasts each result via WebSocket.
+    """
+    import asyncio
+
+    semaphore = asyncio.Semaphore(5)
+    user_id = current_user.id if current_user is not None else None
+
+    async def score_single(item: ScoreRequest, index: int) -> ScoreResult | dict:
+        async with semaphore:
+            try:
+                if not item.url and not item.text:
+                    return {"error": "Either 'url' or 'text' must be provided", "index": index}
+
+                # Extract content
+                if item.url:
+                    content = await extract_from_url(item.url)
+                else:
+                    content = extract_from_text(item.text, title=item.title)
+
+                # Score
+                result = await score(content.text, source_url=item.url)
+
+                # Save
+                try:
+                    save(result, content, user_id=user_id)
+                except Exception:
+                    pass
+
+                # Notify per-item completion (scoped to user, skip for anonymous)
+                try:
+                    if user_id is not None:
+                        from src.api.websocket import manager as ws_manager
+                        await ws_manager.send_to_user(user_id, "score_completed", result.model_dump())
+                    # Anonymous scoring: no WebSocket notification (no targeted audience)
+                except Exception:
+                    pass
+
+                return result
+            except Exception as e:
+                return {"error": str(e), "index": index}
+
+    tasks = [score_single(item, i) for i, item in enumerate(request.items)]
+    results = await asyncio.gather(*tasks)
+
+    errors = sum(1 for r in results if isinstance(r, dict) and "error" in r)
+
+    return BatchScoreResponse(
+        results=list(results),
+        total=len(results),
+        errors=errors,
+    )
