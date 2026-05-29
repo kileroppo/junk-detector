@@ -65,6 +65,9 @@ class ScoreResult(BaseModel):
     )
     status: str = Field(default="", description="Content quality status: junk/suspicious/normal/quality")
     explanation: str = Field(default="", description="自然语言解释")
+    scored_by: str = Field(default="rules", description="Scoring method: 'rules' or model name")
+    duration_ms: int = Field(default=0, description="Scoring duration in milliseconds")
+    cost_usd: float = Field(default=0.0, description="Estimated LLM API cost in USD")
 
     @model_validator(mode='after')
     def _compute_status(self) -> 'ScoreResult':

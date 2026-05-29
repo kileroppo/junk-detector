@@ -140,6 +140,17 @@ function incrementDailyStats(verdict) {
 }
 
 /**
+ * Increment the global score count for social proof display.
+ * Stored in chrome.storage.local under 'global_score_count'.
+ */
+function incrementGlobalScoreCount() {
+  chrome.storage.local.get("global_score_count", function (data) {
+    var count = (data["global_score_count"] || 0) + 1;
+    chrome.storage.local.set({ global_score_count: count });
+  });
+}
+
+/**
  * Update personal calibration based on user behavior.
  * Tracks dismiss_count and feedback_count.
  */
@@ -253,6 +264,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
           pushToHistory(sender.tab, result);
         }
         incrementDailyStats(result.verdict);
+        incrementGlobalScoreCount();
         checkSoundAlert(result.verdict);
       }
 

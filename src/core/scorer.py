@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import statistics
+import time
 from datetime import datetime, timedelta, timezone
 
 from src.core.explainer import explain_result
@@ -109,6 +110,8 @@ async def score(
     Returns:
         Complete ScoreResult with dimensions, labels, and metadata.
     """
+    start_time = time.time()
+
     if config is None:
         from src.core.config import load_config
 
@@ -144,6 +147,8 @@ async def score(
             cost=0.0,
             rule_hits=filter_result.matched_patterns,
             explanation=f"\U0001f6a8 高风险内容。触发内容过滤器：{filter_result.violation_type}。",
+            scored_by="content_filter",
+            duration_ms=int((time.time() - start_time) * 1000),
         )
 
     # Cache check: return cached result if scored within 7 days
@@ -276,6 +281,10 @@ async def score(
         except Exception as e:
             logger.debug("Failed to increment rules_only stats: %s", e)
 
+        # Populate provenance fields
+        result.duration_ms = int((time.time() - start_time) * 1000)
+        result.scored_by = "rules"
+
         return result
 
     # 2. Check if rules alone can produce a full score (all 9 dimensions covered with high confidence)
@@ -309,6 +318,7 @@ async def score(
             cost=0.0,
             rule_hits=rule_result.matched_rules,
             dimension_sources={dim: "rule" for dim in all_dimensions},
+            scored_by="rules",
         )
 
         # Track stats
@@ -481,6 +491,10 @@ async def score(
 
     # 9. Generate explanation
     result.explanation = explain_result(result, rule_result)
+
+    # 10. Populate provenance fields
+    result.duration_ms = int((time.time() - start_time) * 1000)
+    result.scored_by = config.primary_model if config else "rules"
 
     return result
 

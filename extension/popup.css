@@ -735,6 +735,14 @@ body {
   text-align: center;
 }
 
+.social-proof {
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
 .limitations-text {
   font-size: 10px;
   color: #9ca3af;

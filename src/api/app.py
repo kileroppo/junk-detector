@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import time
+import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -12,11 +15,11 @@ from dotenv import load_dotenv
 # Auto-load .env (searches upward from cwd)
 load_dotenv()
 
-import logging
 from pathlib import Path
 
 import yaml
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -500,3 +503,147 @@ async def score_batch(
         total=len(results),
         errors=errors,
     )
+
+
+# ---------------------------------------------------------------------------
+# SSE Streaming Endpoint
+# ---------------------------------------------------------------------------
+
+
+@app.post("/score/stream")
+async def score_stream(
+    request: ScoreRequest,
+    accept: str = Header(default="application/json"),
+):
+    """Score content with Server-Sent Events streaming.
+
+    Sends rules result immediately, then streams LLM dimensions as they complete.
+    Use Accept: text/event-stream header to enable streaming.
+    """
+    if "text/event-stream" not in accept:
+        # Fall back to normal scoring
+        return await score_content(request, current_user=None)
+
+    async def event_generator():
+        from src.core.rules import apply_rules, should_skip_llm
+        from src.extractors.text import extract_from_text as _extract_text
+
+        # Extract content
+        text_content = request.text
+        if request.url:
+            from src.extractors.web import extract_from_url as _extract_url
+
+            content = await _extract_url(request.url)
+            text_content = content.text
+
+        # Phase 1: Rules result (instant)
+        rule_result = apply_rules(text_content)
+        rules_data = {
+            "phase": "rules",
+            "matched_rules": rule_result.matched_rules,
+            "dimension_overrides": rule_result.dimension_overrides,
+            "confidence": rule_result.confidence,
+        }
+        yield f"event: rules_result\ndata: {json.dumps(rules_data, ensure_ascii=False)}\n\n"
+
+        # Phase 2: Full scoring
+        skip, reason = should_skip_llm(rule_result, text_content)
+        if not skip:
+            from src.core.scorer import score as do_score
+
+            result = await do_score(text_content)
+            yield f"event: complete\ndata: {json.dumps(result.model_dump(mode='json'), ensure_ascii=False)}\n\n"
+        else:
+            # Rules-only result
+            yield f"event: complete\ndata: {json.dumps({'rules_only': True, 'overrides': rule_result.dimension_overrides}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Batch File Upload Endpoint
+# ---------------------------------------------------------------------------
+
+# In-memory job store
+_batch_jobs: dict[str, dict] = {}
+
+
+@app.post("/score/batch-upload")
+async def score_batch_upload(file: UploadFile = File(...)):
+    """Upload a CSV or JSONL file for batch scoring.
+
+    CSV format: must have 'url' or 'text' column header.
+    JSONL format: each line is {"url": "..."} or {"text": "..."}.
+
+    Returns a job_id for polling results.
+    """
+    import asyncio
+    import csv
+    import io
+
+    content_bytes = await file.read()
+    content_str = content_bytes.decode("utf-8")
+
+    items: list[dict] = []
+    filename = file.filename or ""
+
+    if filename.endswith(".jsonl") or filename.endswith(".json"):
+        for line in content_str.strip().split("\n"):
+            if line.strip():
+                items.append(json.loads(line.strip()))
+    else:
+        # Assume CSV
+        reader = csv.DictReader(io.StringIO(content_str))
+        for row in reader:
+            item: dict = {}
+            if "url" in row:
+                item["url"] = row["url"]
+            elif "text" in row:
+                item["text"] = row["text"]
+            if item:
+                items.append(item)
+
+    if not items:
+        raise HTTPException(status_code=400, detail="No valid items found in file")
+
+    job_id = str(uuid.uuid4())[:8]
+    _batch_jobs[job_id] = {"status": "processing", "total": len(items), "completed": 0, "results": []}
+
+    # Process in background
+    asyncio.create_task(_process_batch_job(job_id, items))
+
+    return {"job_id": job_id, "total_items": len(items), "status": "processing"}
+
+
+@app.get("/score/batch-upload/{job_id}")
+async def get_batch_job(job_id: str):
+    """Poll batch job status and results."""
+    if job_id not in _batch_jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return _batch_jobs[job_id]
+
+
+async def _process_batch_job(job_id: str, items: list[dict]):
+    """Process batch items asynchronously."""
+    for item in items:
+        try:
+            text = item.get("text", "")
+            url = item.get("url", "")
+            if url:
+                from src.extractors.web import extract_from_url as _extract_url
+
+                content = await _extract_url(url)
+                text = content.text
+            if text:
+                result = await score(text)
+                _batch_jobs[job_id]["results"].append(result.model_dump(mode="json"))
+            else:
+                _batch_jobs[job_id]["results"].append({"error": "No text or url provided"})
+        except Exception as e:
+            _batch_jobs[job_id]["results"].append({"error": str(e)})
+        _batch_jobs[job_id]["completed"] += 1
+    _batch_jobs[job_id]["status"] = "completed"

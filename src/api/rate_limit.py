@@ -262,11 +262,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not self._global_limiter.is_allowed("global", global_limit):
             logger.warning("Global rate limit exceeded (limit=%d rpm)", self.config.global_rpm)
             retry_after = 60  # suggest retry after 1 minute
+            base_limit = self.config.global_rpm
             return JSONResponse(
                 status_code=429,
                 content={
                     "detail": "Rate limit exceeded",
-                    "retry_after_seconds": retry_after,
+                    "used": base_limit,
+                    "limit": base_limit,
+                    "reset_in_seconds": retry_after,
+                    "suggestion": f"已用 {base_limit}/{base_limit} 次请求。{retry_after} 秒后重置。需要更多？查看升级方案。",
+                    "upgrade_url": "/docs/pricing",
                 },
                 headers={
                     "Retry-After": str(retry_after),
@@ -297,7 +302,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 status_code=429,
                 content={
                     "detail": "Rate limit exceeded",
-                    "retry_after_seconds": retry_after,
+                    "used": base_limit,
+                    "limit": base_limit,
+                    "reset_in_seconds": retry_after,
+                    "suggestion": f"已用 {base_limit}/{base_limit} 次请求。{retry_after} 秒后重置。需要更多？查看升级方案。",
+                    "upgrade_url": "/docs/pricing",
                 },
                 headers={
                     "Retry-After": str(retry_after),
