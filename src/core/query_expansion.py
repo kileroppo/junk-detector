@@ -52,6 +52,7 @@ def _save_cache(cache: dict[str, list[str]]) -> None:
         _CACHE_FILE.write_text(
             json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+        _CACHE_FILE.chmod(0o600)
     except OSError as e:
         logger.warning("Failed to save expansion cache: %s", e)
 

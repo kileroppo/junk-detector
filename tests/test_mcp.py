@@ -1,8 +1,12 @@
 """Tests for src/mcp/server.py - MCP server tools."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from src.mcp.server import mcp, score_text, score_url, quick_check
+
+from src.mcp.server import mcp, quick_check, score_text, score_url
 
 
 class TestMcpServerSetup:
@@ -62,3 +66,35 @@ class TestQuickCheck:
         result = quick_check("测试内容")
         assert "reason" in result
         assert isinstance(result["reason"], str)
+
+
+class TestScoreUrl:
+    """Tests for score_url tool."""
+
+    @pytest.mark.asyncio
+    async def test_score_url_success(self):
+        """score_url fetches content and scores it."""
+
+        @dataclass
+        class FakeContent:
+            text: str = "日入过万 躺赚 财富自由 限时免费 加微信领取"
+            title: str = "Fake Article"
+
+        with patch("src.extractors.web.extract_from_url_simple", new_callable=AsyncMock) as mock_extract:
+            mock_extract.return_value = FakeContent()
+            result = await score_url("https://example.com/article")
+            assert result["url"] == "https://example.com/article"
+            assert result["title"] == "Fake Article"
+            assert result["is_junk"] is True
+            assert result["score"] < 60
+
+    @pytest.mark.asyncio
+    async def test_score_url_error(self):
+        """score_url returns error dict on failure."""
+
+        with patch("src.extractors.web.extract_from_url_simple", new_callable=AsyncMock) as mock_extract:
+            mock_extract.side_effect = Exception("Network error")
+            result = await score_url("https://bad-url.example.com")
+            assert result["error"] is not None
+            assert result["url"] == "https://bad-url.example.com"
+            assert result["score"] is None

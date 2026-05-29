@@ -59,6 +59,8 @@ class NotificationDispatcher:
             smtp_host = self._email_config.get("smtp_host", "")
             smtp_port = self._email_config.get("smtp_port", 587)
             to_addr = self._email_config.get("to", "")
+            smtp_username = self._email_config.get("smtp_username", "")
+            smtp_password = self._email_config.get("smtp_password", "")
 
             if not smtp_host or not to_addr:
                 logger.warning("Email not configured (missing smtp_host or to)")
@@ -71,6 +73,8 @@ class NotificationDispatcher:
 
             with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
                 server.starttls()
+                if smtp_username and smtp_password:
+                    server.login(smtp_username, smtp_password)
                 server.send_message(msg)
 
             logger.info("Email sent: %s", subject)

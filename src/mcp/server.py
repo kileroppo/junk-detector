@@ -5,7 +5,6 @@ via the Model Context Protocol.
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from mcp.server.fastmcp import FastMCP
@@ -54,12 +53,12 @@ def score_text(text: str) -> dict:
 
 
 @mcp.tool()
-def score_url(url: str) -> dict:
+async def score_url(url: str) -> dict:
     """Fetch content from a URL and score its quality."""
     try:
         from src.extractors.web import extract_from_url_simple
 
-        content = asyncio.run(extract_from_url_simple(url))
+        content = await extract_from_url_simple(url)
         result = score_text(content.text)
         result["url"] = url
         result["title"] = content.title
