@@ -48,6 +48,33 @@
         tag.textContent = kw;
         keywordsEl.appendChild(tag);
       });
+
+      // Show educational explanations section
+      var whySection = document.getElementById("why-section");
+      var whyContent = document.getElementById("why-content");
+      var hasExplanations = false;
+
+      whyContent.innerHTML = "";
+      result.matchedKeywords.forEach(function (kw) {
+        if (typeof KEYWORD_EXPLANATIONS !== "undefined" && KEYWORD_EXPLANATIONS[kw]) {
+          hasExplanations = true;
+          var item = document.createElement("div");
+          item.className = "why-item";
+          var kwEl = document.createElement("div");
+          kwEl.className = "why-keyword";
+          kwEl.textContent = kw;
+          var expEl = document.createElement("div");
+          expEl.className = "why-explanation";
+          expEl.textContent = KEYWORD_EXPLANATIONS[kw];
+          item.appendChild(kwEl);
+          item.appendChild(expEl);
+          whyContent.appendChild(item);
+        }
+      });
+
+      if (hasExplanations) {
+        whySection.style.display = "block";
+      }
     } else {
       keywordsEl.innerHTML = '<span class="no-result">\u672a\u53d1\u73b0\u95ee\u9898\u5173\u952e\u8bcd</span>';
     }
@@ -77,6 +104,14 @@
     const section = document.getElementById("details-section");
     const arrow = document.getElementById("toggle-arrow");
     section.classList.toggle("hidden");
+    arrow.classList.toggle("expanded");
+  });
+
+  // Toggle why section
+  document.getElementById("why-toggle").addEventListener("click", function () {
+    const content = document.getElementById("why-content");
+    const arrow = document.getElementById("why-arrow");
+    content.classList.toggle("hidden");
     arrow.classList.toggle("expanded");
   });
 

@@ -378,17 +378,45 @@ def _extract_content(
 
 
 def _print_quick_verdict(result: FastScoreResult, threshold: int = 60, explanation: str = "") -> None:
-    """Print a single-line verdict based on the fast score result."""
+    """Print a magazine-style verdict panel based on the fast score result."""
+    from rich.panel import Panel
+    from rich.text import Text as RichText
+
     if explanation:
         console.print(explanation)
+
     score_val = result.quick_verdict
+
+    # Determine verdict info
     if score_val >= threshold:
-        verdict = f"\u2705 \u770b\u8d77\u6765\u6b63\u5e38 (score: {score_val:.0f})"
+        emoji = "\u2705"
+        label = "\u770b\u8d77\u6765\u6b63\u5e38"
+        border_color = "green"
     elif score_val >= 40:
-        verdict = f"\u26a0\ufe0f \u9700\u8981\u6ce8\u610f (score: {score_val:.0f})"
+        emoji = "\u26a0\ufe0f"
+        label = "\u9700\u8981\u6ce8\u610f"
+        border_color = "yellow"
     else:
-        verdict = f"\U0001f6a8 \u7591\u4f3c\u5783\u573e\u5185\u5bb9 (score: {score_val:.0f})"
-    console.print(verdict)
+        emoji = "\U0001f6a8"
+        label = "\u7591\u4f3c\u5783\u573e\u5185\u5bb9"
+        border_color = "red"
+
+    # Build panel body
+    body = RichText()
+    body.append(f" {emoji} ", style="bold")
+    body.append(f"{label}", style=f"bold {border_color}")
+    body.append(f"  (score: {score_val:.0f})\n", style="dim")
+
+    # Add summary if available
+    if result.summary:
+        body.append(f"\n  {result.summary}\n", style="")
+
+    panel = Panel(
+        body,
+        border_style=border_color,
+        padding=(0, 1),
+    )
+    console.print(panel)
 
 
 def _output_quick_result(

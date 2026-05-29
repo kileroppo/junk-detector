@@ -28,6 +28,23 @@ function updateBadge(tabId, result) {
 }
 
 /**
+ * Set the action icon based on the content verdict.
+ * Uses eye-themed SVG icons to represent content quality state.
+ * @param {number} tabId
+ * @param {string} verdict - 'quality', 'suspicious', or 'junk'
+ */
+function updateActionIcon(tabId, verdict) {
+  const iconPaths = {
+    quality: "icons/eye-green.svg",
+    suspicious: "icons/eye-amber.svg",
+    junk: "icons/eye-red.svg"
+  };
+
+  const iconPath = iconPaths[verdict] || "icons/eye-green.svg";
+  chrome.action.setIcon({ path: iconPath, tabId: tabId });
+}
+
+/**
  * Store the latest result for the popup to read.
  * @param {number} tabId
  * @param {object} result
@@ -46,6 +63,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 
     if (tabId) {
       updateBadge(tabId, result);
+      updateActionIcon(tabId, result.verdict);
       storeResult(tabId, result);
     }
 
@@ -58,4 +76,11 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 // Clear stored results when a tab is closed
 chrome.tabs.onRemoved.addListener(function (tabId) {
   chrome.storage.local.remove("result_" + tabId);
+});
+
+// Open onboarding page on first install
+chrome.runtime.onInstalled.addListener(function (details) {
+  if (details.reason === "install") {
+    chrome.tabs.create({ url: "onboarding.html" });
+  }
 });

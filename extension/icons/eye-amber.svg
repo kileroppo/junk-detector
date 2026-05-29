@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Slightly narrowed eye with amber iris - suspicious content -->
+  <path d="M8 4.5C4.5 4.5 2 8 2 8s2.5 3.5 6 3.5S14 8 14 8s-2.5-3.5-6-3.5z" fill="none" stroke="#374151" stroke-width="1.2"/>
+  <circle cx="8" cy="8" r="2.8" fill="#F59E0B"/>
+  <circle cx="8" cy="8" r="1.2" fill="#1F2937"/>
+  <!-- Narrowed eyelid lines -->
+  <path d="M3 6.5C4.5 5.5 6 5 8 5s3.5.5 5 1.5" fill="none" stroke="#374151" stroke-width="0.8"/>
+  <path d="M3 9.5C4.5 10.5 6 11 8 11s3.5-.5 5-1.5" fill="none" stroke="#374151" stroke-width="0.8"/>
+</svg>

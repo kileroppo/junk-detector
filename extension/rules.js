@@ -229,7 +229,29 @@ function generateExplanation(verdict, score, scamResult, anxietyResult, advertor
   return prefix + parts.join("\uff1b") + "\u3002";
 }
 
+/**
+ * Educational explanations for manipulation keywords.
+ * Maps keywords to Chinese explanations of the manipulation technique used.
+ */
+const KEYWORD_EXPLANATIONS = {
+  "日入过万": "夸大收益承诺是典型诈骗话术，真实投资回报不可能如此确定",
+  "限时免费": "制造虚假紧迫感，迫使你不经思考就行动",
+  "加微信": "诱导私聊以脱离平台监管，是诈骗转化的常见手段",
+  "躺赚": "暗示不劳而获，利用贪婪心理诱导上钩",
+  "财富自由": "用模糊的成功愿景吸引注意力，缺乏具体可验证的承诺",
+  "零成本": "不存在真正的零成本项目，隐藏的代价往往更高",
+  "稳赚不赔": "任何投资都有风险，承诺无风险是典型骗局特征",
+  "名额有限": "人为制造稀缺感，压缩你的决策时间",
+  "震惊": "使用情绪化标题吸引点击，内容往往与标题不符",
+  "99%的人不知道": "虚假的信息独占感，让你觉得获得了特殊知识",
+  "再不.*就晚了": "利用错失恐惧心理操纵读者情绪",
+  "推荐码": "隐性商业推广，作者从你的购买中获得佣金",
+  "亲测有效": "伪装成个人体验的广告话术，可信度需要验证",
+  "月入百万": "极端收益承诺，远超正常商业回报的虚假宣传",
+  "免费领取": "以免费为诱饵获取你的个人信息或后续付费"
+};
+
 // Export for use in background.js (via importScripts) and tests
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { scoreContent, simpleStringHash, SCAM_KEYWORDS, ANXIETY_PHRASES, ADVERTORIAL_KEYWORDS };
+  module.exports = { scoreContent, simpleStringHash, SCAM_KEYWORDS, ANXIETY_PHRASES, ADVERTORIAL_KEYWORDS, KEYWORD_EXPLANATIONS };
 }
