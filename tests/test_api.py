@@ -211,6 +211,46 @@ class TestStartupValidation:
                 pass
 
 
+class TestNotificationDispatch:
+    """Tests for notification dispatch after scoring."""
+
+    @patch("src.api.app.dispatcher.notify_score_completed", new_callable=AsyncMock)
+    @patch("src.api.app.save")
+    @patch("src.api.app.score")
+    def test_score_triggers_notification(
+        self, mock_score, mock_save, mock_notify, client
+    ):
+        """Scoring triggers notify_score_completed with the result data."""
+        mock_result = ScoreResult(
+            overall_score=65.0,
+            dimensions=DimensionScores(
+                originality=70,
+                info_density=60,
+                reasoning_quality=65,
+                readability=70,
+                timeliness=50,
+                ai_generated_prob=20,
+                emotional_manipulation=10,
+                advertorial_prob=15,
+                scam_prob=5,
+            ),
+            labels=["高质量原创"],
+            summary="Decent content",
+            confidence=0.85,
+            model_used="test-model",
+            cost=0.001,
+            scored_at=datetime(2024, 1, 1, 12, 0, 0),
+        )
+        mock_score.return_value = mock_result
+        mock_save.return_value = None
+
+        response = client.post("/score", json={"text": "Test article for notifications."})
+        assert response.status_code == 200
+        mock_notify.assert_called_once()
+        call_args = mock_notify.call_args[0][0]
+        assert call_args["overall_score"] == 65.0
+
+
 class TestMultiTenantIsolation:
     """Tests for multi-tenant data isolation via user_id."""
 

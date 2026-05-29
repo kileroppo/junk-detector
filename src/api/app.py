@@ -14,10 +14,12 @@ load_dotenv()
 import logging
 from pathlib import Path
 
+import yaml
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from src.api.notifications import NotificationDispatcher
 from src.api.rate_limit import RateLimitConfig, RateLimitMiddleware
 from src.auth.dependencies import get_optional_user
 from src.auth.models import User
@@ -29,6 +31,19 @@ from src.models.score import ScoreResult
 from src.preferences.router import router as preferences_router
 from src.storage.db import query, save
 from src.web import web_router
+
+# Load notification config from config.yaml
+_notification_config = {}
+try:
+    _config_path = Path(__file__).parent.parent.parent / "config.yaml"
+    if _config_path.exists():
+        with open(_config_path) as f:
+            _full_config = yaml.safe_load(f)
+            _notification_config = _full_config.get("notification", {})
+except Exception:
+    pass
+
+dispatcher = NotificationDispatcher(_notification_config)
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +209,12 @@ async def score_content(
     except Exception:
         # Storage failure should not block returning the result
         pass
+
+    # Notify via WebSocket (fire-and-forget, don't block response)
+    try:
+        await dispatcher.notify_score_completed(result.model_dump())
+    except Exception:
+        pass  # Notification failure should never block scoring response
 
     return result
 
