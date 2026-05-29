@@ -87,6 +87,52 @@ class TestConnectionManager:
         await mgr.broadcast("test", {"data": 1})
         assert mgr.active_count == 1  # Dead connection removed
 
+    @pytest.mark.asyncio
+    async def test_send_to_user_only_targets_matching_user(self):
+        """send_to_user() sends only to connections with matching user_id."""
+        mgr = ConnectionManager()
+        ws_user1 = AsyncMock()
+        ws_user2 = AsyncMock()
+        ws_anon = AsyncMock()
+
+        await mgr.connect(ws_user1, user_id=1)
+        await mgr.connect(ws_user2, user_id=2)
+        await mgr.connect(ws_anon, user_id=None)
+
+        await mgr.send_to_user(1, "score_completed", {"score": 75})
+
+        assert ws_user1.send_text.called
+        assert not ws_user2.send_text.called
+        assert not ws_anon.send_text.called
+
+        # Verify message format
+        sent = ws_user1.send_text.call_args[0][0]
+        msg = json.loads(sent)
+        assert msg["event"] == "score_completed"
+        assert msg["data"] == {"score": 75}
+        assert "timestamp" in msg
+
+    @pytest.mark.asyncio
+    async def test_send_to_user_no_connections(self):
+        """send_to_user() with no connections does nothing."""
+        mgr = ConnectionManager()
+        await mgr.send_to_user(1, "test", {})  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_send_to_user_removes_dead_connections(self):
+        """send_to_user() removes dead connections for the target user."""
+        mgr = ConnectionManager()
+        ws_good = AsyncMock()
+        ws_dead = AsyncMock()
+        ws_dead.send_text.side_effect = Exception("Connection closed")
+
+        await mgr.connect(ws_good, user_id=1)
+        await mgr.connect(ws_dead, user_id=1)
+        assert mgr.active_count == 2
+
+        await mgr.send_to_user(1, "test", {"data": 1})
+        assert mgr.active_count == 1  # Dead connection removed
+
 
 class TestNotificationDispatcher:
     """Tests for NotificationDispatcher."""

@@ -220,7 +220,7 @@ class TestNotificationDispatch:
     def test_score_triggers_notification(
         self, mock_score, mock_save, mock_notify, client
     ):
-        """Scoring triggers notify_score_completed with the result data."""
+        """Anonymous scoring triggers notify_score_completed with the result data."""
         mock_result = ScoreResult(
             overall_score=65.0,
             dimensions=DimensionScores(
@@ -249,6 +249,62 @@ class TestNotificationDispatch:
         mock_notify.assert_called_once()
         call_args = mock_notify.call_args[0][0]
         assert call_args["overall_score"] == 65.0
+
+    @patch("src.api.websocket.manager.send_to_user", new_callable=AsyncMock)
+    @patch("src.api.app.dispatcher.notify_score_completed", new_callable=AsyncMock)
+    @patch("src.api.app.save")
+    @patch("src.api.app.score")
+    def test_authenticated_score_uses_send_to_user(
+        self, mock_score, mock_save, mock_notify, mock_send_to_user, set_api_key
+    ):
+        """Authenticated scoring uses send_to_user instead of broadcast."""
+        mock_result = ScoreResult(
+            overall_score=65.0,
+            dimensions=DimensionScores(
+                originality=70,
+                info_density=60,
+                reasoning_quality=65,
+                readability=70,
+                timeliness=50,
+                ai_generated_prob=20,
+                emotional_manipulation=10,
+                advertorial_prob=15,
+                scam_prob=5,
+            ),
+            labels=[],
+            summary="Decent content",
+            confidence=0.85,
+            model_used="test-model",
+            cost=0.001,
+            scored_at=datetime(2024, 1, 1, 12, 0, 0),
+        )
+        mock_score.return_value = mock_result
+        mock_save.return_value = None
+
+        from src.auth.dependencies import get_optional_user
+        from src.auth.models import User
+
+        mock_user = User(
+            id=3, username="notifyuser", api_key="test-key", created_at=datetime(2024, 1, 1)
+        )
+
+        from src.api.app import app
+
+        app.dependency_overrides[get_optional_user] = lambda: mock_user
+        try:
+            with TestClient(app) as c:
+                response = c.post("/score", json={"text": "Test scoped notification."})
+        finally:
+            app.dependency_overrides.pop(get_optional_user, None)
+
+        assert response.status_code == 200
+        # Authenticated users get scoped delivery via send_to_user
+        mock_send_to_user.assert_called_once()
+        call_args = mock_send_to_user.call_args
+        assert call_args[0][0] == 3  # user_id
+        assert call_args[0][1] == "score_completed"  # event
+        # Broadcast should NOT have been called
+        mock_notify.assert_not_called()
 
 
 class TestMultiTenantIsolation:

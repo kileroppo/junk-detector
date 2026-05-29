@@ -21,7 +21,7 @@ class PostgresBackend:
         self._kwargs = kwargs
 
     async def connect(self) -> None:
-        """Initialize connection pool."""
+        """Initialize connection pool and ensure schema exists."""
         try:
             import asyncpg
         except ImportError:
@@ -30,6 +30,32 @@ class PostgresBackend:
                 "Install with: pip install junk-detector[postgres]"
             )
         self._pool = await asyncpg.create_pool(dsn=self._dsn, **self._kwargs)
+        await self._ensure_schema()
+
+    async def _ensure_schema(self) -> None:
+        """Create tables if they don't exist."""
+        async with self._pool.acquire() as conn:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS scores (
+                    id SERIAL PRIMARY KEY,
+                    input_type TEXT NOT NULL,
+                    source_url TEXT,
+                    title TEXT,
+                    content_hash TEXT UNIQUE NOT NULL,
+                    scored_at TEXT NOT NULL,
+                    overall_score REAL NOT NULL,
+                    dimensions_json TEXT NOT NULL,
+                    labels_json TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    model_used TEXT,
+                    cost REAL DEFAULT 0,
+                    rule_hits_json TEXT,
+                    confidence REAL DEFAULT 1.0,
+                    embedding_json TEXT,
+                    user_id INTEGER,
+                    cached_at TEXT
+                )
+            """)
 
     async def close(self) -> None:
         """Close connection pool."""
@@ -62,8 +88,7 @@ class PostgresBackend:
                     model_used = EXCLUDED.model_used,
                     cost = EXCLUDED.cost,
                     rule_hits_json = EXCLUDED.rule_hits_json,
-                    confidence = EXCLUDED.confidence,
-                    user_id = EXCLUDED.user_id
+                    confidence = EXCLUDED.confidence
                 """,
                 content.input_type.value,
                 content.source_url,

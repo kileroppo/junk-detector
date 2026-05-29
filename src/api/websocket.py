@@ -63,6 +63,28 @@ class ConnectionManager:
         for conn in disconnected:
             self.disconnect(conn)
 
+    async def send_to_user(self, user_id: int, event: str, data: dict) -> None:
+        """Send a message only to connections belonging to a specific user."""
+        if not self._connections:
+            return
+
+        message = json.dumps({
+            "event": event,
+            "data": data,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }, ensure_ascii=False)
+
+        disconnected: list[WebSocket] = []
+        for connection, conn_user_id in self._connections.items():
+            if conn_user_id == user_id:
+                try:
+                    await connection.send_text(message)
+                except Exception:
+                    disconnected.append(connection)
+
+        for conn in disconnected:
+            self.disconnect(conn)
+
 
 # Global connection manager instance
 manager = ConnectionManager()

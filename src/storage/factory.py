@@ -7,10 +7,12 @@ from typing import Any
 
 import yaml
 
+from src.storage.backend import AsyncStorageBackend, StorageBackend
+
 logger = logging.getLogger(__name__)
 
 
-def get_storage_backend(config: dict | None = None):
+def get_storage_backend(config: dict | None = None) -> StorageBackend | AsyncStorageBackend:
     """Create and return the configured storage backend.
 
     Args:

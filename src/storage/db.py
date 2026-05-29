@@ -136,8 +136,7 @@ def save(
                 cost = excluded.cost,
                 rule_hits_json = excluded.rule_hits_json,
                 confidence = excluded.confidence,
-                embedding_json = excluded.embedding_json,
-                user_id = excluded.user_id
+                embedding_json = excluded.embedding_json
             """,
             (
                 content.input_type.value,

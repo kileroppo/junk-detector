@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.storage.backend import StorageBackend
+from src.storage.backend import AsyncStorageBackend, StorageBackend
 from src.storage.sqlite_backend import SQLiteBackend
 from src.storage.factory import get_storage_backend
 from src.models.score import Content, DimensionScores, InputType, ScoreResult
@@ -13,6 +13,34 @@ class TestStorageBackendProtocol:
     def test_sqlite_backend_implements_protocol(self):
         backend = SQLiteBackend(db_path=":memory:")
         assert isinstance(backend, StorageBackend)
+
+    def test_postgres_backend_has_async_interface(self):
+        """PostgresBackend methods are coroutine functions (async)."""
+        import asyncio
+        from src.storage.postgres_backend import PostgresBackend
+
+        backend = PostgresBackend(dsn="postgresql://localhost/test")
+        assert asyncio.iscoroutinefunction(backend.save)
+        assert asyncio.iscoroutinefunction(backend.query)
+        assert asyncio.iscoroutinefunction(backend.get_history)
+        assert asyncio.iscoroutinefunction(backend.query_by_content_hash)
+
+    def test_sqlite_backend_has_sync_interface(self):
+        """SQLiteBackend methods are regular functions (not async)."""
+        import asyncio
+
+        backend = SQLiteBackend(db_path=":memory:")
+        assert not asyncio.iscoroutinefunction(backend.save)
+        assert not asyncio.iscoroutinefunction(backend.query)
+        assert not asyncio.iscoroutinefunction(backend.get_history)
+        assert not asyncio.iscoroutinefunction(backend.query_by_content_hash)
+
+    def test_async_protocol_exists(self):
+        """AsyncStorageBackend protocol is importable and runtime_checkable."""
+        assert hasattr(AsyncStorageBackend, 'save')
+        assert hasattr(AsyncStorageBackend, 'query')
+        assert hasattr(AsyncStorageBackend, 'get_history')
+        assert hasattr(AsyncStorageBackend, 'query_by_content_hash')
 
 
 class TestSQLiteBackend:
