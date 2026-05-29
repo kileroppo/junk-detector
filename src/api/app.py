@@ -65,6 +65,9 @@ async def lifespan(app: FastAPI):
                 "DEEPSEEK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
             )
     yield
+    # Shutdown: close shared HTTP client
+    from src.extractors.http_pool import close_client
+    await close_client()
 
 
 app = FastAPI(
