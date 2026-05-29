@@ -331,6 +331,47 @@ ruff format --check src/ tests/
 - Unix 哲学（管道、exit code、可组合）
 - 测试即文档（926+ tests 说明了所有行为）
 
+## Chrome 扩展安装
+
+加载扩展：Chrome → 扩展程序 → 开发者模式 → 加载已解压的扩展程序 → 选择 `extension/` 目录
+
+支持平台：
+- 微信公众号 (mp.weixin.qq.com)
+- 知乎 (zhihu.com)
+- 小红书 (xiaohongshu.com)
+- 掘金 (juejin.cn)
+- 微博 (weibo.com)
+
+安装后访问支持的平台文章页面，右下角会自动显示内容质量指示器。
+
+## Docker 部署
+
+```bash
+docker run -p 8000:8000 junk-detector
+```
+
+> 注：Dockerfile 尚未创建，计划在后续版本中提供。目前请使用 `junk-detector serve` 启动 API 服务。
+
+## MCP 配置 (Cursor / Claude Code)
+
+将以下配置添加到你的 AI 工具 MCP 设置中：
+
+```json
+{
+  "mcpServers": {
+    "junk-detector": {
+      "command": "junk-detector",
+      "args": ["mcp-server"]
+    }
+  }
+}
+```
+
+提供 3 个 tools：
+- `score_text` -- 评分文本内容
+- `score_url` -- 抓取并评分网页
+- `quick_check` -- 快速规则检测（无 LLM 调用）
+
 ## License
 
 MIT

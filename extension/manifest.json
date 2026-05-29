@@ -16,7 +16,7 @@
     "service_worker": "background.js"
   },
   "content_scripts": [{
-    "matches": ["*://mp.weixin.qq.com/*", "*://*.xiaohongshu.com/*", "*://*.zhihu.com/*"],
+    "matches": ["*://mp.weixin.qq.com/*", "*://*.xiaohongshu.com/*", "*://*.zhihu.com/*", "*://*.juejin.cn/*", "*://*.weibo.com/*"],
     "js": ["rules.js", "content.js"]
   }],
   "icons": {

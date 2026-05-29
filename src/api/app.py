@@ -163,6 +163,48 @@ async def health(deep: bool = False):
         return {"status": "degraded", "llm_status": "unreachable"}
 
 
+@app.get("/demo")
+async def demo_score():
+    """Demo endpoint - scores a sample text without authentication.
+
+    Try-before-buy for API evaluation. Returns a full scoring result
+    for a hardcoded sample junk content text.
+    """
+    sample_text = (
+        "想要财富自由吗？加入我们的区块链投资群，日入过万不是梦！"
+        "限时免费名额，加微信领取。"
+    )
+    from src.core.rules import apply_rules, should_skip_llm
+
+    rule_result = apply_rules(sample_text)
+    skip_llm, reason = should_skip_llm(rule_result, sample_text)
+
+    # Determine verdict based on rule confidence
+    junk_dims = ["scam_prob", "advertorial_prob", "emotional_manipulation"]
+    max_junk = max(
+        (rule_result.dimension_overrides.get(d, 0.0) for d in junk_dims), default=0.0
+    )
+    if max_junk >= 70:
+        verdict = "junk"
+    elif max_junk >= 40:
+        verdict = "suspicious"
+    else:
+        verdict = "quality"
+
+    # Compute overall score (inverted: high junk = low score)
+    overall_score = max(0, 100 - max_junk)
+
+    return {
+        "overall_score": overall_score,
+        "explanation": f"检测到明显的垃圾信息特征: {', '.join(rule_result.matched_rules[:5])}",
+        "evidence": rule_result.matched_rules,
+        "verdict": verdict,
+        "dimensions": rule_result.dimension_overrides,
+        "sample_text": sample_text,
+        "note": "这是一个演示端点，使用固定的样本文本。正式使用请调用 POST /score",
+    }
+
+
 @app.post("/score", response_model=ScoreResult)
 async def score_content(
     request: ScoreRequest,
@@ -181,7 +223,7 @@ async def score_content(
     if not request.url and not request.text:
         raise HTTPException(
             status_code=422,
-            detail="Either 'url' or 'text' must be provided",
+            detail="请提供 'url' 或 'text' 参数",
         )
 
     # Dedup check — the scorer's own 7-day cache handles deduplication.
@@ -299,7 +341,7 @@ async def score_batch(
         async with semaphore:
             try:
                 if not item.url and not item.text:
-                    return {"error": "Either 'url' or 'text' must be provided", "index": index}
+                    return {"error": "请提供 'url' 或 'text' 参数", "index": index}
 
                 # Extract content
                 if item.url:

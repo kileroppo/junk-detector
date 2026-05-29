@@ -34,6 +34,17 @@
         document.querySelector(".RichContent-inner") ||
         document.querySelector(".Post-RichText") ||
         document.querySelector(".RichText");
+    } else if (host.includes("juejin.cn")) {
+      // Juejin articles
+      contentEl =
+        document.querySelector(".article-content") ||
+        document.querySelector(".markdown-body");
+    } else if (host.includes("weibo.com")) {
+      // Weibo posts
+      contentEl =
+        document.querySelector(".detail_wbtext_4CRf9") ||
+        document.querySelector(".wbpro-feed-content") ||
+        document.querySelector('[class*="Feed_body"]');
     }
 
     if (contentEl) {
@@ -50,6 +61,7 @@
 
   /**
    * Create and inject a floating traffic-light indicator in the bottom-right corner.
+   * Fades in smoothly and shows a tooltip on hover with one-line verdict.
    * @param {{score: number, verdict: string, explanation: string}} result
    */
   function showIndicator(result) {
@@ -69,9 +81,15 @@
       junk: "\ud83d\udea8"
     };
 
+    const verdictLabels = {
+      quality: "\u5185\u5bb9\u8d28\u91cf\u6b63\u5e38",
+      suspicious: "\u5185\u5bb9\u53ef\u7591\uff0c\u8bf7\u8c28\u614e\u9605\u8bfb",
+      junk: "\u7591\u4f3c\u5783\u573e\u4fe1\u606f"
+    };
+
     const indicator = document.createElement("div");
     indicator.id = "junk-detector-indicator";
-    indicator.title = result.explanation;
+    indicator.title = result.explanation || verdictLabels[result.verdict] || "";
     indicator.innerHTML = `
       <span style="font-size: 16px;">${icons[result.verdict] || "\u2753"}</span>
       <span style="font-size: 12px; margin-left: 4px; font-weight: 500;">${result.score}</span>
@@ -91,7 +109,19 @@
       boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
       cursor: "pointer",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      transition: "transform 0.2s ease, box-shadow 0.2s ease"
+      opacity: "0",
+      transform: "translateY(8px)",
+      transition: "opacity 0.4s ease, transform 0.4s ease, box-shadow 0.2s ease"
+    });
+
+    document.body.appendChild(indicator);
+
+    // Trigger fade-in after append
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        indicator.style.opacity = "1";
+        indicator.style.transform = "translateY(0)";
+      });
     });
 
     indicator.addEventListener("mouseenter", () => {
@@ -99,11 +129,9 @@
       indicator.style.boxShadow = "0 4px 16px rgba(0,0,0,0.2)";
     });
     indicator.addEventListener("mouseleave", () => {
-      indicator.style.transform = "scale(1)";
+      indicator.style.transform = "scale(1) translateY(0)";
       indicator.style.boxShadow = "0 2px 12px rgba(0,0,0,0.15)";
     });
-
-    document.body.appendChild(indicator);
   }
 
   /**

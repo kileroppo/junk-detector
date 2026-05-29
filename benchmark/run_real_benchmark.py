@@ -305,6 +305,50 @@ def write_results_md(results: dict, output_path: Path) -> None:
     lines.extend(weaknesses)
     lines.append("")
 
+    # Confusion details section
+    lines.append("## Confusion Details")
+    lines.append("")
+    lines.append("Examples of misclassified content:")
+    lines.append("")
+    if results["false_positives"] or results["false_negatives"]:
+        if results["false_positives"]:
+            lines.append("### False Positives (good content flagged)")
+            lines.append("")
+            for fp in results["false_positives"][:5]:
+                lines.append(f"- **[{fp['category']}]** `{fp['text'][:60]}...`")
+                lines.append(f"  - Predicted: {fp['predicted']}, Expected: quality")
+                lines.append(f"  - Why: Rules matched keywords that appear in legitimate context")
+            lines.append("")
+        if results["false_negatives"]:
+            lines.append("### False Negatives (junk content missed)")
+            lines.append("")
+            for fn in results["false_negatives"][:5]:
+                lines.append(f"- **[{fn['category']}]** `{fn['text'][:60]}...`")
+                lines.append(f"  - Predicted: {fn['predicted']}, Expected: junk")
+                lines.append(f"  - Why: Content avoids typical keyword patterns")
+            lines.append("")
+    else:
+        lines.append("No misclassifications between junk and quality classes in this run.")
+        lines.append("")
+
+    # Comparison notes section
+    lines.append("## Comparison Notes")
+    lines.append("")
+    lines.append("### 鉴真 vs 人工审核 vs Perspective API")
+    lines.append("")
+    lines.append("| 方法 | 优势 | 劣势 |")
+    lines.append("|------|------|------|")
+    lines.append("| 鉴真 (规则引擎) | 毫秒级响应, 零成本, 隐私安全 | 无法理解语义, 依赖关键词覆盖 |")
+    lines.append("| 鉴真 (规则+LLM) | 高准确率, 语义理解 | 有 API 成本, 响应较慢 |")
+    lines.append("| 人工审核 | 最高准确率, 理解上下文 | 成本高, 不可扩展, 有主观性 |")
+    lines.append("| Perspective API | 多语言, 成熟稳定 | 针对英文优化, 中文效果有限, 需要网络 |")
+    lines.append("")
+    lines.append("> **方法论说明**: 本基准仅测试鉴真规则引擎部分。")
+    lines.append("> 完整的对比测试需要在相同数据集上运行各系统,")
+    lines.append("> 目前我们没有 Perspective API 的中文测试结果作为对照。")
+    lines.append("> 上表为定性分析,非定量对比。")
+    lines.append("")
+
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 

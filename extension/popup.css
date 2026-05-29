@@ -1,3 +1,15 @@
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -9,6 +21,67 @@ body {
   width: 280px;
   background: #ffffff;
   color: #1d1d1f;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1c1c1e;
+    color: #ffffff;
+  }
+
+  .explanation {
+    color: #e5e5ea;
+  }
+
+  .score-label {
+    color: #98989d;
+  }
+
+  .score-value {
+    color: #ffffff;
+  }
+
+  .details-toggle {
+    color: #0a84ff;
+  }
+
+  .details-toggle:hover {
+    background-color: #2c2c2e;
+  }
+
+  .details-section {
+    border-top-color: #38383a;
+  }
+
+  .details-title {
+    color: #98989d;
+  }
+
+  .keyword-tag {
+    background-color: #2c2c2e;
+    color: #e5e5ea;
+  }
+
+  .keyword-tag.scam {
+    background-color: #3a1c1c;
+    color: #ff6b6b;
+  }
+
+  .keyword-tag.anxiety {
+    background-color: #3a2c1c;
+    color: #ffb347;
+  }
+
+  .keyword-tag.advertorial {
+    background-color: #1c2a3a;
+    color: #6bb5ff;
+  }
+
+  .no-result {
+    color: #98989d;
+  }
 }
 
 .container {
@@ -16,12 +89,14 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  animation: fadeIn 0.3s ease;
 }
 
 .verdict-icon {
   font-size: 48px;
   margin-bottom: 12px;
   line-height: 1;
+  transition: all 0.3s ease;
 }
 
 .explanation {
@@ -31,6 +106,7 @@ body {
   line-height: 1.5;
   margin-bottom: 16px;
   padding: 0 8px;
+  transition: all 0.3s ease;
 }
 
 .score-display {
@@ -49,6 +125,7 @@ body {
   font-size: 28px;
   font-weight: 600;
   color: #1d1d1f;
+  transition: all 0.3s ease;
 }
 
 .score-value.quality {

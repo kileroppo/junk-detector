@@ -44,3 +44,25 @@ Honest assessment of where the rules engine fails:
 - **Borderline detection is weak**: The rules engine is binary by nature (matches or not), making it poor at identifying ambiguous content that falls between junk and quality.
 - **Rules cannot assess nuance**: Content quality often depends on context, intent, and factual accuracy that keyword matching cannot capture. The LLM fallback is essential for borderline cases.
 - **No semantic understanding**: Rules match surface patterns. A well-written scam that avoids common keywords will evade detection.
+
+## Confusion Details
+
+Examples of misclassified content:
+
+No misclassifications between junk and quality classes in this run.
+
+## Comparison Notes
+
+### 鉴真 vs 人工审核 vs Perspective API
+
+| 方法 | 优势 | 劣势 |
+|------|------|------|
+| 鉴真 (规则引擎) | 毫秒级响应, 零成本, 隐私安全 | 无法理解语义, 依赖关键词覆盖 |
+| 鉴真 (规则+LLM) | 高准确率, 语义理解 | 有 API 成本, 响应较慢 |
+| 人工审核 | 最高准确率, 理解上下文 | 成本高, 不可扩展, 有主观性 |
+| Perspective API | 多语言, 成熟稳定 | 针对英文优化, 中文效果有限, 需要网络 |
+
+> **方法论说明**: 本基准仅测试鉴真规则引擎部分。
+> 完整的对比测试需要在相同数据集上运行各系统,
+> 目前我们没有 Perspective API 的中文测试结果作为对照。
+> 上表为定性分析,非定量对比。
