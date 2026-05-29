@@ -375,16 +375,48 @@ def _extract_content(
     raise ValueError("No input source provided")
 
 
-def _print_quick_verdict(result: FastScoreResult) -> None:
+def _print_quick_verdict(result: FastScoreResult, threshold: int = 60) -> None:
     """Print a single-line verdict based on the fast score result."""
     score_val = result.quick_verdict
-    if score_val >= 60:
+    if score_val >= threshold:
         verdict = f"\u2705 \u770b\u8d77\u6765\u6b63\u5e38 (score: {score_val:.0f})"
     elif score_val >= 40:
         verdict = f"\u26a0\ufe0f \u9700\u8981\u6ce8\u610f (score: {score_val:.0f})"
     else:
         verdict = f"\U0001f6a8 \u7591\u4f3c\u5783\u573e\u5185\u5bb9 (score: {score_val:.0f})"
     console.print(verdict)
+
+
+def _output_quick_result(
+    result: FastScoreResult,
+    *,
+    output_format: str,
+    json_output: bool,
+    threshold: int,
+) -> None:
+    """Output quick result in the requested format (human, json, csv)."""
+    # --json flag is equivalent to --format json
+    effective_format = "json" if json_output else output_format
+
+    if effective_format == "json":
+        output = result.model_dump(mode="json")
+        typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
+    elif effective_format == "csv":
+        # Single CSV line: score,verdict,summary (no header)
+        score_val = result.quick_verdict
+        if score_val >= threshold:
+            verdict_str = "OK"
+        elif score_val >= 40:
+            verdict_str = "CAUTION"
+        else:
+            verdict_str = "JUNK"
+        # Escape commas and quotes in summary
+        summary = result.summary.replace('"', '""')
+        if "," in summary or '"' in summary:
+            summary = f'"{summary}"'
+        typer.echo(f"{score_val:.0f},{verdict_str},{summary}")
+    else:
+        _print_quick_verdict(result, threshold)
 
 
 @app.command()
@@ -398,6 +430,11 @@ def quick(
     rules_only: bool = typer.Option(
         False, "--rules-only", "-r", help="Use rules-only evaluation without LLM"
     ),
+    consistent: bool = typer.Option(
+        False, "--consistent", help="Score 3 times and return median for stability"
+    ),
+    threshold: int = typer.Option(60, "--threshold", help="Score threshold for pass/fail (default 60)"),
+    output_format: str = typer.Option("human", "--format", help="Output format: human, json, csv"),
 ) -> None:
     """Quick content screening - single-line pass/fail verdict."""
 
@@ -447,6 +484,75 @@ def quick(
             rules_only = True
             auto_rules_only = True
 
+    # Consistent mode: score multiple times and take median
+    if consistent:
+        if rules_only:
+            # Rules are deterministic - just run once and note it
+            from src.core.rules import apply_rules, should_skip_llm
+
+            rule_result = apply_rules(content.text)
+            skip, _reason = should_skip_llm(rule_result, content.text)
+
+            if skip:
+                overrides = rule_result.dimension_overrides
+                scam_prob = overrides.get("scam_prob", 0.0)
+                advertorial_prob = overrides.get("advertorial_prob", 0.0)
+                emotional_manipulation = overrides.get("emotional_manipulation", 0.0)
+                quick_verdict = 100 - max(scam_prob, advertorial_prob, emotional_manipulation)
+                conf_values = [c for c in rule_result.confidence.values() if c > 0]
+                overall_confidence = min(conf_values) if conf_values else 0.8
+
+                fast_result = FastScoreResult(
+                    quick_verdict=quick_verdict,
+                    scam_prob=scam_prob,
+                    advertorial_prob=advertorial_prob,
+                    emotional_manipulation=emotional_manipulation,
+                    originality=50.0,
+                    summary="\u89c4\u5219\u5f15\u64ce\u5224\u5b9a (deterministic, 1 run)",
+                    confidence=overall_confidence,
+                    model_used="rules_only",
+                )
+            else:
+                fast_result = FastScoreResult(
+                    quick_verdict=50.0,
+                    scam_prob=50.0,
+                    advertorial_prob=50.0,
+                    emotional_manipulation=50.0,
+                    originality=50.0,
+                    summary="\u26a0\ufe0f \u89c4\u5219\u65e0\u6cd5\u5224\u5b9a (\u9700\u8981LLM)",
+                    confidence=0.1,
+                    model_used="rules_only",
+                )
+
+            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+            if not json_output and output_format == "human":
+                console.print(
+                    "\U0001f4a1 Rules are deterministic - consistent mode ran once.",
+                    style="dim",
+                )
+            raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
+        else:
+            # LLM mode: use score_consistent
+            try:
+                from src.core.config import load_config
+                from src.core.scorer import score_consistent
+
+                config = load_config(override_model=model)
+
+                fast_result: FastScoreResult = asyncio.run(
+                    score_consistent(content.text, n_runs=3, config=config)
+                )
+            except typer.Exit:
+                raise
+            except Exception as exc:
+                console.print(
+                    f"\u274c \u5feb\u901f\u8bc4\u5206\u5931\u8d25: {exc}", style="bold red"
+                )
+                raise typer.Exit(code=2)
+
+            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+            raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
+
     # Rules-only mode: skip API key validation and LLM call
     if rules_only:
         from src.core.rules import apply_rules, should_skip_llm
@@ -487,18 +593,14 @@ def quick(
                 model_used="rules_only",
             )
 
-        if json_output:
-            output = fast_result.model_dump(mode="json")
-            typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
-        else:
-            _print_quick_verdict(fast_result)
-            # Hint when auto rules-only is engaged and rules returned uncertain
-            if auto_rules_only and fast_result.confidence <= 0.2:
-                console.print(
-                    "\U0001f4a1 \u63d0\u793a: \u8bbe\u7f6e API key \u53ef\u83b7\u5f97\u66f4\u51c6\u786e\u7684\u5206\u6790",
-                    style="dim",
-                )
-        raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
+        _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+        # Hint when auto rules-only is engaged and rules returned uncertain
+        if not json_output and output_format == "human" and auto_rules_only and fast_result.confidence <= 0.2:
+            console.print(
+                "\U0001f4a1 \u63d0\u793a: \u8bbe\u7f6e API key \u53ef\u83b7\u5f97\u66f4\u51c6\u786e\u7684\u5206\u6790",
+                style="dim",
+            )
+        raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
 
     try:
         from src.core.config import load_config
@@ -515,12 +617,8 @@ def quick(
         console.print(f"\u274c \u5feb\u901f\u8bc4\u5206\u5931\u8d25: {exc}", style="bold red")
         raise typer.Exit(code=2)
 
-    if json_output:
-        output = fast_result.model_dump(mode="json")
-        typer.echo(json.dumps(output, ensure_ascii=False, indent=2))
-    else:
-        _print_quick_verdict(fast_result)
-    raise typer.Exit(code=0 if fast_result.quick_verdict >= 60 else 1)
+    _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+    raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
 
 
 @app.command()
@@ -909,16 +1007,44 @@ def feedback(
     ),
     stats: bool = typer.Option(False, "--stats", help="Show calibration statistics"),
     suggest: bool = typer.Option(False, "--suggest", help="Show rule update suggestions"),
+    auto_rules: bool = typer.Option(
+        False, "--auto-rules", help="Generate rule candidates from feedback patterns"
+    ),
 ) -> None:
     """Record feedback on scored content or view calibration stats."""
     from src.core.calibration import (
         VALID_VERDICTS,
         get_calibration_stats,
+        suggest_new_rules,
         suggest_rule_updates,
     )
     from src.core.calibration import (
         record_feedback as cal_record_feedback,
     )
+
+    # Show auto-generated rule candidates
+    if auto_rules:
+        candidates = suggest_new_rules()
+        console.print()
+        if not candidates:
+            console.print("[dim]No rule candidates available. Record more feedback first.[/dim]")
+            console.print()
+            return
+        console.print("[bold]Auto-Generated Rule Candidates[/bold]")
+        console.print("\u2501" * 40)
+        console.print()
+        console.print("# Paste into .junk-rules.yaml under 'rules:'")
+        console.print("rules:")
+        for rule in candidates:
+            console.print(f"  - name: {rule['name']}")
+            console.print(f"    target_dimension: {rule['target_dimension']}")
+            console.print(f"    score_contribution: {rule['score_contribution']}")
+            console.print(f"    confidence: {rule['confidence']}")
+            console.print("    keywords:")
+            for kw in rule["keywords"]:
+                console.print(f"      - \"{kw}\"")
+        console.print()
+        return
 
     # Show calibration stats
     if stats:
@@ -1024,6 +1150,72 @@ def feedback(
     console.print(f"  Score:   {overall_score:.0f}")
     console.print(f"  Verdict: {verdict}")
     console.print()
+
+
+@app.command()
+def rules(
+    list_rules: bool = typer.Option(False, "--list", "-l", help="List all active rules (built-in + custom)"),
+    init: bool = typer.Option(False, "--init", help="Create template .junk-rules.yaml in current directory"),
+    validate: Optional[str] = typer.Option(None, "--validate", help="Validate a custom rules YAML file"),
+) -> None:
+    """Manage detection rules (built-in + custom)."""
+    from src.core.custom_rules import (
+        generate_template,
+        load_custom_rules,
+        validate_rules_file,
+    )
+    from src.core.rules import (
+        _ADVERTORIAL_KEYWORDS,
+        _AI_HEDGING_PHRASES,
+        _ANXIETY_PHRASES,
+        _COMBO_RULES,
+        _SCAM_KEYWORDS,
+    )
+
+    if init:
+        target = Path.cwd() / ".junk-rules.yaml"
+        if target.exists():
+            console.print(f"[yellow].junk-rules.yaml already exists at {target}[/yellow]")
+            raise typer.Exit(code=1)
+        target.write_text(generate_template(), encoding="utf-8")
+        console.print(f"[green]Created .junk-rules.yaml at {target}[/green]")
+        return
+
+    if validate is not None:
+        is_valid, errors = validate_rules_file(validate)
+        if is_valid:
+            console.print(f"[green]OK: {validate} is valid[/green]")
+        else:
+            console.print(f"[red]INVALID: {validate}[/red]")
+            for err in errors:
+                console.print(f"  - {err}")
+            raise typer.Exit(code=1)
+        return
+
+    if list_rules:
+        console.print()
+        console.print("[bold]Built-in Rules[/bold]")
+        console.print("-" * 40)
+        console.print(f"  Scam keywords: {len(_SCAM_KEYWORDS)}")
+        console.print(f"  Anxiety phrases: {len(_ANXIETY_PHRASES)}")
+        console.print(f"  Advertorial keywords: {len(_ADVERTORIAL_KEYWORDS)}")
+        console.print(f"  AI hedging phrases: {len(_AI_HEDGING_PHRASES)}")
+        console.print(f"  Combo rules: {len(_COMBO_RULES)}")
+
+        custom = load_custom_rules()
+        console.print()
+        console.print("[bold]Custom Rules[/bold]")
+        console.print("-" * 40)
+        if custom:
+            for rule in custom:
+                console.print(f"  {rule.name} -> {rule.target_dimension}")
+        else:
+            console.print("  (none)")
+        console.print()
+        return
+
+    # Default: show help hint
+    console.print("Use --list, --init, or --validate. Run 'junk-detector rules --help' for details.")
 
 
 if __name__ == "__main__":

@@ -108,6 +108,72 @@ else
 fi
 ```
 
+## Benchmark
+
+Rules engine performance on 500 labeled Chinese content samples:
+
+| Metric | Value |
+|--------|-------|
+| Precision | 0.99 |
+| Recall | 0.80 |
+| F1 Score | 0.88 |
+
+Full results: [benchmark/results.md](benchmark/results.md)
+
+Reproduce:
+```bash
+python benchmark/run_benchmark.py
+```
+
+## Custom Rules
+
+Define your own detection rules in `.junk-rules.yaml`:
+
+```bash
+# Generate template
+junk-detector rules --init
+
+# List all active rules
+junk-detector rules --list
+
+# Validate rule file
+junk-detector rules --validate my-rules.yaml
+```
+
+See [docs/custom-rules.md](docs/custom-rules.md) for full documentation.
+
+## CI/CD Integration
+
+### Pre-commit Hook
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/kileroppo/junk-detector
+    rev: v0.1.0
+    hooks:
+      - id: junk-detector
+```
+
+### GitHub Actions
+
+See [examples/github-action.yml](examples/github-action.yml) for a complete workflow.
+
+```bash
+# In your CI script
+junk-detector quick --file content.md --threshold 50
+```
+
+## PyPI Installation
+
+```bash
+pip install junk-detector
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing rules and code.
+
 ## 配置
 
 默认使用 DeepSeek（便宜、中文能力强）。支持切换模型：

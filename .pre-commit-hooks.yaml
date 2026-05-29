@@ -1,0 +1,8 @@
+- id: junk-detector
+  name: Junk Detector
+  description: Check content quality - detect scam, clickbait, advertorial
+  entry: junk-detector quick --file
+  language: python
+  types: [markdown, text]
+  pass_filenames: true
+  minimum_pre_commit_version: '2.9.0'

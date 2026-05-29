@@ -1,0 +1,32 @@
+# Example: GitHub Actions workflow to scan content with junk-detector
+# Copy this to .github/workflows/content-check.yml in your repository
+
+name: Content Quality Check
+on:
+  pull_request:
+    paths:
+      - 'content/**'
+      - 'posts/**'
+
+jobs:
+  check-content:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install junk-detector
+      - name: Check content quality
+        run: |
+          FAILED=0
+          for file in $(git diff --name-only HEAD~1 -- 'content/**' 'posts/**'); do
+            if [ -f "$file" ]; then
+              echo "Checking: $file"
+              if ! junk-detector quick --file "$file" --threshold 50; then
+                FAILED=1
+                echo "::warning file=$file::Content quality below threshold"
+              fi
+            fi
+          done
+          exit $FAILED

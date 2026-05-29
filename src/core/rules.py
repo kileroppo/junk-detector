@@ -7,11 +7,14 @@ dimension score overrides with associated confidence levels.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class RuleResult(BaseModel):
@@ -434,6 +437,53 @@ def _check_ai_generated(content: str) -> Optional[tuple[float, float]]:
 
 
 # ---------------------------------------------------------------------------
+# Platform-specific patterns
+# ---------------------------------------------------------------------------
+
+_WECHAT_PATTERNS: list[str] = [
+    "点击关注", "转发有礼", "阅读原文领取", "长按识别二维码",
+    "关注后回复", "置顶公众号", "星标公众号", "公众号后台",
+    "扫码关注", "点击阅读原文",
+]
+
+_XIAOHONGSHU_PATTERNS: list[str] = [
+    "姐妹们", "绝绝子", "yyds", "无广", "自用推荐",
+    "亲测好用", "回购N次", "平替", "合集", "避雷",
+    "真的绝了", "谁懂啊", "天花板", "入股不亏",
+]
+
+_ZHIHU_PATTERNS: list[str] = [
+    "谢邀", "利益相关", "人在美国", "匿了",
+    "先问是不是", "强答一波", "泻药", "以上",
+]
+
+_DOUYIN_PATTERNS: list[str] = [
+    "点赞关注", "评论区见", "双击666", "家人们",
+    "老铁们", "点击小黄车", "直播间", "憋走",
+    "关注不迷路", "粉丝宝宝", "三连",
+]
+
+
+def check_platform_patterns(content: str) -> dict[str, int]:
+    """Check content for platform-specific engagement/promotion patterns.
+
+    Returns dict of {platform_name: hit_count} for platforms with at least 1 hit.
+    """
+    results = {}
+    patterns_map = {
+        "wechat": _WECHAT_PATTERNS,
+        "xiaohongshu": _XIAOHONGSHU_PATTERNS,
+        "zhihu": _ZHIHU_PATTERNS,
+        "douyin": _DOUYIN_PATTERNS,
+    }
+    for platform, patterns in patterns_map.items():
+        hits = sum(1 for p in patterns if p in content)
+        if hits > 0:
+            results[platform] = hits
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Combo rules - multiple weak signals boosting confidence
 # ---------------------------------------------------------------------------
 
@@ -604,5 +654,36 @@ def apply_rules(content: str) -> RuleResult:
 
     # --- Combo rules (must run after individual checks) ---
     _check_combo_rules(content, result)
+
+    # --- Platform-specific patterns ---
+    platform_hits = check_platform_patterns(content)
+    for platform, hits in platform_hits.items():
+        if hits >= 2:
+            rule_name = f"platform_{platform}_patterns"
+            result.matched_rules.append(rule_name)
+            # Boost advertorial_prob by +15, capped at 100
+            current_score = result.dimension_overrides.get("advertorial_prob", 0.0)
+            new_score = min(current_score + 15.0, 100.0)
+            result.dimension_overrides["advertorial_prob"] = new_score
+            # Set confidence to 0.7 (or keep existing if higher)
+            current_conf = result.confidence.get("advertorial_prob", 0.0)
+            result.confidence["advertorial_prob"] = max(current_conf, 0.7)
+
+    # --- Custom rules (user-defined) ---
+    try:
+        from src.core.custom_rules import apply_custom_rules, load_custom_rules
+        custom_rules = load_custom_rules()
+        if custom_rules:
+            custom_result = apply_custom_rules(content, custom_rules)
+            # Merge custom results
+            result.matched_rules.extend(custom_result.matched_rules)
+            for dim, score_val in custom_result.dimension_overrides.items():
+                current = result.dimension_overrides.get(dim, 0)
+                result.dimension_overrides[dim] = min(current + score_val, 100.0)
+            for dim, conf in custom_result.confidence.items():
+                current = result.confidence.get(dim, 0)
+                result.confidence[dim] = max(current, conf)
+    except (ImportError, OSError, ValueError) as e:
+        logger.warning("Failed to load/apply custom rules: %s", e)
 
     return result

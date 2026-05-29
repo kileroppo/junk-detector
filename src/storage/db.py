@@ -601,7 +601,7 @@ CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     score_id INTEGER,
     content_hash TEXT,
-    verdict TEXT NOT NULL,
+    user_verdict TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
 """
@@ -653,7 +653,7 @@ def save_feedback(
     try:
         conn.execute(
             """
-            INSERT INTO feedback (score_id, content_hash, verdict, created_at)
+            INSERT INTO feedback (score_id, content_hash, user_verdict, created_at)
             VALUES (?, ?, ?, ?)
             """,
             (score_id, content_hash, verdict, created_at),

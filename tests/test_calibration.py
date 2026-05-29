@@ -84,7 +84,7 @@ class TestInitFeedbackDb:
         conn = sqlite3.connect(tmp_db_path)
         cursor = conn.execute("PRAGMA table_info(feedback)")
         columns = {row[1] for row in cursor.fetchall()}
-        assert columns == {"id", "content_hash", "user_verdict", "created_at"}
+        assert columns == {"id", "content_hash", "user_verdict", "created_at", "content_text", "original_score"}
         conn.close()
 
 
