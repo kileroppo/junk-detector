@@ -176,8 +176,17 @@
    * Load the result for the current active tab.
    */
   function loadResult() {
+    // Show loading state initially
+    var container = document.querySelector(".container");
+    var iconEl = document.getElementById("verdict-icon");
+    var explanationEl = document.getElementById("explanation");
+    if (container) container.classList.add("loading");
+    if (iconEl) iconEl.textContent = "\u23f3";
+    if (explanationEl) explanationEl.textContent = "\u6b63\u5728\u5206\u6790...";
+
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       if (!tabs || tabs.length === 0) {
+        if (container) container.classList.remove("loading");
         displayResult(null, null);
         return;
       }
@@ -187,6 +196,7 @@
       const pageTitle = tab.title || null;
       const key = "result_" + tabId;
       chrome.storage.local.get(key, function (data) {
+        if (container) container.classList.remove("loading");
         const result = data[key] || null;
         displayResult(result, pageTitle);
       });

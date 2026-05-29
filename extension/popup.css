@@ -162,7 +162,11 @@ body {
   }
 
   /* Loading animation works in both modes */
-  .loading {
+  .loading .verdict-icon {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .loading .explanation {
     animation: pulse 1.5s ease-in-out infinite;
   }
 }
@@ -579,9 +583,13 @@ body {
 /* Loading pulse animation */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.4; }
 }
 
-.loading {
+.loading .verdict-icon {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.loading .explanation {
   animation: pulse 1.5s ease-in-out infinite;
 }

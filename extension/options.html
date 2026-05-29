@@ -106,6 +106,35 @@
     .save-msg.visible {
       opacity: 1;
     }
+    .whitelist-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      background: #f9fafb;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .whitelist-item .domain {
+      color: #374151;
+    }
+    .whitelist-remove {
+      background: none;
+      border: none;
+      color: #EF4444;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .whitelist-remove:hover {
+      background-color: #FEE2E2;
+    }
+    .no-result {
+      font-size: 12px;
+      color: #9ca3af;
+    }
     /* Dark mode support */
     @media (prefers-color-scheme: dark) {
       body {
@@ -171,6 +200,14 @@
         <input type="checkbox" id="notifications-toggle" checked>
         <span class="toggle-slider"></span>
       </label>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="setting-label">信任网站（白名单）</div>
+    <div class="setting-desc">通过右键菜单添加的信任网站，不再进行检测</div>
+    <div id="whitelist-container">
+      <span class="no-result">暂无信任网站</span>
     </div>
   </div>
 

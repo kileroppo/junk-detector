@@ -32,7 +32,13 @@ class TestHealthEndpoint:
         """Health check endpoint returns 200 with status ok."""
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok", "name": "鉴真", "version": "0.1.0"}
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["name"] == "\u9274\u771f"
+        assert data["version"] == "0.2.0"
+        assert "uptime_seconds" in data
+        assert "total_scores" in data
+        assert "rules_loaded" in data
 
     @patch("litellm.acompletion", new_callable=AsyncMock)
     def test_deep_health_check_does_not_leak_errors(self, mock_acompletion, client):

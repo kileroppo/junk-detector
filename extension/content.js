@@ -150,23 +150,40 @@
   }
 
   /**
+   * Check if the current domain is whitelisted (trusted).
+   * @param {function} callback - Called with true if should proceed, false if whitelisted.
+   */
+  function checkWhitelist(callback) {
+    chrome.storage.sync.get("whitelist", function (data) {
+      var whitelist = data.whitelist || [];
+      var domain = window.location.hostname;
+      callback(!whitelist.includes(domain));
+    });
+  }
+
+  /**
    * Main execution: extract text, score it, and display result.
    */
   function run() {
-    const text = extractArticleText();
-    if (!text || text.trim().length < 20) {
-      return; // Not enough content to analyze
-    }
+    // Check whitelist before scoring
+    checkWhitelist(function (shouldProceed) {
+      if (!shouldProceed) return;
 
-    // Send to background script for scoring
-    chrome.runtime.sendMessage(
-      { type: "SCORE_CONTENT", text: text },
-      function (response) {
-        if (response && response.result) {
-          showIndicator(response.result);
-        }
+      var text = extractArticleText();
+      if (!text || text.trim().length < 20) {
+        return; // Not enough content to analyze
       }
-    );
+
+      // Send to background script for scoring
+      chrome.runtime.sendMessage(
+        { type: "SCORE_CONTENT", text: text },
+        function (response) {
+          if (response && response.result) {
+            showIndicator(response.result);
+          }
+        }
+      );
+    });
   }
 
   // Track current URL for SPA navigation detection
@@ -324,20 +341,21 @@
     feedObserver.observe(document.body, { childList: true, subtree: true });
   }
 
-  // Run after page load with a small delay to ensure DOM is ready
+  // Run after page load using requestIdleCallback for better performance.
+  // This ensures the content script doesn't compete with initial page rendering.
   if (document.readyState === "complete") {
-    setTimeout(run, 1000);
-    watchForNavigation();
-    observeContentChanges();
-    scoreFeedItems();
-    observeFeedChanges();
+    if (window.requestIdleCallback) {
+      requestIdleCallback(function() { run(); watchForNavigation(); observeContentChanges(); scoreFeedItems(); observeFeedChanges(); }, {timeout: 2000});
+    } else {
+      setTimeout(function() { run(); watchForNavigation(); observeContentChanges(); scoreFeedItems(); observeFeedChanges(); }, 1000);
+    }
   } else {
     window.addEventListener("load", function () {
-      setTimeout(run, 1000);
-      watchForNavigation();
-      observeContentChanges();
-      scoreFeedItems();
-      observeFeedChanges();
+      if (window.requestIdleCallback) {
+        requestIdleCallback(function() { run(); watchForNavigation(); observeContentChanges(); scoreFeedItems(); observeFeedChanges(); }, {timeout: 2000});
+      } else {
+        setTimeout(function() { run(); watchForNavigation(); observeContentChanges(); scoreFeedItems(); observeFeedChanges(); }, 1000);
+      }
     });
   }
 

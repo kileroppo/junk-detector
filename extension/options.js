@@ -82,6 +82,59 @@
   document.getElementById("excluded-sites").addEventListener("input", saveSettings);
   document.getElementById("notifications-toggle").addEventListener("change", saveSettings);
 
+  /**
+   * Load and render the whitelist.
+   */
+  function loadWhitelist() {
+    chrome.storage.sync.get("whitelist", function (data) {
+      var whitelist = data.whitelist || [];
+      var container = document.getElementById("whitelist-container");
+      container.innerHTML = "";
+
+      if (whitelist.length === 0) {
+        container.innerHTML = '<span class="no-result">\u6682\u65e0\u4fe1\u4efb\u7f51\u7ad9</span>';
+        return;
+      }
+
+      whitelist.forEach(function (domain) {
+        var item = document.createElement("div");
+        item.className = "whitelist-item";
+
+        var domainEl = document.createElement("span");
+        domainEl.className = "domain";
+        domainEl.textContent = domain;
+
+        var removeBtn = document.createElement("button");
+        removeBtn.className = "whitelist-remove";
+        removeBtn.textContent = "\u2715";
+        removeBtn.title = "\u79fb\u9664";
+        removeBtn.addEventListener("click", function () {
+          removeFromWhitelist(domain);
+        });
+
+        item.appendChild(domainEl);
+        item.appendChild(removeBtn);
+        container.appendChild(item);
+      });
+    });
+  }
+
+  /**
+   * Remove a domain from the whitelist.
+   * @param {string} domain
+   */
+  function removeFromWhitelist(domain) {
+    chrome.storage.sync.get("whitelist", function (data) {
+      var whitelist = data.whitelist || [];
+      whitelist = whitelist.filter(function (d) { return d !== domain; });
+      chrome.storage.sync.set({ whitelist: whitelist }, function () {
+        loadWhitelist();
+        showSaveMessage();
+      });
+    });
+  }
+
   // Load settings on page open
   loadSettings();
+  loadWhitelist();
 })();

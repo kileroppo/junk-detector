@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -64,6 +65,8 @@ async def lifespan(app: FastAPI):
                 "No LLM API key configured. Set one of: "
                 "DEEPSEEK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
             )
+    app.state.startup_time = time.time()
+    app.state.score_count = 0
     yield
     # Shutdown: close shared HTTP client
     from src.extractors.http_pool import close_client
@@ -148,8 +151,22 @@ async def health(deep: bool = False):
     Args:
         deep: If True, attempts a minimal LLM API call to verify connectivity.
     """
+    from src.core.rules import _ADVERTORIAL_KEYWORDS, _ANXIETY_PHRASES, _SCAM_KEYWORDS
+
+    uptime = time.time() - getattr(app.state, "startup_time", time.time())
+    rules_count = len(_SCAM_KEYWORDS) + len(_ANXIETY_PHRASES) + len(_ADVERTORIAL_KEYWORDS)
+
+    base = {
+        "status": "ok",
+        "name": "\u9274\u771f",
+        "version": "0.2.0",
+        "uptime_seconds": round(uptime),
+        "total_scores": getattr(app.state, "score_count", 0),
+        "rules_loaded": rules_count,
+    }
+
     if not deep:
-        return {"status": "ok", "name": "鉴真", "version": "0.1.0"}
+        return base
 
     # Deep health check: ping the LLM API
     try:
@@ -166,10 +183,13 @@ async def health(deep: bool = False):
             max_tokens=1,
             timeout=5.0,
         )
-        return {"status": "ok", "llm_status": "connected"}
+        base["llm_status"] = "connected"
+        return base
     except Exception as e:
         logger.error("Deep health check failed: %s", e)
-        return {"status": "degraded", "llm_status": "unreachable"}
+        base["status"] = "degraded"
+        base["llm_status"] = "unreachable"
+        return base
 
 
 @app.get("/demo")
@@ -337,6 +357,9 @@ async def score_content(
         )
     else:
         result = await score(content.text, source_url=request.url)
+
+    # Increment score counter
+    app.state.score_count = getattr(app.state, "score_count", 0) + 1
 
     # Save to storage (user_id available if authenticated)
     try:

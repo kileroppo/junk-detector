@@ -3,7 +3,7 @@
   "name": "鉴真 - 内容质量检测",
   "version": "0.1.0",
   "description": "一眼看穿垃圾信息 - 本地规则引擎实时检测",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "contextMenus"],
   "options_page": "options.html",
   "action": {
     "default_popup": "popup.html",

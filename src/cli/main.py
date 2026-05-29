@@ -316,7 +316,11 @@ def score(
         # Pre-check: validate API key for the configured model
         _validate_api_key(config.primary_model)
 
-        result: ScoreResult = asyncio.run(do_score(content.text, config=config))
+        if not json_output:
+            with console.status("[bold cyan]\u6b63\u5728\u6df1\u5ea6\u5206\u6790...[/bold cyan]", spinner="dots"):
+                result: ScoreResult = asyncio.run(do_score(content.text, config=config))
+        else:
+            result: ScoreResult = asyncio.run(do_score(content.text, config=config))
     except typer.Exit:
         raise
     except Exception as exc:
@@ -665,9 +669,15 @@ def quick(
 
         config = load_config(override_model=model)
 
-        fast_result: FastScoreResult = asyncio.run(
-            score_fast(content.text, config=config, max_retries=retry)
-        )
+        if not json_output and output_format != "json":
+            with console.status("[bold cyan]\u6b63\u5728\u5206\u6790...[/bold cyan]", spinner="dots"):
+                fast_result: FastScoreResult = asyncio.run(
+                    score_fast(content.text, config=config, max_retries=retry)
+                )
+        else:
+            fast_result: FastScoreResult = asyncio.run(
+                score_fast(content.text, config=config, max_retries=retry)
+            )
     except typer.Exit:
         raise
     except Exception as exc:
