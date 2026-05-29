@@ -5,6 +5,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi.testclient import TestClient
 
 from src.api.websocket import ConnectionManager
 from src.api.notifications import NotificationDispatcher
@@ -133,3 +134,51 @@ class TestNotificationDispatcher:
             mock_manager.broadcast = AsyncMock()
             await dispatcher.notify_score_completed({"score": 50})
             mock_manager.broadcast.assert_not_called()
+
+
+class TestWebSocketAuth:
+    """Tests for WebSocket authentication via JWT token query parameter."""
+
+    def test_valid_token_connects(self):
+        """WebSocket with valid token connects successfully with user_id stored."""
+        from src.api.app import app
+
+        client = TestClient(app)
+
+        with patch("src.api.websocket.AuthService.verify_token") as mock_verify:
+            mock_verify.return_value = {"user_id": 1, "username": "testuser"}
+            with client.websocket_connect("/ws?token=valid") as ws:
+                ws.send_text("ping")
+                data = ws.receive_text()
+                msg = json.loads(data)
+                assert msg["event"] == "pong"
+
+            mock_verify.assert_called_once_with("valid")
+
+    def test_invalid_token_rejected_4001(self):
+        """WebSocket with invalid token gets closed with code 4001."""
+        from starlette.websockets import WebSocketDisconnect
+
+        from src.api.app import app
+
+        client = TestClient(app)
+
+        with patch("src.api.websocket.AuthService.verify_token") as mock_verify:
+            mock_verify.side_effect = ValueError("Invalid token")
+            with pytest.raises(WebSocketDisconnect) as exc_info:
+                with client.websocket_connect("/ws?token=bad") as ws:
+                    ws.send_text("ping")
+
+            assert exc_info.value.code == 4001
+
+    def test_no_token_connects_anonymous(self):
+        """WebSocket without token connects successfully (anonymous, backward compat)."""
+        from src.api.app import app
+
+        client = TestClient(app)
+
+        with client.websocket_connect("/ws") as ws:
+            ws.send_text("ping")
+            data = ws.receive_text()
+            msg = json.loads(data)
+            assert msg["event"] == "pong"
