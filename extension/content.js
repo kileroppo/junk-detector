@@ -529,13 +529,23 @@
   /**
    * Observe DOM mutations for feed content and score new items.
    * Uses requestIdleCallback to defer scoring of new feed items.
+   * A scoringScheduled flag coalesces multiple rapid mutations into one pass.
    */
   function observeFeedChanges() {
+    var scoringScheduled = false;
     var feedObserver = new MutationObserver(function () {
+      if (scoringScheduled) return;
+      scoringScheduled = true;
       if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(function () { scoreFeedItems(); });
+        requestIdleCallback(function () {
+          scoreFeedItems();
+          scoringScheduled = false;
+        });
       } else {
-        setTimeout(function () { scoreFeedItems(); }, 200);
+        setTimeout(function () {
+          scoreFeedItems();
+          scoringScheduled = false;
+        }, 200);
       }
     });
     feedObserver.observe(document.body, { childList: true, subtree: true });

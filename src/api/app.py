@@ -395,9 +395,10 @@ async def score_content(
     except Exception:
         pass  # Notification failure should never block scoring response
 
-    # Webhook alert for high-risk content (score < 40)
+    # Webhook alert for high-risk content (score < 40) - only for authenticated users
+    # to prevent anonymous flood attacks
     try:
-        if result.overall_score < 40:
+        if result.overall_score < 40 and current_user is not None:
             await dispatcher.send_webhook(result.model_dump())
     except Exception:
         pass  # Webhook failure should never block scoring response
@@ -514,15 +515,17 @@ async def score_batch(
 async def score_stream(
     request: ScoreRequest,
     accept: str = Header(default="application/json"),
+    current_user: User | None = Depends(get_optional_user),
 ):
     """Score content with Server-Sent Events streaming.
 
     Sends rules result immediately, then streams LLM dimensions as they complete.
     Use Accept: text/event-stream header to enable streaming.
+    Unauthenticated users get rules-only results (no LLM cost incurred).
     """
     if "text/event-stream" not in accept:
         # Fall back to normal scoring
-        return await score_content(request, current_user=None)
+        return await score_content(request, current_user=current_user)
 
     async def event_generator():
         from src.core.rules import apply_rules, should_skip_llm
@@ -546,15 +549,15 @@ async def score_stream(
         }
         yield f"event: rules_result\ndata: {json.dumps(rules_data, ensure_ascii=False)}\n\n"
 
-        # Phase 2: Full scoring
+        # Phase 2: Full scoring (only for authenticated users to prevent LLM cost abuse)
         skip, reason = should_skip_llm(rule_result, text_content)
-        if not skip:
+        if not skip and current_user is not None:
             from src.core.scorer import score as do_score
 
             result = await do_score(text_content)
             yield f"event: complete\ndata: {json.dumps(result.model_dump(mode='json'), ensure_ascii=False)}\n\n"
         else:
-            # Rules-only result
+            # Rules-only result (either rules are confident, or user is unauthenticated)
             yield f"event: complete\ndata: {json.dumps({'rules_only': True, 'overrides': rule_result.dimension_overrides}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
@@ -570,6 +573,18 @@ async def score_stream(
 
 # In-memory job store
 _batch_jobs: dict[str, dict] = {}
+_BATCH_JOB_TTL_SECONDS = 3600  # 1 hour TTL for batch jobs
+
+
+def _evict_expired_batch_jobs() -> None:
+    """Remove batch jobs older than TTL."""
+    now = time.time()
+    expired_keys = [
+        k for k, v in _batch_jobs.items()
+        if now - v.get("created_at", now) > _BATCH_JOB_TTL_SECONDS
+    ]
+    for k in expired_keys:
+        del _batch_jobs[k]
 
 
 @app.post("/score/batch-upload")
@@ -611,7 +626,7 @@ async def score_batch_upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="No valid items found in file")
 
     job_id = str(uuid.uuid4())[:8]
-    _batch_jobs[job_id] = {"status": "processing", "total": len(items), "completed": 0, "results": []}
+    _batch_jobs[job_id] = {"status": "processing", "total": len(items), "completed": 0, "results": [], "created_at": time.time()}
 
     # Process in background
     asyncio.create_task(_process_batch_job(job_id, items))
@@ -622,6 +637,7 @@ async def score_batch_upload(file: UploadFile = File(...)):
 @app.get("/score/batch-upload/{job_id}")
 async def get_batch_job(job_id: str):
     """Poll batch job status and results."""
+    _evict_expired_batch_jobs()
     if job_id not in _batch_jobs:
         raise HTTPException(status_code=404, detail="Job not found")
     return _batch_jobs[job_id]

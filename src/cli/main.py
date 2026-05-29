@@ -567,6 +567,18 @@ def quick(
         try:
             profile_config = _load_profile(profile)
             threshold = profile_config.get("threshold", threshold)
+            # Apply scoring_overrides as threshold adjustment for rules-only mode.
+            # More negative overrides (stricter profile) lower the effective threshold
+            # proportionally, making the profile catch more borderline content.
+            scoring_overrides = profile_config.get("scoring_overrides", {})
+            if scoring_overrides:
+                override_values = [v for v in scoring_overrides.values() if isinstance(v, (int, float))]
+                if override_values:
+                    # Average override magnitude scales the threshold down.
+                    # e.g., strict overrides avg=-1.6 -> threshold adjustment of -8
+                    avg_override = sum(override_values) / len(override_values)
+                    threshold_adjustment = int(avg_override * 5)
+                    threshold = max(20, threshold + threshold_adjustment)
             if _IS_INTERACTIVE:
                 console.print(f"\U0001f4cb \u4f7f\u7528\u914d\u7f6e: {profile_config.get('description', profile)}", style="dim")
         except ValueError as e:
