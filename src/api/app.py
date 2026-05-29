@@ -195,6 +195,24 @@ async def health(deep: bool = False):
         return base
 
 
+@app.get("/usage")
+async def usage():
+    """Return API usage stats for the current period."""
+    from datetime import datetime, timedelta, timezone
+
+    used = getattr(app.state, "score_count", 0)
+    now = datetime.now(timezone.utc)
+    # Resets at next midnight UTC
+    tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    return {
+        "used": used,
+        "limit": 30,
+        "resets_at": tomorrow.isoformat(),
+        "tier": "free",
+    }
+
+
 @app.get("/demo")
 async def demo_score(text: Optional[str] = None):
     """Demo endpoint - scores text using rules-only without authentication.

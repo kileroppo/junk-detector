@@ -60,6 +60,12 @@ async def index(request: Request):
     return RedirectResponse(url="/dashboard", status_code=302)
 
 
+@router.get("/playground", response_class=HTMLResponse)
+async def playground(request: Request):
+    """Interactive API playground page."""
+    return templates.TemplateResponse(request, "playground.html")
+
+
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     """Dashboard home page with summary cards and recent scores."""
