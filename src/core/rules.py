@@ -437,6 +437,60 @@ def _check_ai_generated(content: str) -> Optional[tuple[float, float]]:
 
 
 # ---------------------------------------------------------------------------
+# Fact credibility / unverifiable claims rules
+# ---------------------------------------------------------------------------
+
+_UNVERIFIABLE_CLAIMS: list[str] = [
+    "据内部消息",
+    "知情人士透露",
+    "独家爆料",
+    "有人爆料",
+    "据可靠消息",
+    "小道消息",
+    "内部人士称",
+]
+
+_FAKE_AUTHORITY: list[str] = [
+    "央视报道",
+    "专家表示",
+    "研究表明",
+    "权威人士",
+    "内部人士",
+    "据官方消息",
+    "权威发布",
+    "官方认证",
+]
+
+_CONSPIRACY_PATTERNS: list[str] = [
+    "真相是",
+    "他们不想让你知道",
+    "细思极恐",
+    "背后的真相",
+    "不为人知的秘密",
+    "惊天阴谋",
+    "被隐藏的真相",
+    "你所不知道的",
+]
+
+
+def _check_credibility(content: str) -> Optional[tuple[float, float]]:
+    """Check for fact-credibility issues: unverifiable claims, fake authority, conspiracy patterns.
+
+    Returns (score, confidence) or None if not triggered.
+    """
+    all_patterns = _UNVERIFIABLE_CLAIMS + _FAKE_AUTHORITY + _CONSPIRACY_PATTERNS
+    hit_count = sum(1 for phrase in all_patterns if phrase in content)
+
+    if hit_count >= 3:
+        return (85.0, 0.85)
+    elif hit_count >= 2:
+        return (70.0, 0.75)
+    elif hit_count == 1:
+        return (55.0, 0.6)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Platform-specific patterns
 # ---------------------------------------------------------------------------
 
@@ -651,6 +705,16 @@ def apply_rules(content: str) -> RuleResult:
         result.matched_rules.append("ai_generated_signals")
         result.dimension_overrides["ai_generated_prob"] = score
         result.confidence["ai_generated_prob"] = conf
+
+    # --- Credibility rules ---
+    credibility_result = _check_credibility(content)
+    if credibility_result is not None:
+        cred_score, cred_conf = credibility_result
+        result.matched_rules.append("credibility_unverifiable")
+        current_scam = result.dimension_overrides.get("scam_prob", 0.0)
+        result.dimension_overrides["scam_prob"] = min(current_scam + cred_score, 100.0)
+        current_scam_conf = result.confidence.get("scam_prob", 0.0)
+        result.confidence["scam_prob"] = max(current_scam_conf, cred_conf)
 
     # --- Combo rules (must run after individual checks) ---
     _check_combo_rules(content, result)

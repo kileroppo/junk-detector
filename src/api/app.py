@@ -74,6 +74,11 @@ app.include_router(preferences_router)
 # Include authentication router
 app.include_router(auth_router)
 
+# Include WebSocket router
+from src.api.websocket import router as ws_router
+
+app.include_router(ws_router)
+
 
 # ---------------------------------------------------------------------------
 # Request/Response models

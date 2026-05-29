@@ -149,4 +149,15 @@ monitor:
   fetch_interval_seconds: 300
   auto_score: true
 
+# Notification configuration
+notification:
+  websocket: true
+  email:
+    enabled: false
+    smtp_host: ""
+    smtp_port: 587
+    smtp_username: ""
+    smtp_password: ""
+    to: ""
+
 
