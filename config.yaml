@@ -170,7 +170,7 @@ notification:
     smtp_host: ""
     smtp_port: 587
     smtp_username: ""
-    smtp_password: ""
+    # smtp_password: set via SMTP_PASSWORD environment variable
     to: ""
 
 

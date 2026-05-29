@@ -173,20 +173,55 @@
   }
 
   /**
-   * Also observe DOM mutations for content container changes.
-   * This catches in-page content swaps that don't change the URL.
+   * Compute a simple hash of text content for change detection.
+   * Uses text length combined with first/last 20 characters.
+   * @param {string} text
+   * @returns {string}
+   */
+  function simpleHash(text) {
+    if (!text) return "";
+    var len = text.length;
+    var first = text.substring(0, 20);
+    var last = text.substring(Math.max(0, len - 20));
+    return len + ":" + first + ":" + last;
+  }
+
+  /**
+   * Observe DOM mutations for content container changes.
+   * This catches in-page content swaps that don't change the URL
+   * (e.g., Zhihu answer expansion, Xiaohongshu modal overlays).
+   * Uses a content hash with debounce to avoid excessive scoring.
    */
   function observeContentChanges() {
-    var debounceTimer = null;
-    var observer = new MutationObserver(function (mutations) {
-      // Only re-score if URL actually changed (avoid scoring on minor DOM updates)
-      if (window.location.href !== lastUrl) {
-        lastUrl = window.location.href;
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(run, 800);
-      }
+    var lastContentHash = "";
+    var observer = new MutationObserver(function () {
+      clearTimeout(observer._debounce);
+      observer._debounce = setTimeout(function () {
+        var text = extractArticleText();
+        var hash = simpleHash(text);
+        if (hash !== lastContentHash && text.length > 50) {
+          lastContentHash = hash;
+          scoreAndDisplay(text);
+        }
+      }, 500);
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+
+  /**
+   * Score text content and display the indicator.
+   * @param {string} text
+   */
+  function scoreAndDisplay(text) {
+    if (!text || text.trim().length < 20) return;
+    chrome.runtime.sendMessage(
+      { type: "SCORE_CONTENT", text: text },
+      function (response) {
+        if (response && response.result) {
+          showIndicator(response.result);
+        }
+      }
+    );
   }
 
   // Run after page load with a small delay to ensure DOM is ready

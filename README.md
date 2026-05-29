@@ -125,8 +125,8 @@ notification:
     enabled: true
     smtp_host: smtp.example.com
     smtp_port: 587
-    smtp_user: user@example.com
-    smtp_pass: password
+    smtp_username: user@example.com
+    # smtp_password: set via SMTP_PASSWORD environment variable
     to: alert@example.com
 ```
 
@@ -204,9 +204,9 @@ Tested against 100 hand-labeled real-world Chinese content samples:
 python benchmark/run_real_benchmark.py
 ```
 
-**Important caveat**: The rules engine excels at detecting keyword-obvious junk (scam 100%, advertorial 80%) and has zero false positives on quality content. However, **borderline content recall is only 20%** -- the engine essentially cannot distinguish "suspicious but legitimate" from "clean" content without LLM assistance. The 79% overall accuracy reflects perfect performance on clear-cut cases, not general-purpose detection. For borderline/subtle content, the LLM judge fallback is essential.
+**Important caveat**: The rules engine excels at detecting keyword-obvious junk and has zero false positives on quality content. However, **borderline content recall is weak** -- the engine essentially cannot distinguish "suspicious but legitimate" from "clean" content without LLM assistance. For borderline/subtle content, the LLM judge fallback is essential.
 
-See [benchmark/real_data/results.md](benchmark/real_data/results.md) for detailed results.
+See [benchmark/real_data/results.md](benchmark/real_data/results.md) for latest accuracy numbers and detailed per-category breakdown.
 
 ## Custom Rules
 

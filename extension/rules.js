@@ -159,17 +159,38 @@ function scoreContent(text) {
 }
 
 /**
+ * Generate a simple numeric hash from a string for deterministic template selection.
+ * @param {string} str
+ * @returns {number} Non-negative integer hash
+ */
+function simpleStringHash(str) {
+  var hash = 0;
+  for (var i = 0; i < str.length; i++) {
+    var char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // Convert to 32-bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
  * Generate a one-line Chinese explanation of the scoring result.
  * Uses varied sentence structures for natural-sounding output.
+ * Template selection is deterministic per content (hash-based).
  */
 function generateExplanation(verdict, score, scamResult, anxietyResult, advertorialResult) {
+  // Build a seed string from matched keywords for deterministic selection
+  var allMatched = [].concat(scamResult.matched, anxietyResult.matched, advertorialResult.matched);
+  var seedStr = verdict + ":" + score + ":" + allMatched.join(",");
+  var hashVal = simpleStringHash(seedStr);
+
   if (verdict === "quality") {
     var qualityTemplates = [
       "\u2705 \u5185\u5bb9\u8d28\u91cf\u6b63\u5e38\uff0c\u672a\u53d1\u73b0\u660e\u663e\u95ee\u9898\u3002",
       "\u2705 \u672a\u68c0\u6d4b\u5230\u5783\u573e\u4fe1\u606f\u7279\u5f81\uff0c\u5185\u5bb9\u53ef\u4fe1\u3002",
       "\u2705 \u89c4\u5219\u5f15\u64ce\u672a\u53d1\u73b0\u98ce\u9669\u4fe1\u53f7\uff0c\u9605\u8bfb\u65e0\u865e\u3002"
     ];
-    return qualityTemplates[Math.floor(Math.random() * qualityTemplates.length)];
+    return qualityTemplates[hashVal % qualityTemplates.length];
   }
 
   var parts = [];
@@ -181,7 +202,7 @@ function generateExplanation(verdict, score, scamResult, anxietyResult, advertor
       "\u53d1\u73b0 " + scamResult.count + " \u5904\u6295\u8d44\u8bf1\u5bfc\u7528\u8bed\uff08" + examples + "\uff09",
       "\u591a\u5904\u8bc8\u9a97\u5173\u952e\u8bcd\uff1a" + examples
     ];
-    parts.push(scamTemplates[Math.floor(Math.random() * scamTemplates.length)]);
+    parts.push(scamTemplates[hashVal % scamTemplates.length]);
   }
 
   if (anxietyResult.count > 0) {
@@ -191,7 +212,7 @@ function generateExplanation(verdict, score, scamResult, anxietyResult, advertor
       "\u542b\u6709 " + anxietyResult.count + " \u5904\u7126\u8651\u8425\u9500\u8bcd\uff08" + examples + "\uff09",
       "\u5229\u7528\u60c5\u7eea\u64cd\u63a7\u8bfb\u8005\uff1a" + examples
     ];
-    parts.push(anxietyTemplates[Math.floor(Math.random() * anxietyTemplates.length)]);
+    parts.push(anxietyTemplates[hashVal % anxietyTemplates.length]);
   }
 
   if (advertorialResult.count > 0) {
@@ -201,7 +222,7 @@ function generateExplanation(verdict, score, scamResult, anxietyResult, advertor
       "\u68c0\u6d4b\u5230\u5546\u4e1a\u63a8\u5e7f\u8bcd\u6c47\uff1a" + examples,
       "\u542b\u6709 " + advertorialResult.count + " \u5904\u5e7f\u544a\u5f15\u5bfc\u7528\u8bed\uff08" + examples + "\uff09"
     ];
-    parts.push(advertorialTemplates[Math.floor(Math.random() * advertorialTemplates.length)]);
+    parts.push(advertorialTemplates[hashVal % advertorialTemplates.length]);
   }
 
   var prefix = verdict === "junk" ? "\ud83d\udea8 \u9ad8\u98ce\u9669\u5185\u5bb9\u3002" : "\u26a0\ufe0f \u5185\u5bb9\u53ef\u7591\u3002";
@@ -210,5 +231,5 @@ function generateExplanation(verdict, score, scamResult, anxietyResult, advertor
 
 // Export for use in background.js (via importScripts) and tests
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { scoreContent, SCAM_KEYWORDS, ANXIETY_PHRASES, ADVERTORIAL_KEYWORDS };
+  module.exports = { scoreContent, simpleStringHash, SCAM_KEYWORDS, ANXIETY_PHRASES, ADVERTORIAL_KEYWORDS };
 }

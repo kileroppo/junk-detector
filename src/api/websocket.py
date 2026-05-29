@@ -111,7 +111,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             data = await websocket.receive_text()
             # Echo back as acknowledgment
             if data == "ping":
-                await websocket.send_text(json.dumps({"event": "pong"}))
+                await websocket.send_text(json.dumps({"event": "pong", "timestamp": datetime.now(timezone.utc).isoformat()}))
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception:
