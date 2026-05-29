@@ -199,7 +199,8 @@
   /**
    * Create and inject a floating traffic-light indicator in the bottom-right corner.
    * Fades in smoothly and shows a tooltip on hover with one-line verdict.
-   * @param {{score: number, verdict: string, explanation: string}} result
+   * Uses severity tier for colors and labels when available.
+   * @param {{score: number, verdict: string, explanation: string, severity: string}} result
    */
   function showIndicator(result) {
     // Remove any existing indicator
@@ -212,23 +213,36 @@
       junk: "#FF3B30"
     };
 
-    const icons = {
-      quality: "\u2705",
-      suspicious: "\u26a0\ufe0f",
-      junk: "\ud83d\udea8"
-    };
+    // Severity-based display (preferred when severity is available)
+    var severityInfo = null;
+    if (result.severity && typeof SEVERITY_MAP !== "undefined") {
+      severityInfo = SEVERITY_MAP[result.severity] || null;
+    }
 
-    const verdictLabels = {
-      quality: "\u5185\u5bb9\u8d28\u91cf\u6b63\u5e38",
-      suspicious: "\u5185\u5bb9\u53ef\u7591\uff0c\u8bf7\u8c28\u614e\u9605\u8bfb",
-      junk: "\u7591\u4f3c\u5783\u573e\u4fe1\u606f"
-    };
+    var displayEmoji;
+    var displayLabel;
+    var displayColor;
+
+    if (severityInfo) {
+      displayEmoji = severityInfo.emoji;
+      displayLabel = severityInfo.label;
+      displayColor = severityInfo.color;
+    } else {
+      var icons = {
+        quality: "\u2705",
+        suspicious: "\u26a0\ufe0f",
+        junk: "\ud83d\udea8"
+      };
+      displayEmoji = icons[result.verdict] || "\u2753";
+      displayLabel = String(result.score);
+      displayColor = colors[result.verdict] || "#ccc";
+    }
 
     const indicator = document.createElement("div");
     indicator.id = "junk-detector-indicator";
-    indicator.title = result.explanation || verdictLabels[result.verdict] || "";
-    indicator.innerHTML = '<span style="font-size: 16px;">' + (icons[result.verdict] || "\u2753") + '</span>' +
-      '<span style="font-size: 12px; margin-left: 4px; font-weight: 500;">' + result.score + '</span>';
+    indicator.title = result.explanation || "";
+    indicator.innerHTML = '<span style="font-size: 16px;">' + displayEmoji + '</span>' +
+      '<span style="font-size: 12px; margin-left: 4px; font-weight: 500;">' + displayLabel + '</span>';
 
     Object.assign(indicator.style, {
       position: "fixed",
@@ -240,7 +254,7 @@
       padding: "8px 12px",
       borderRadius: "20px",
       backgroundColor: "white",
-      border: "2px solid " + (colors[result.verdict] || "#ccc"),
+      border: "2px solid " + displayColor,
       boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
       cursor: "pointer",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",

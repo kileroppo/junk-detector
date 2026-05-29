@@ -141,6 +141,42 @@ def _describe_emotional(rule_result: RuleResult, content: Optional[str] = None) 
     return ""
 
 
+def determine_severity(
+    score_result: ScoreResult, rule_result: Optional[RuleResult] = None
+) -> str:
+    """Map scoring dimensions to a severity level.
+
+    Args:
+        score_result: The scoring result with dimension scores.
+        rule_result: Optional rule engine result with dimension_overrides.
+
+    Returns:
+        One of: 'danger', 'warning', 'info', 'safe'.
+    """
+    # Use rule_result dimension_overrides if available, otherwise use score_result dimensions
+    if rule_result is not None:
+        scam_prob = rule_result.dimension_overrides.get("scam_prob", 0)
+        advertorial_prob = rule_result.dimension_overrides.get("advertorial_prob", 0)
+        emotional_manipulation = rule_result.dimension_overrides.get(
+            "emotional_manipulation", 0
+        )
+    else:
+        scam_prob = getattr(score_result.dimensions, "scam_prob", 0)
+        advertorial_prob = getattr(score_result.dimensions, "advertorial_prob", 0)
+        emotional_manipulation = getattr(
+            score_result.dimensions, "emotional_manipulation", 0
+        )
+
+    if scam_prob >= 60:
+        return "danger"
+    elif advertorial_prob >= 60 or emotional_manipulation >= 60:
+        return "warning"
+    elif scam_prob > 0 or advertorial_prob > 0 or emotional_manipulation > 0:
+        return "info"
+    else:
+        return "safe"
+
+
 def explain_result(
     score_result: ScoreResult,
     rule_result: RuleResult,

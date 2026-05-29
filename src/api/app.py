@@ -286,12 +286,27 @@ async def demo_score(text: Optional[str] = None):
         else "这是默认样本的评分结果。传入 ?text=你的内容 来测试自己的文本。"
     )
 
+    # Determine severity tier based on risk dimensions
+    scam_prob = rule_result.dimension_overrides.get("scam_prob", 0)
+    advertorial_prob = rule_result.dimension_overrides.get("advertorial_prob", 0)
+    emotional_manipulation_score = rule_result.dimension_overrides.get("emotional_manipulation", 0)
+
+    if scam_prob >= 60:
+        severity = "danger"
+    elif advertorial_prob >= 60 or emotional_manipulation_score >= 60:
+        severity = "warning"
+    elif max_junk > 0:
+        severity = "info"
+    else:
+        severity = "safe"
+
     return {
         "overall_score": overall_score,
         "explanation": explanation,
         "evidence": evidence_items,
         "recommendation": recommendation,
         "verdict": verdict,
+        "severity": severity,
         "dimensions": rule_result.dimension_overrides,
         "text_scored": sample_text,
         "is_custom_text": is_custom,

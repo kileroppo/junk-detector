@@ -130,6 +130,21 @@
     iconEl.textContent = VERDICT_ICONS[result.verdict] || "\u2753";
     explanationEl.textContent = result.explanation || "";
 
+    // Show severity badge if available
+    var severityBadge = document.getElementById("severity-badge");
+    if (severityBadge && result.severity && typeof SEVERITY_MAP !== "undefined") {
+      var sevInfo = SEVERITY_MAP[result.severity];
+      if (sevInfo) {
+        severityBadge.textContent = sevInfo.emoji + " " + sevInfo.label;
+        severityBadge.className = "severity-badge severity-" + result.severity;
+        severityBadge.classList.remove("hidden");
+      } else {
+        severityBadge.classList.add("hidden");
+      }
+    } else if (severityBadge) {
+      severityBadge.classList.add("hidden");
+    }
+
     // Show dismiss button for suspicious/junk verdicts
     if (result.verdict === "suspicious" || result.verdict === "junk") {
       dismissBtn.classList.remove("hidden");

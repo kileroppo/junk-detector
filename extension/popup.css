@@ -786,3 +786,36 @@ body {
 .loading .explanation {
   animation: pulse 1.5s ease-in-out infinite;
 }
+
+/* Severity badge */
+.severity-badge {
+  display: inline-block;
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+.severity-badge.hidden {
+  display: none;
+}
+
+.severity-danger {
+  color: #FF3B30;
+  font-weight: 600;
+}
+
+.severity-warning {
+  color: #FF9500;
+  font-weight: 600;
+}
+
+.severity-info {
+  color: #007AFF;
+  font-weight: 500;
+}
+
+.severity-safe {
+  color: #34C759;
+  font-weight: 500;
+}

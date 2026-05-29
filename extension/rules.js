@@ -176,7 +176,19 @@ function scoreContent(text, options) {
     );
   }
 
-  return { score, verdict, matchedKeywords: allMatched, explanation };
+  // Determine severity tier based on which category dominated
+  var severity;
+  if (scamResult.count > 0 && scamScore >= 30) {
+    severity = "danger";
+  } else if ((advertorialResult.count > 0 && advertorialScore >= 16) || (anxietyResult.count > 0 && anxietyScore >= 20)) {
+    severity = "warning";
+  } else if (score > 0) {
+    severity = "info";
+  } else {
+    severity = "safe";
+  }
+
+  return { score, verdict, matchedKeywords: allMatched, explanation, severity };
 }
 
 /**
@@ -251,6 +263,20 @@ function generateExplanation(verdict, score, scamResult, anxietyResult, advertor
 }
 
 /**
+ * Severity levels for different content risk types.
+ * danger: actively harmful (scams, fraud)
+ * warning: deceptive/manipulative (advertorial, emotional manipulation)
+ * info: potentially misleading but not harmful (clickbait, AI-generated)
+ * safe: no issues detected
+ */
+const SEVERITY_MAP = {
+  danger: { emoji: "\ud83d\udea8", label: "\u5371\u9669", color: "#FF3B30", description: "\u53ef\u80fd\u9020\u6210\u8d22\u4ea7\u635f\u5931" },
+  warning: { emoji: "\u26a0\ufe0f", label: "\u6ce8\u610f", color: "#FF9500", description: "\u5185\u5bb9\u53ef\u80fd\u6709\u504f" },
+  info: { emoji: "\u2139\ufe0f", label: "\u53c2\u8003", color: "#007AFF", description: "\u771f\u5b9e\u6027\u5f85\u9a8c\u8bc1" },
+  safe: { emoji: "\u2705", label: "\u5b89\u5168", color: "#34C759", description: "\u672a\u53d1\u73b0\u95ee\u9898" }
+};
+
+/**
  * Educational explanations for manipulation keywords.
  * Maps keywords to Chinese explanations of the manipulation technique used.
  */
@@ -274,5 +300,5 @@ const KEYWORD_EXPLANATIONS = {
 
 // Export for use in background.js (via importScripts) and tests
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { scoreContent, simpleStringHash, SCAM_KEYWORDS, ANXIETY_PHRASES, ADVERTORIAL_KEYWORDS, KEYWORD_EXPLANATIONS };
+  module.exports = { scoreContent, simpleStringHash, SCAM_KEYWORDS, ANXIETY_PHRASES, ADVERTORIAL_KEYWORDS, KEYWORD_EXPLANATIONS, SEVERITY_MAP };
 }
