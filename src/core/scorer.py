@@ -13,6 +13,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from src.core.explainer import explain_result
+from src.core.errors import get_degradation_message
 from src.core.llm_judge import judge
 from src.core.platform_profiles import (
     apply_platform_weights,
@@ -491,6 +492,11 @@ async def score(
 
     # 9. Generate explanation
     result.explanation = explain_result(result, rule_result)
+
+    # 9.5. If LLM failed (low confidence fallback), prepend degradation message
+    if result.confidence <= 0.1 and "解析失败" in (result.labels or []):
+        degradation_msg = get_degradation_message()
+        result.explanation = f"{degradation_msg}\n{result.explanation}"
 
     # 10. Populate provenance fields
     result.duration_ms = int((time.time() - start_time) * 1000)

@@ -1,6 +1,10 @@
 """Tests for src/core/explainer.py - Natural Language Explainer."""
 
-from src.core.explainer import explain_result
+from src.core.explainer import (
+    _confidence_language,
+    _platform_context,
+    explain_result,
+)
 from src.core.rules import RuleResult
 from src.models.score import DimensionScores, ScoreResult
 
@@ -325,3 +329,72 @@ class TestExplainEnglishOutput:
 
         # Default should be Chinese
         assert "诈骗" in explanation
+
+
+class TestPlatformContext:
+    """Tests for _platform_context helper."""
+
+    def test_xiaohongshu_with_advertorial(self):
+        """Xiaohongshu + advertorial rules gives platform-specific context."""
+        result = _platform_context("xiaohongshu", ["advertorial_promo"])
+        assert "小红书" in result
+        assert "姐妹们" in result
+        assert "软文合作" in result
+
+    def test_wechat_with_scam(self):
+        """Wechat + scam rules gives platform-specific context."""
+        result = _platform_context("wechat", ["scam_keywords"])
+        assert "公众号" in result
+        assert "投资推荐" in result
+        assert "谨慎" in result
+
+    def test_zhihu_with_any_rules(self):
+        """Zhihu + any matched rules gives platform-specific context."""
+        result = _platform_context("zhihu", ["some_rule"])
+        assert "知乎" in result
+        assert "经验分享" in result
+        assert "商业推广" in result
+
+    def test_default_platform_returns_empty(self):
+        """Default/unknown platform returns empty string."""
+        result = _platform_context("default", ["scam_keywords"])
+        assert result == ""
+
+    def test_xiaohongshu_without_advertorial(self):
+        """Xiaohongshu without advertorial rules returns empty."""
+        result = _platform_context("xiaohongshu", ["scam_keywords"])
+        assert result == ""
+
+
+class TestConfidenceLanguage:
+    """Tests for _confidence_language helper."""
+
+    def test_high_confidence(self):
+        """Confidence > 0.8 should express certainty with signal count."""
+        result = _confidence_language(0.9, 5)
+        assert "比较确定" in result
+        assert "5" in result
+        assert "明确信号" in result
+
+    def test_medium_confidence(self):
+        """Confidence 0.5-0.8 should express uncertainty."""
+        result = _confidence_language(0.6, 3)
+        assert "可疑迹象" in result
+        assert "不完全确定" in result
+
+    def test_low_confidence(self):
+        """Confidence < 0.5 should express low certainty with signal count."""
+        result = _confidence_language(0.3, 1)
+        assert "不太确定" in result
+        assert "1" in result
+        assert "轻微可疑点" in result
+
+    def test_boundary_high(self):
+        """Confidence exactly 0.8 should be medium range."""
+        result = _confidence_language(0.8, 4)
+        assert "可疑迹象" in result
+
+    def test_boundary_low(self):
+        """Confidence exactly 0.5 should be medium range."""
+        result = _confidence_language(0.5, 2)
+        assert "可疑迹象" in result
