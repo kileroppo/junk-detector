@@ -68,6 +68,7 @@ class ScoreResult(BaseModel):
     scored_by: str = Field(default="rules", description="Scoring method: 'rules' or model name")
     duration_ms: int = Field(default=0, description="Scoring duration in milliseconds")
     cost_usd: float = Field(default=0.0, description="Estimated LLM API cost in USD")
+    scoring_version: str = Field(default="0.3.0", description="评分规则版本号")
 
     @model_validator(mode='after')
     def _compute_status(self) -> 'ScoreResult':

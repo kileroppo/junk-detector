@@ -30,6 +30,13 @@ app = typer.Typer(
     help="鉴真 — AI 内容质量检测工具，一眼看穿垃圾信息。",
 )
 
+
+@app.callback(invoke_without_command=True)
+def main_callback(ctx: typer.Context) -> None:
+    """Show demo when run with no subcommand."""
+    if ctx.invoked_subcommand is None:
+        demo()
+
 # Detect non-interactive (piped/redirected) output
 _IS_INTERACTIVE = sys.stdout.isatty()
 
@@ -81,24 +88,31 @@ def _overall_emoji(score: float) -> str:
 
 def _pretty_print_result(result: ScoreResult, content: Content) -> None:
     """Print a nicely formatted, colored score result to the console."""
+    from rich.panel import Panel
+
     title = content.title or "无标题"
     emoji = _overall_emoji(result.overall_score)
     overall_color = _score_color(result.overall_score)
 
-    console.print()
-    console.print("📊 Junk Detector 评分结果", style="bold")
-    console.print("━━━━━━━━━━━━━━━━━━━━━━━━━")
-    console.print(f"标题: {title}")
+    # Build the panel body using a separate console to capture output
+    from io import StringIO
+
+    from rich.console import Console as RichConsole
+
+    buf = StringIO()
+    inner = RichConsole(file=buf, no_color=not _IS_INTERACTIVE, highlight=False, force_terminal=_IS_INTERACTIVE)
+
+    inner.print(f"标题: {title}")
 
     overall_text = Text()
     overall_text.append("综合评分: ")
     overall_text.append(f"{result.overall_score:.0f}/100", style=f"bold {overall_color}")
     overall_text.append(f"  {emoji}")
-    console.print(overall_text)
+    inner.print(overall_text)
 
     # Positive dimensions
-    console.print()
-    console.print("📈 正面维度:", style="bold")
+    inner.print()
+    inner.print("📈 正面维度:", style="bold")
     dims = result.dimensions
     positive_dims = [
         ("原创性", dims.originality),
@@ -112,11 +126,11 @@ def _pretty_print_result(result: ScoreResult, content: Content) -> None:
         line = Text()
         line.append(f"  {name}:".ljust(14))
         line.append(f"{value:.0f}/100", style=color)
-        console.print(line)
+        inner.print(line)
 
     # Negative / risk dimensions
-    console.print()
-    console.print("⚠️  风险维度:", style="bold")
+    inner.print()
+    inner.print("⚠️  风险维度:", style="bold")
     negative_dims = [
         ("AI生成概率", dims.ai_generated_prob),
         ("情绪操纵度", dims.emotional_manipulation),
@@ -128,15 +142,24 @@ def _pretty_print_result(result: ScoreResult, content: Content) -> None:
         line = Text()
         line.append(f"  {name}:".ljust(16))
         line.append(f"{value:.0f}/100", style=color)
-        console.print(line)
+        inner.print(line)
 
     # Labels and summary
-    console.print()
+    inner.print()
     labels_str = ", ".join(result.labels) if result.labels else "无"
-    console.print(f"🏷️  标签: {labels_str}")
-    console.print(f"💬 总结: {result.summary}")
+    inner.print(f"🏷️  标签: {labels_str}")
+    inner.print(f"💬 总结: {result.summary}")
     if result.explanation:
-        console.print(f"📝 解释: {result.explanation}")
+        inner.print(f"📝 解释: {result.explanation}")
+
+    panel_body = buf.getvalue()
+    console.print()
+    console.print(Panel(
+        panel_body.rstrip(),
+        border_style="dim",
+        title="鉴真评分",
+        subtitle="junk-detector.dev",
+    ))
     console.print()
 
 
@@ -1648,6 +1671,36 @@ def mcp_server() -> None:
     from src.mcp.server import mcp as mcp_app
 
     mcp_app.run()
+
+
+@app.command()
+def explain(
+    choice: Optional[int] = typer.Option(None, "--choice", "-c", help="选择编号 (1-3)，跳过交互式提示"),
+) -> None:
+    """交互式使用说明 - 了解鉴真如何工作。"""
+    answers = {
+        1: "鉴真从9个维度评估内容：原创性、信息密度、论证质量、可读性、时效性，以及AI生成概率、情绪操纵、软文概率、诈骗概率。综合评分越高，内容质量越好。",
+        2: "规则引擎通过关键词匹配识别已知的诈骗话术、焦虑营销和软文特征。匹配即时触发，无需调用AI，毫秒级响应。",
+        3: "当内容中出现多个已知风险关键词时，规则引擎会标记该内容。具体触发的关键词会在评分结果中列出。",
+    }
+
+    if choice is None:
+        console.print()
+        console.print("📖 鉴真使用说明", style="bold")
+        console.print()
+        console.print("1. 评分维度是什么？")
+        console.print("2. 规则引擎如何工作？")
+        console.print("3. 为什么这条内容被标记？")
+        console.print()
+        choice = typer.prompt("请选择", type=int)
+
+    if choice not in answers:
+        console.print("❌ 无效选择，请输入 1-3", style="bold red")
+        raise typer.Exit(code=1)
+
+    console.print()
+    console.print(answers[choice])
+    console.print()
 
 
 if __name__ == "__main__":
