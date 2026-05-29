@@ -53,11 +53,79 @@ junk-detector batch --urls-file urls.txt --json
 junk-detector watch --urls-file urls.txt --interval 3600
 ```
 
+### 中文信息源监控
+
+主动从中文平台抓取热门内容进行质量检测：
+
+```bash
+# 添加微博热搜监控
+junk-detector monitor add-source --type weibo
+
+# 添加知乎热榜监控
+junk-detector monitor add-source --type zhihu
+
+# 添加微信文章监控（via 搜狗）
+junk-detector monitor add-source --type wechat
+```
+
+支持的信息源：
+| 源 | 类型 | 说明 |
+|----|------|------|
+| 微博热搜 | JSON API | 实时热搜榜单 |
+| 知乎热榜 | JSON API | 热门话题和回答 |
+| 微信文章 | HTML 抓取 | 通过搜狗搜索公众号文章 |
+
 ### API 服务
 
 ```bash
 junk-detector serve
 # POST /score  GET /health  GET /history
+```
+
+### MCP Server (AI 工具集成)
+
+将评分能力暴露为 Agent Skills，支持 Cursor、VSCode Copilot、Claude Code 等 AI 工具直接调用。
+
+```bash
+# 启动 MCP 服务
+junk-detector mcp-server
+```
+
+安装到 AI 工具：将 `mcp-config.json` 添加到你的 AI 工具配置中。
+
+提供 3 个 tools：
+- `score_text` — 评分文本内容
+- `score_url` — 抓取并评分网页
+- `quick_check` — 快速规则检测（无 LLM 调用）
+
+### 实时通知 (WebSocket)
+
+API 服务支持 WebSocket 实时推送评分结果和监控告警：
+
+```bash
+# 启动 API 服务（自动包含 WebSocket）
+junk-detector serve
+```
+
+连接 WebSocket：`ws://localhost:8000/ws`
+
+事件类型：
+- `score_completed` — 评分完成时推送结果
+- `monitor_alert` — 监控内容低于阈值时告警
+
+邮件通知配置（可选）：
+
+```yaml
+# config.yaml
+notification:
+  websocket: true
+  email:
+    enabled: true
+    smtp_host: smtp.example.com
+    smtp_port: 587
+    smtp_user: user@example.com
+    smtp_pass: password
+    to: alert@example.com
 ```
 
 ## 工作原理
@@ -66,11 +134,12 @@ junk-detector serve
 输入 (text/url/file/stdin)
         │
         ▼
-   规则引擎 (201个关键词, <1ms, 零成本)
+   规则引擎 (201+关键词 + 可信度检测, <1ms, 零成本)
    ├── scam_prob      诈骗概率
    ├── emotional      情绪操纵
    ├── advertorial    软文概率
-   └── ai_generated   AI生成概率
+   ├── ai_generated   AI生成概率
+   └── credibility    事实可信度 (伪权威/阴谋论/不可验证声明)
         │
         ├── 高置信度 → 直接返回 (跳过LLM)
         │
@@ -199,12 +268,29 @@ junk-detector feedback --stats
 junk-detector feedback --suggest
 ```
 
+## 关键词扩展
+
+利用 LLM 对现有规则关键词进行语义扩展，生成同义词、变体写法、混淆形式，提升检测召回率。
+
+```bash
+# 预览扩展建议
+junk-detector rules --expand
+
+# 指定模型
+junk-detector rules --expand --model deepseek/deepseek-chat
+
+# 直接应用到自定义规则文件
+junk-detector rules --expand --apply
+```
+
+扩展结果缓存在 `~/.cache/junk-detector/expansions.json`，避免重复 LLM 调用。
+
 ## 开发
 
 ```bash
 pip install -e ".[dev]"
 
-# 运行测试 (602 tests, 90% coverage)
+# 运行测试 (926+ tests, 90% coverage)
 python -m pytest tests/ -q
 
 # 带覆盖率
@@ -231,7 +317,7 @@ ruff format --check src/ tests/
 - 规则优先，LLM 兜底（成本控制）
 - 零配置即用（安装即检测）
 - Unix 哲学（管道、exit code、可组合）
-- 测试即文档（602 tests 说明了所有行为）
+- 测试即文档（926+ tests 说明了所有行为）
 
 ## License
 
