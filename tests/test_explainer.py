@@ -57,6 +57,36 @@ class TestExplainHighScam:
         assert "诈骗" in explanation
         assert "不可验证" in explanation
 
+    def test_scam_quotes_keywords_from_content(self):
+        """When content is provided, explanation should quote exact matched keywords."""
+        content = "想要财富自由吗？加入我们的区块链投资群，日入过万不是梦！"
+        rule_result = RuleResult(
+            matched_rules=["scam_keywords"],
+            dimension_overrides={"scam_prob": 95.0},
+            confidence={"scam_prob": 0.95},
+        )
+        score_result = _make_score_result(5.0, scam_prob=95.0)
+        explanation = explain_result(score_result, rule_result, content=content)
+
+        assert "\U0001f6a8" in explanation
+        # Should quote at least one keyword from the content
+        assert '"' in explanation
+        # Should contain one of the matched keywords
+        assert "财富自由" in explanation or "日入过万" in explanation or "区块链投资" in explanation
+
+    def test_scam_line_numbers_with_multiline_content(self):
+        """When content has newlines, line numbers should be present."""
+        content = "第一行普通内容\n想要财富自由吗？\n日入过万不是梦！加微信领取"
+        rule_result = RuleResult(
+            matched_rules=["scam_keywords"],
+            dimension_overrides={"scam_prob": 95.0},
+            confidence={"scam_prob": 0.95},
+        )
+        score_result = _make_score_result(5.0, scam_prob=95.0)
+        explanation = explain_result(score_result, rule_result, content=content)
+
+        assert "第" in explanation and "行" in explanation
+
 
 class TestExplainAdvertorial:
     """High advertorial score should produce explanation mentioning promotion."""
@@ -83,6 +113,20 @@ class TestExplainAdvertorial:
         explanation = explain_result(score_result, rule_result)
 
         assert "平台营销" in explanation
+
+    def test_advertorial_quotes_keywords(self):
+        """When content is provided, explanation quotes matched advertorial keywords."""
+        content = "亲测有效，回购无数次了，推荐码 BEAUTY20 还能打八折"
+        rule_result = RuleResult(
+            matched_rules=["advertorial_promo"],
+            dimension_overrides={"advertorial_prob": 80.0},
+            confidence={"advertorial_prob": 0.85},
+        )
+        score_result = _make_score_result(20.0, advertorial_prob=80.0)
+        explanation = explain_result(score_result, rule_result, content=content)
+
+        assert '"' in explanation
+        assert "推荐码" in explanation or "亲测有效" in explanation or "回购无数次" in explanation
 
 
 class TestExplainQualityContent:
@@ -193,3 +237,34 @@ class TestExplainAIGenerated:
         explanation = explain_result(score_result, rule_result)
 
         assert "AI生成" in explanation
+
+
+class TestExplainWithContent:
+    """Tests for the content-aware keyword quoting feature."""
+
+    def test_no_content_still_works(self):
+        """Backward compatibility: explain_result works without content."""
+        rule_result = RuleResult(
+            matched_rules=["scam_keywords"],
+            dimension_overrides={"scam_prob": 95.0},
+            confidence={"scam_prob": 0.95},
+        )
+        score_result = _make_score_result(5.0, scam_prob=95.0)
+        explanation = explain_result(score_result, rule_result)
+
+        assert "\U0001f6a8" in explanation
+        assert "诈骗" in explanation
+
+    def test_emotional_quotes_anxiety_phrases(self):
+        """Emotional manipulation explanation quotes anxiety phrases."""
+        content = "震惊！再不看就晚了！转发救人一命！"
+        rule_result = RuleResult(
+            matched_rules=["emotional_anxiety_and_punctuation"],
+            dimension_overrides={"emotional_manipulation": 85.0},
+            confidence={"emotional_manipulation": 0.9},
+        )
+        score_result = _make_score_result(15.0, emotional_manipulation=85.0)
+        explanation = explain_result(score_result, rule_result, content=content)
+
+        assert '"' in explanation
+        assert "震惊" in explanation or "再不" in explanation

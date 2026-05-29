@@ -27,7 +27,7 @@ from src.models.score import Content, FastScoreResult, ScoreResult
 
 app = typer.Typer(
     name="junk-detector",
-    help="AI content quality scorer — detect junk content with LLM-as-Judge + rules.",
+    help="鉴真 — AI 内容质量检测工具，一眼看穿垃圾信息。",
 )
 
 console = Console()
@@ -1276,6 +1276,110 @@ def rules(
 
     # Default: show help hint
     console.print("Use --list, --init, or --validate. Run 'junk-detector rules --help' for details.")
+
+
+@app.command()
+def demo() -> None:
+    """运行内置演示 -- 展示鉴真的检测能力。"""
+    from rich.panel import Panel
+
+    from src.core.explainer import explain_result
+    from src.core.rules import apply_rules, should_skip_llm
+    from src.models.score import DimensionScores, ScoreResult
+
+    console.print()
+    console.print("🔍 鉴真 演示模式", style="bold cyan")
+    console.print("━" * 40)
+    console.print()
+
+    samples = [
+        (
+            "诈骗信息",
+            "想要财富自由吗？加入我们的区块链投资群，日入过万不是梦！零风险，限时免费名额，加微信 btc888 立即领取。",
+        ),
+        (
+            "隐性软文",
+            "最近皮肤状态特别好，朋友都问我用了什么。其实就是这款精华液，用了三个月真的白了好几度。亲测有效，回购无数次了，推荐码 BEAUTY20 还能打八折。",
+        ),
+        (
+            "优质技术文章",
+            "React 18 引入了并发渲染模式，通过 startTransition API 允许开发者标记非紧急更新。这意味着用户输入等高优先级更新不会被大量重渲染阻塞，从而提升交互体验。",
+        ),
+        (
+            "情绪操纵标题党",
+            "震惊！99%的人每天都在喝的东西竟然致癌！！！专家紧急呼吁停止饮用！再不看就晚了！转发救人一命！！！",
+        ),
+        (
+            "AI 生成水文",
+            "在当今社会，随着科技的发展，人工智能已经成为不可忽视的力量。需要注意的是，综上所述，我们不难发现，AI 技术的应用前景是毋庸置疑的。",
+        ),
+    ]
+
+    for idx, (category, text) in enumerate(samples, 1):
+        rule_result = apply_rules(text)
+        skip, _reason = should_skip_llm(rule_result, text)
+
+        # Build a ScoreResult from rule overrides
+        overrides = rule_result.dimension_overrides
+        scam_prob = overrides.get("scam_prob", 0.0)
+        advertorial_prob = overrides.get("advertorial_prob", 0.0)
+        emotional_manipulation = overrides.get("emotional_manipulation", 0.0)
+        ai_generated_prob = overrides.get("ai_generated_prob", 0.0)
+
+        overall = 100 - max(scam_prob, advertorial_prob, emotional_manipulation, ai_generated_prob)
+
+        dims = DimensionScores(
+            originality=50.0,
+            info_density=50.0,
+            reasoning_quality=50.0,
+            readability=50.0,
+            timeliness=50.0,
+            ai_generated_prob=ai_generated_prob,
+            emotional_manipulation=emotional_manipulation,
+            advertorial_prob=advertorial_prob,
+            scam_prob=scam_prob,
+        )
+        score_result = ScoreResult(
+            overall_score=overall,
+            dimensions=dims,
+            labels=[],
+            summary="demo",
+            rule_hits=rule_result.matched_rules,
+        )
+
+        explanation = explain_result(score_result, rule_result, content=text)
+
+        # Color coding
+        if overall >= 70:
+            score_style = "bold green"
+        elif overall >= 40:
+            score_style = "bold yellow"
+        else:
+            score_style = "bold red"
+
+        display_text = text[:200]
+        body = Text()
+        body.append(display_text, style="dim")
+        body.append("\n")
+        body.append("─" * 36, style="dim")
+        body.append("\n")
+        body.append(explanation, style="bold")
+        body.append("\n")
+        body.append(f"得分: {overall:.0f}/100", style=score_style)
+
+        panel = Panel(
+            body,
+            title=f"[bold]样本 {idx}: {category}[/bold]",
+            border_style="blue" if overall >= 70 else ("yellow" if overall >= 40 else "red"),
+        )
+        console.print(panel)
+
+    console.print()
+    console.print(
+        "💡 以上结果均由本地规则引擎生成，无需 API key，毫秒级响应。",
+        style="bold green",
+    )
+    console.print()
 
 
 @app.command()

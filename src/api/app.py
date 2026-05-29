@@ -140,7 +140,7 @@ async def health(deep: bool = False):
         deep: If True, attempts a minimal LLM API call to verify connectivity.
     """
     if not deep:
-        return {"status": "ok"}
+        return {"status": "ok", "name": "鉴真", "version": "0.1.0"}
 
     # Deep health check: ping the LLM API
     try:
