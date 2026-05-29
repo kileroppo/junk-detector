@@ -1157,6 +1157,9 @@ def rules(
     list_rules: bool = typer.Option(False, "--list", "-l", help="List all active rules (built-in + custom)"),
     init: bool = typer.Option(False, "--init", help="Create template .junk-rules.yaml in current directory"),
     validate: Optional[str] = typer.Option(None, "--validate", help="Validate a custom rules YAML file"),
+    expand: bool = typer.Option(False, "--expand", help="Expand keywords using LLM"),
+    apply: bool = typer.Option(False, "--apply", help="Apply expansions to .junk-rules.yaml"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model for keyword expansion"),
 ) -> None:
     """Manage detection rules (built-in + custom)."""
     from src.core.custom_rules import (
@@ -1171,6 +1174,59 @@ def rules(
         _COMBO_RULES,
         _SCAM_KEYWORDS,
     )
+
+    if expand:
+        import yaml
+
+        from src.core.query_expansion import expand_keywords_sync
+
+        console.print("[bold]Expanding keywords using LLM...[/bold]")
+
+        # Take a sample of keywords (first 10 scam + first 5 advertorial)
+        sample_keywords = _SCAM_KEYWORDS[:10] + _ADVERTORIAL_KEYWORDS[:5]
+
+        expansions = expand_keywords_sync(
+            sample_keywords,
+            model=model or "deepseek/deepseek-chat",
+        )
+
+        if not expansions:
+            console.print("[red]Expansion failed (check API key and model)[/red]")
+            raise typer.Exit(code=1)
+
+        # Write to YAML
+        output_path = Path("expanded_rules.yaml")
+        output_data = {"expanded_keywords": expansions}
+        output_path.write_text(
+            yaml.dump(output_data, allow_unicode=True, default_flow_style=False),
+            encoding="utf-8",
+        )
+        console.print(f"[green]Expansions written to {output_path}[/green]")
+        console.print(f"[dim]  {len(expansions)} keywords expanded[/dim]")
+
+        if apply:
+            # Merge into .junk-rules.yaml
+            custom_rules_path = Path(".junk-rules.yaml")
+            existing: dict = {}
+            if custom_rules_path.exists():
+                existing = yaml.safe_load(
+                    custom_rules_path.read_text(encoding="utf-8")
+                ) or {}
+
+            existing_custom = existing.get("custom_keywords", {})
+            for kw, variants in expansions.items():
+                if kw in existing_custom:
+                    existing_custom[kw] = list(set(existing_custom[kw] + variants))
+                else:
+                    existing_custom[kw] = variants
+            existing["custom_keywords"] = existing_custom
+
+            custom_rules_path.write_text(
+                yaml.dump(existing, allow_unicode=True, default_flow_style=False),
+                encoding="utf-8",
+            )
+            console.print(f"[green]Applied to {custom_rules_path}[/green]")
+        return
 
     if init:
         target = Path.cwd() / ".junk-rules.yaml"
