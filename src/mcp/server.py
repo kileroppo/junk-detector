@@ -29,6 +29,7 @@ def score_text(text: str) -> dict:
             advertorial_prob = overrides.get("advertorial_prob", 0.0)
             emotional = overrides.get("emotional_manipulation", 0.0)
             score = 100 - max(scam_prob, advertorial_prob, emotional)
+            status = "junk" if score < 40 else "suspicious" if score <= 60 else "normal" if score <= 80 else "quality"
             return {
                 "score": round(score),
                 "is_junk": score < 60,
@@ -36,6 +37,7 @@ def score_text(text: str) -> dict:
                 "matched_rules": rule_result.matched_rules,
                 "summary": f"Rules engine detected: {', '.join(rule_result.matched_rules)}",
                 "method": "rules_only",
+                "status": status,
             }
         else:
             # Rules not confident - still return what we have
@@ -46,6 +48,8 @@ def score_text(text: str) -> dict:
                 "matched_rules": rule_result.matched_rules,
                 "summary": "Rules inconclusive - LLM scoring recommended for full analysis",
                 "method": "rules_partial",
+                "status": "inconclusive",
+                "message": "规则引擎无法确定，建议使用完整LLM评分",
             }
     except Exception as e:
         logger.error("score_text failed: %s", e)
@@ -91,6 +95,7 @@ def quick_check(text: str) -> dict:
             "is_junk": is_junk,
             "score": score_val,
             "reason": reason,
+            "status": result.get("status", ""),
         }
     except Exception as e:
         logger.error("quick_check failed: %s", e)
