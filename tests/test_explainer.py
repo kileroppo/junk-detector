@@ -269,3 +269,59 @@ class TestExplainWithContent:
 
         assert '"' in explanation
         assert "震惊" in explanation or "再不" in explanation
+
+
+class TestExplainEnglishOutput:
+    """Tests for English language output (language='en')."""
+
+    def test_quality_english(self):
+        """English output for quality content should contain 'legitimate'."""
+        rule_result = RuleResult(
+            matched_rules=[],
+            dimension_overrides={},
+            confidence={},
+        )
+        score_result = _make_score_result(85.0)
+        explanation = explain_result(score_result, rule_result, language="en")
+
+        assert "\u2705" in explanation
+        assert "legitimate" in explanation
+
+    def test_suspicious_english(self):
+        """English output for suspicious content should mention 'caution'."""
+        rule_result = RuleResult(
+            matched_rules=["emotional_anxiety_phrases"],
+            dimension_overrides={"emotional_manipulation": 70.0},
+            confidence={"emotional_manipulation": 0.75},
+        )
+        score_result = _make_score_result(50.0, emotional_manipulation=70.0)
+        explanation = explain_result(score_result, rule_result, language="en")
+
+        assert "\u26a0\ufe0f" in explanation
+        assert "caution" in explanation.lower() or "suspicious" in explanation.lower()
+
+    def test_junk_english(self):
+        """English output for junk content should mention 'high-risk'."""
+        rule_result = RuleResult(
+            matched_rules=["scam_keywords", "credibility_unverifiable"],
+            dimension_overrides={"scam_prob": 95.0},
+            confidence={"scam_prob": 0.95},
+        )
+        score_result = _make_score_result(5.0, scam_prob=95.0)
+        explanation = explain_result(score_result, rule_result, language="en")
+
+        assert "\U0001f6a8" in explanation
+        assert "high-risk" in explanation.lower() or "High-risk" in explanation
+
+    def test_backwards_compatible_default_zh(self):
+        """Default language is 'zh' for backward compatibility."""
+        rule_result = RuleResult(
+            matched_rules=["scam_keywords"],
+            dimension_overrides={"scam_prob": 95.0},
+            confidence={"scam_prob": 0.95},
+        )
+        score_result = _make_score_result(5.0, scam_prob=95.0)
+        explanation = explain_result(score_result, rule_result)
+
+        # Default should be Chinese
+        assert "诈骗" in explanation

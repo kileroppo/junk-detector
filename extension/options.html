@@ -106,6 +106,40 @@
     .save-msg.visible {
       opacity: 1;
     }
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #1c1c1e;
+        color: #e5e5ea;
+      }
+      h1 {
+        color: #34d399;
+      }
+      .setting-group {
+        border-color: #38383a;
+        background: #2c2c2e;
+      }
+      .setting-label {
+        color: #e5e5ea;
+      }
+      .setting-desc {
+        color: #98989d;
+      }
+      .radio-group label {
+        color: #e5e5ea;
+      }
+      textarea {
+        background: #1c1c1e;
+        border-color: #48484a;
+        color: #e5e5ea;
+      }
+      .toggle-slider {
+        background-color: #48484a;
+      }
+      .save-msg {
+        color: #34d399;
+      }
+    }
   </style>
 </head>
 <body>

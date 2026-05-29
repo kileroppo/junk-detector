@@ -209,7 +209,47 @@
     arrow.classList.toggle("expanded");
   });
 
+  /**
+   * Setup feedback button click handler.
+   * Stores user disagreement in chrome.storage.local.
+   */
+  function setupFeedbackButton() {
+    var feedbackBtn = document.getElementById("feedback-btn");
+    feedbackBtn.addEventListener("click", function () {
+      // Prevent double-submit
+      if (feedbackBtn.disabled) return;
+      feedbackBtn.disabled = true;
+      feedbackBtn.style.opacity = "0.5";
+
+      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        var tab = tabs && tabs[0];
+        var tabId = tab ? tab.id : null;
+        var url = tab ? tab.url : "";
+        var key = tabId ? "result_" + tabId : null;
+
+        chrome.storage.local.get([key, "feedback"], function (data) {
+          var result = key ? data[key] : null;
+          var feedback = data["feedback"] || [];
+          feedback.push({
+            url: url,
+            verdict: result ? result.verdict : "unknown",
+            timestamp: Date.now(),
+            user_disagrees: true
+          });
+          chrome.storage.local.set({ feedback: feedback }, function () {
+            var toast = document.getElementById("feedback-toast");
+            toast.classList.remove("hidden");
+            setTimeout(function () {
+              toast.classList.add("hidden");
+            }, 2000);
+          });
+        });
+      });
+    });
+  }
+
   // Load result and history on popup open
   loadResult();
   loadHistory();
+  setupFeedbackButton();
 })();

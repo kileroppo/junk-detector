@@ -145,17 +145,70 @@ def explain_result(
     score_result: ScoreResult,
     rule_result: RuleResult,
     content: Optional[str] = None,
+    language: str = "zh",
 ) -> str:
-    """Generate a one-sentence Chinese explanation based on scoring results.
+    """Generate a one-sentence explanation based on scoring results.
 
     Args:
         score_result: The complete scoring result with overall_score and dimensions.
         rule_result: The rule engine result with matched_rules and dimension_overrides.
         content: Optional original text content for keyword quoting with line numbers.
+        language: Language code for output. "zh" for Chinese (default), "en" for English.
 
     Returns:
-        A Chinese string with emoji prefix explaining the scoring verdict.
+        A string with emoji prefix explaining the scoring verdict.
     """
+    if language == "en":
+        return _explain_result_en(score_result, rule_result, content)
+    return _explain_result_zh(score_result, rule_result, content)
+
+
+def _explain_result_en(
+    score_result: ScoreResult,
+    rule_result: RuleResult,
+    content: Optional[str] = None,
+) -> str:
+    """Generate English explanation based on scoring results."""
+    overall = score_result.overall_score
+    matched = rule_result.matched_rules
+
+    # Count signal types
+    signals: list[str] = []
+
+    if any(r.startswith("scam") for r in matched) or "credibility_unverifiable" in matched:
+        signals.append("scam/fraud indicators")
+    if any(r.startswith("advertorial") for r in matched) or any(
+        r.startswith("platform_") and "patterns" in r for r in matched
+    ):
+        signals.append("promotional/advertorial content")
+    if any(r.startswith("emotional") for r in matched):
+        signals.append("emotional manipulation")
+    if "ai_generated_signals" in matched:
+        signals.append("AI-generated content")
+
+    # Count non-combo rules
+    non_combo_count = len([r for r in matched if not r.startswith("combo_")])
+
+    if overall >= 70:
+        return "\u2705 Content looks legitimate, no obvious red flags."
+    elif overall >= 40:
+        if signals:
+            details = ", ".join(signals)
+            return f"\u26a0\ufe0f Suspicious signals detected: {details}. Exercise caution."
+        return "\u26a0\ufe0f Content quality is uncertain. Consider cross-referencing with other sources."
+    else:
+        if signals:
+            details = ", ".join(signals)
+            return f"\U0001f6a8 High-risk content. Found {non_combo_count} rule violations: {details}."
+        return "\U0001f6a8 High-risk content. No known patterns matched, but score is very low."
+
+
+def _explain_result_zh(
+    score_result: ScoreResult,
+    rule_result: RuleResult,
+    content: Optional[str] = None,
+) -> str:
+    """Generate a one-sentence Chinese explanation based on scoring results."""
     overall = score_result.overall_score
     matched = rule_result.matched_rules
 

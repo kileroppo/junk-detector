@@ -239,16 +239,105 @@
     );
   }
 
+  /**
+   * Score individual feed items on supported platforms (Zhihu, Weibo).
+   * Uses data attributes to avoid re-scoring already processed items.
+   */
+  function scoreFeedItems() {
+    // Zhihu feed items
+    var zhihuItems = document.querySelectorAll('.ContentItem:not([data-jz-scored])');
+    // Weibo feed items
+    var weiboItems = document.querySelectorAll('[class*="Feed_body"]:not([data-jz-scored])');
+    // Juejin feed items
+    var juejinItems = document.querySelectorAll('.entry-list .item:not([data-jz-scored])');
+
+    var allItems = [].concat(
+      Array.prototype.slice.call(zhihuItems),
+      Array.prototype.slice.call(weiboItems),
+      Array.prototype.slice.call(juejinItems)
+    );
+
+    allItems.forEach(function (item) {
+      item.setAttribute('data-jz-scored', 'true');
+      var text = item.innerText || item.textContent || "";
+      if (text.length > 50) {
+        chrome.runtime.sendMessage(
+          { type: "SCORE_CONTENT", text: text },
+          function (resp) {
+            if (resp && resp.result) {
+              addMiniBadge(item, resp.result);
+            }
+          }
+        );
+      }
+    });
+  }
+
+  /**
+   * Add a small colored badge to a feed item indicating its quality score.
+   * @param {HTMLElement} element - The feed item element
+   * @param {{verdict: string, score: number}} result - Scoring result
+   */
+  function addMiniBadge(element, result) {
+    var existing = element.querySelector('.jz-mini-badge');
+    if (existing) return;
+
+    var colors = {
+      quality: "#34C759",
+      suspicious: "#FF9500",
+      junk: "#FF3B30"
+    };
+
+    var badge = document.createElement('span');
+    badge.className = 'jz-mini-badge';
+    badge.title = result.explanation || result.verdict;
+    badge.style.cssText = [
+      'display: inline-block',
+      'width: 8px',
+      'height: 8px',
+      'border-radius: 50%',
+      'position: absolute',
+      'top: 8px',
+      'right: 8px',
+      'z-index: 100',
+      'background-color: ' + (colors[result.verdict] || '#ccc'),
+      'box-shadow: 0 1px 3px rgba(0,0,0,0.2)',
+      'pointer-events: none'
+    ].join(';');
+
+    element.style.position = 'relative';
+    element.appendChild(badge);
+  }
+
+  /**
+   * Observe DOM mutations for feed content and score new items.
+   * Uses requestIdleCallback to defer scoring of new feed items.
+   */
+  function observeFeedChanges() {
+    var feedObserver = new MutationObserver(function () {
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(function () { scoreFeedItems(); });
+      } else {
+        setTimeout(function () { scoreFeedItems(); }, 200);
+      }
+    });
+    feedObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
   // Run after page load with a small delay to ensure DOM is ready
   if (document.readyState === "complete") {
     setTimeout(run, 1000);
     watchForNavigation();
     observeContentChanges();
+    scoreFeedItems();
+    observeFeedChanges();
   } else {
     window.addEventListener("load", function () {
       setTimeout(run, 1000);
       watchForNavigation();
       observeContentChanges();
+      scoreFeedItems();
+      observeFeedChanges();
     });
   }
 })();

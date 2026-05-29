@@ -217,6 +217,39 @@ async def demo_score(text: Optional[str] = None):
     )
     explanation = explain_result(mock_score, rule_result, content=sample_text)
 
+    # Build structured evidence from matched rules cross-referenced with content
+    from src.core.rules import _ADVERTORIAL_KEYWORDS, _ANXIETY_PHRASES, _SCAM_KEYWORDS
+
+    _RULE_KEYWORD_MAP = {
+        "scam_keywords": (_SCAM_KEYWORDS, "诈骗/收割信号"),
+        "advertorial_promo": (_ADVERTORIAL_KEYWORDS, "商业推广信号"),
+        "emotional_anxiety_phrases": (_ANXIETY_PHRASES, "情绪操纵信号"),
+        "emotional_anxiety_and_punctuation": (_ANXIETY_PHRASES, "情绪操纵信号"),
+    }
+
+    evidence_items: list[dict] = []
+    paragraphs = [p for p in sample_text.split("。") if p.strip()]
+    for rule_name in rule_result.matched_rules:
+        if rule_name not in _RULE_KEYWORD_MAP:
+            continue
+        keywords, concern = _RULE_KEYWORD_MAP[rule_name]
+        for para_idx, para in enumerate(paragraphs):
+            for kw in keywords:
+                if kw in para:
+                    evidence_items.append({
+                        "phrase": kw,
+                        "location": f"第{para_idx + 1}段",
+                        "concern": concern,
+                    })
+
+    # Actionable recommendation based on verdict
+    recommendations = {
+        "junk": "建议：不要点击文中链接，不要添加对方微信，不要转发",
+        "suspicious": "建议：谨慎对待文中推荐，建议交叉验证信息来源",
+        "quality": "建议：内容质量正常，可正常阅读",
+    }
+    recommendation = recommendations.get(verdict, "")
+
     is_custom = text is not None
     note = (
         "使用您提供的文本进行规则引擎评分（零成本，毫秒级响应）。"
@@ -227,7 +260,8 @@ async def demo_score(text: Optional[str] = None):
     return {
         "overall_score": overall_score,
         "explanation": explanation,
-        "evidence": rule_result.matched_rules,
+        "evidence": evidence_items,
+        "recommendation": recommendation,
         "verdict": verdict,
         "dimensions": rule_result.dimension_overrides,
         "text_scored": sample_text,
