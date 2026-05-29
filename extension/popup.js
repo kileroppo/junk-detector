@@ -248,8 +248,59 @@
     });
   }
 
+  /**
+   * Setup highlight toggle button.
+   * Sends message to content script to toggle keyword highlighting.
+   */
+  function setupHighlightButton() {
+    var highlightBtn = document.getElementById("highlight-btn");
+    chrome.storage.local.get("highlight_enabled", function (data) {
+      var enabled = data["highlight_enabled"] || false;
+      if (enabled) {
+        highlightBtn.classList.add("active");
+      }
+    });
+
+    highlightBtn.addEventListener("click", function () {
+      chrome.storage.local.get("highlight_enabled", function (data) {
+        var currentState = data["highlight_enabled"] || false;
+        var newState = !currentState;
+        chrome.storage.local.set({ highlight_enabled: newState });
+
+        if (newState) {
+          highlightBtn.classList.add("active");
+        } else {
+          highlightBtn.classList.remove("active");
+        }
+
+        // Send message to active tab's content script
+        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+          if (tabs && tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+              type: "TOGGLE_HIGHLIGHT",
+              enabled: newState
+            });
+          }
+        });
+      });
+    });
+  }
+
+  /**
+   * Display extension version from manifest.
+   */
+  function displayVersion() {
+    var versionEl = document.getElementById("version-text");
+    if (versionEl && chrome.runtime.getManifest) {
+      var manifest = chrome.runtime.getManifest();
+      versionEl.textContent = "v" + manifest.version;
+    }
+  }
+
   // Load result and history on popup open
   loadResult();
   loadHistory();
   setupFeedbackButton();
+  setupHighlightButton();
+  displayVersion();
 })();

@@ -147,5 +147,11 @@ chrome.tabs.onRemoved.addListener(function (tabId) {
 chrome.runtime.onInstalled.addListener(function (details) {
   if (details.reason === "install") {
     chrome.tabs.create({ url: "onboarding.html" });
+  } else if (details.reason === "update") {
+    // Store update flag for popup to show
+    chrome.storage.local.set({
+      updated: true,
+      previousVersion: details.previousVersion
+    });
   }
 });

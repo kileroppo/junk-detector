@@ -106,8 +106,17 @@ app.include_router(ws_router)
 class ScoreRequest(BaseModel):
     """Request body for the /score endpoint."""
 
-    url: Optional[str] = Field(default=None, description="URL to fetch and score")
-    text: Optional[str] = Field(default=None, max_length=50000, description="Raw text to score")
+    url: Optional[str] = Field(
+        default=None,
+        description="URL to fetch and score",
+        json_schema_extra={"examples": ["https://mp.weixin.qq.com/s/example"]},
+    )
+    text: Optional[str] = Field(
+        default=None,
+        max_length=50000,
+        description="Raw text to score",
+        json_schema_extra={"examples": ["日入过万 限时免费 加微信领取"]},
+    )
     title: Optional[str] = Field(default=None, description="Optional title for text input")
 
 
@@ -344,6 +353,13 @@ async def score_content(
         # Anonymous scoring: no WebSocket notification (no targeted audience)
     except Exception:
         pass  # Notification failure should never block scoring response
+
+    # Webhook alert for high-risk content (score < 40)
+    try:
+        if result.overall_score < 40:
+            await dispatcher.send_webhook(result.model_dump())
+    except Exception:
+        pass  # Webhook failure should never block scoring response
 
     return result
 

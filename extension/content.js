@@ -340,4 +340,138 @@
       observeFeedChanges();
     });
   }
+
+  // -----------------------------------------------------------------------
+  // In-page keyword highlighting
+  // -----------------------------------------------------------------------
+
+  /**
+   * Highlight matched keywords on the page with colored underlines.
+   * @param {{matchedKeywords: string[], verdict: string}} result
+   */
+  function highlightKeywords(result) {
+    if (!result || !result.matchedKeywords || result.matchedKeywords.length === 0) return;
+
+    // Remove previous highlights first
+    removeHighlights();
+
+    // Inject highlight styles
+    var existingStyle = document.getElementById('jz-highlight-styles');
+    if (!existingStyle) {
+      var style = document.createElement('style');
+      style.id = 'jz-highlight-styles';
+      style.textContent = [
+        '.jz-highlight-scam { background-color: rgba(239, 68, 68, 0.15); border-bottom: 2px solid #EF4444; }',
+        '.jz-highlight-anxiety { background-color: rgba(245, 158, 11, 0.15); border-bottom: 2px solid #F59E0B; }',
+        '.jz-highlight-advertorial { background-color: rgba(59, 130, 246, 0.15); border-bottom: 2px solid #3B82F6; }'
+      ].join('\n');
+      document.head.appendChild(style);
+    }
+
+    // Determine highlight class based on verdict
+    var highlightClass = 'jz-highlight-scam';
+    if (result.verdict === 'suspicious') {
+      highlightClass = 'jz-highlight-anxiety';
+    }
+
+    // Walk text nodes and wrap matched keywords
+    var keywords = result.matchedKeywords;
+    var walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+
+    var textNodes = [];
+    while (walker.nextNode()) {
+      textNodes.push(walker.currentNode);
+    }
+
+    textNodes.forEach(function (node) {
+      // Skip nodes inside our own elements
+      if (node.parentElement && (
+        node.parentElement.id === 'junk-detector-indicator' ||
+        node.parentElement.classList.contains('jz-highlight-scam') ||
+        node.parentElement.classList.contains('jz-highlight-anxiety') ||
+        node.parentElement.classList.contains('jz-highlight-advertorial')
+      )) return;
+
+      var text = node.textContent;
+      var matched = false;
+      keywords.forEach(function (kw) {
+        if (text.indexOf(kw) !== -1) matched = true;
+      });
+
+      if (!matched) return;
+
+      var fragment = document.createDocumentFragment();
+      var remaining = text;
+
+      while (remaining.length > 0) {
+        var earliestIdx = -1;
+        var earliestKw = '';
+
+        keywords.forEach(function (kw) {
+          var idx = remaining.indexOf(kw);
+          if (idx !== -1 && (earliestIdx === -1 || idx < earliestIdx)) {
+            earliestIdx = idx;
+            earliestKw = kw;
+          }
+        });
+
+        if (earliestIdx === -1) {
+          fragment.appendChild(document.createTextNode(remaining));
+          break;
+        }
+
+        if (earliestIdx > 0) {
+          fragment.appendChild(document.createTextNode(remaining.substring(0, earliestIdx)));
+        }
+
+        var span = document.createElement('span');
+        span.className = highlightClass + ' jz-highlight';
+        span.textContent = earliestKw;
+        fragment.appendChild(span);
+
+        remaining = remaining.substring(earliestIdx + earliestKw.length);
+      }
+
+      node.parentNode.replaceChild(fragment, node);
+    });
+  }
+
+  /**
+   * Remove all highlight marks from the page, restoring original text.
+   */
+  function removeHighlights() {
+    var highlights = document.querySelectorAll('.jz-highlight');
+    highlights.forEach(function (el) {
+      var parent = el.parentNode;
+      parent.replaceChild(document.createTextNode(el.textContent), el);
+      parent.normalize();
+    });
+  }
+
+  // Listen for messages from popup to toggle highlights
+  chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
+    if (message.type === 'TOGGLE_HIGHLIGHT') {
+      if (message.enabled) {
+        // Get current result and highlight
+        chrome.storage.local.get(null, function (data) {
+          // Find result for current tab
+          var keys = Object.keys(data);
+          var resultKey = keys.find(function (k) { return k.startsWith('result_'); });
+          var result = resultKey ? data[resultKey] : null;
+          if (result) {
+            highlightKeywords(result);
+          }
+        });
+      } else {
+        removeHighlights();
+      }
+      sendResponse({ ok: true });
+    }
+    return true;
+  });
 })();

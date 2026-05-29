@@ -419,12 +419,34 @@ def _print_quick_verdict(result: FastScoreResult, threshold: int = 60, explanati
     console.print(panel)
 
 
+def _print_verbose_dimensions(result: FastScoreResult) -> None:
+    """Print dimension breakdown below the verdict panel."""
+    from rich.table import Table as RichTable
+
+    table = RichTable(show_header=True, header_style="bold", show_lines=False, padding=(0, 1))
+    table.add_column("维度", style="cyan")
+    table.add_column("值", justify="right", width=8)
+
+    dims = [
+        ("诈骗概率", result.scam_prob, True),
+        ("软文概率", result.advertorial_prob, True),
+        ("情绪操纵", result.emotional_manipulation, True),
+        ("置信度", result.confidence * 100, False),
+    ]
+    for name, value, inverted in dims:
+        color = _score_color(value, inverted=inverted)
+        table.add_row(name, f"[{color}]{value:.0f}[/{color}]")
+
+    console.print(table)
+
+
 def _output_quick_result(
     result: FastScoreResult,
     *,
     output_format: str,
     json_output: bool,
     threshold: int,
+    verbose: bool = False,
 ) -> None:
     """Output quick result in the requested format (human, json, csv)."""
     # --json flag is equivalent to --format json
@@ -449,6 +471,8 @@ def _output_quick_result(
         typer.echo(f"{score_val:.0f},{verdict_str},{summary}")
     else:
         _print_quick_verdict(result, threshold)
+        if verbose:
+            _print_verbose_dimensions(result)
 
 
 @app.command()
@@ -462,6 +486,7 @@ def quick(
     rules_only: bool = typer.Option(
         False, "--rules-only", "-r", help="Use rules-only evaluation without LLM"
     ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full dimension breakdown"),
     consistent: bool = typer.Option(
         False, "--consistent", help="Score 3 times and return median for stability"
     ),
@@ -556,7 +581,7 @@ def quick(
                     model_used="rules_only",
                 )
 
-            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold, verbose=verbose)
             if not json_output and output_format == "human":
                 console.print(
                     "\U0001f4a1 Rules are deterministic - consistent mode ran once.",
@@ -582,7 +607,7 @@ def quick(
                 )
                 raise typer.Exit(code=2)
 
-            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold, verbose=verbose)
             raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
 
     # Rules-only mode: skip API key validation and LLM call
@@ -625,7 +650,7 @@ def quick(
                 model_used="rules_only",
             )
 
-        _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+        _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold, verbose=verbose)
         # Hint when auto rules-only is engaged and rules returned uncertain
         if not json_output and output_format == "human" and auto_rules_only and fast_result.confidence <= 0.2:
             console.print(
@@ -649,7 +674,7 @@ def quick(
         console.print(f"\u274c \u5feb\u901f\u8bc4\u5206\u5931\u8d25: {exc}", style="bold red")
         raise typer.Exit(code=2)
 
-    _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+    _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold, verbose=verbose)
     raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
 
 
@@ -1192,6 +1217,8 @@ def rules(
     expand: bool = typer.Option(False, "--expand", help="Expand keywords using LLM"),
     apply: bool = typer.Option(False, "--apply", help="Apply expansions to .junk-rules.yaml"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Model for keyword expansion"),
+    test_file: Optional[str] = typer.Option(None, "--test", help="Test a rules file against a dataset"),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="JSONL dataset for testing (needs 'text' and 'label' fields)"),
 ) -> None:
     """Manage detection rules (built-in + custom)."""
     from src.core.custom_rules import (
@@ -1206,6 +1233,102 @@ def rules(
         _COMBO_RULES,
         _SCAM_KEYWORDS,
     )
+
+    # A/B testing mode: compare test rules against current rules on a dataset
+    if test_file and dataset:
+        import yaml as _yaml
+
+        from src.core.rules import apply_rules
+
+        test_path = Path(test_file)
+        dataset_path = Path(dataset)
+
+        if not test_path.exists():
+            console.print(f"[red]Rules file not found: {test_file}[/red]")
+            raise typer.Exit(code=1)
+        if not dataset_path.exists():
+            console.print(f"[red]Dataset file not found: {dataset}[/red]")
+            raise typer.Exit(code=1)
+
+        # Load dataset (JSONL: each line has "text" and "label")
+        items: list[dict] = []
+        for line in dataset_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                items.append(json.loads(line))
+
+        if not items:
+            console.print("[red]Dataset is empty[/red]")
+            raise typer.Exit(code=1)
+
+        # Score each item with current rules
+        current_results: list[dict] = []
+        for item in items:
+            text_content = item.get("text", "")
+            label = item.get("label", "quality")
+            rule_result = apply_rules(text_content)
+            overrides = rule_result.dimension_overrides
+            max_risk = max(
+                overrides.get("scam_prob", 0.0),
+                overrides.get("advertorial_prob", 0.0),
+                overrides.get("emotional_manipulation", 0.0),
+            )
+            predicted = "junk" if max_risk >= 70 else ("suspicious" if max_risk >= 40 else "quality")
+            current_results.append({"label": label, "predicted": predicted})
+
+        # Load test rules and score with them
+        test_rules_data = _yaml.safe_load(test_path.read_text(encoding="utf-8")) or {}
+        test_keywords: list[str] = []
+        for rule in test_rules_data.get("rules", []):
+            test_keywords.extend(rule.get("keywords", []))
+
+        test_results: list[dict] = []
+        for item in items:
+            text_content = item.get("text", "")
+            label = item.get("label", "quality")
+            # Simple keyword matching for test rules
+            matched = sum(1 for kw in test_keywords if kw in text_content)
+            # Also run base rules
+            rule_result = apply_rules(text_content)
+            overrides = rule_result.dimension_overrides
+            max_risk = max(
+                overrides.get("scam_prob", 0.0),
+                overrides.get("advertorial_prob", 0.0),
+                overrides.get("emotional_manipulation", 0.0),
+            )
+            # Boost risk if test keywords match
+            if matched > 0:
+                max_risk = min(100, max_risk + matched * 20)
+            predicted = "junk" if max_risk >= 70 else ("suspicious" if max_risk >= 40 else "quality")
+            test_results.append({"label": label, "predicted": predicted})
+
+        # Compare results
+        current_tp = sum(1 for r in current_results if r["label"] == "junk" and r["predicted"] == "junk")
+        current_fp = sum(1 for r in current_results if r["label"] == "quality" and r["predicted"] == "junk")
+        test_tp = sum(1 for r in test_results if r["label"] == "junk" and r["predicted"] == "junk")
+        test_fp = sum(1 for r in test_results if r["label"] == "quality" and r["predicted"] == "junk")
+
+        tp_gained = test_tp - current_tp
+        fp_introduced = test_fp - current_fp
+        total_junk = sum(1 for item in items if item.get("label") == "junk")
+        current_recall = (current_tp / total_junk * 100) if total_junk > 0 else 0
+        test_recall = (test_tp / total_junk * 100) if total_junk > 0 else 0
+
+        console.print()
+        console.print("[bold]A/B Test Results: Current vs Test Rules[/bold]")
+        console.print("-" * 40)
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Metric")
+        table.add_column("Current", justify="right")
+        table.add_column("Test", justify="right")
+        table.add_column("Delta", justify="right")
+        table.add_row("True Positives", str(current_tp), str(test_tp), f"+{tp_gained}" if tp_gained >= 0 else str(tp_gained))
+        table.add_row("False Positives", str(current_fp), str(test_fp), f"+{fp_introduced}" if fp_introduced >= 0 else str(fp_introduced))
+        table.add_row("Recall", f"{current_recall:.1f}%", f"{test_recall:.1f}%", f"{test_recall - current_recall:+.1f}%")
+        console.print(table)
+        console.print(f"\n  Dataset: {len(items)} items ({total_junk} junk)")
+        console.print()
+        return
 
     if expand:
         import yaml
@@ -1408,6 +1531,39 @@ def demo() -> None:
         style="bold green",
     )
     console.print()
+
+
+@app.command(name="explain-methodology")
+def explain_methodology() -> None:
+    """展示鉴真的评分方法论 - 透明度建立信任。"""
+    from rich.markdown import Markdown
+    from rich.panel import Panel
+
+    methodology = """
+# 鉴真评分方法论
+
+## 评分维度
+- **诈骗概率** (scam_prob): 检测投资诱惑、虚假承诺、私聊引导
+- **软文概率** (advertorial_prob): 识别隐性广告、推广码、带货话术
+- **情绪操纵** (emotional_manipulation): 焦虑营销、标题党、紧迫感制造
+- **AI生成概率** (ai_generated_prob): 检测模板化、套话、缺乏具体信息
+
+## 评分流程
+1. 规则引擎快速扫描（50+关键词，组合规则）
+2. 置信度判断：高置信度直接出结果
+3. 低置信度时调用LLM深度分析（可选）
+
+## 分数含义
+- 70-100: 内容质量正常
+- 40-69: 存在风险信号，建议人工复核
+- 0-39: 高风险内容
+
+## 透明度承诺
+- 所有规则开源可查
+- 不存在商业利益驱动的评分偏向
+- 误判可通过 feedback 命令反馈改进
+"""
+    console.print(Panel(Markdown(methodology), title="[bold]鉴真评分方法论[/bold]", border_style="blue"))
 
 
 @app.command()
