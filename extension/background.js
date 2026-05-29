@@ -243,6 +243,21 @@ function updateTopSites(url, result) {
       if (!sites[domain]) sites[domain] = { count: 0, totalScore: 0 };
       sites[domain].count += 1;
       sites[domain].totalScore += (100 - result.score);
+      // Cap at 50 domains: remove the domain with lowest count
+      var keys = Object.keys(sites);
+      if (keys.length > 50) {
+        var minDomain = null;
+        var minCount = Infinity;
+        for (var i = 0; i < keys.length; i++) {
+          if (sites[keys[i]].count < minCount) {
+            minCount = sites[keys[i]].count;
+            minDomain = keys[i];
+          }
+        }
+        if (minDomain) {
+          delete sites[minDomain];
+        }
+      }
       chrome.storage.local.set({ top_sites: sites });
     });
   } catch (e) {

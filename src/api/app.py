@@ -213,6 +213,21 @@ async def usage():
     }
 
 
+class DemoRequest(BaseModel):
+    """Request body for POST /demo endpoint."""
+
+    text: Optional[str] = Field(default=None, max_length=50000, description="Text to score")
+
+
+@app.post("/demo")
+async def demo_score_post(request: DemoRequest):
+    """POST version of the demo endpoint - accepts JSON body.
+
+    Avoids URL logging of user text. Preferred for playground usage.
+    """
+    return await demo_score(text=request.text)
+
+
 @app.get("/demo")
 async def demo_score(text: Optional[str] = None):
     """Demo endpoint - scores text using rules-only without authentication.

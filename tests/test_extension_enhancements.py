@@ -113,6 +113,19 @@ class TestSilentMode:
         content = read_ext_file("options.js")
         assert "30 * 60 * 1000" in content
 
+    def test_silent_mode_remaining_time_in_popup(self):
+        """Verify popup shows remaining silent time."""
+        content = read_ext_file("popup.js")
+        assert "silent_until" in content
+        assert "checkSilentMode" in content
+        assert "remainingMin" in content
+
+    def test_silent_mode_early_end_button(self):
+        """Verify popup has early-end button for silent mode."""
+        content = read_ext_file("popup.js")
+        # Check for the early-end button text (unicode for "提前结束")
+        assert "\\u63d0\\u524d\\u7ed3\\u675f" in content
+
 
 class TestCustomKeywords:
     """Round 92: Custom keywords support."""
@@ -196,6 +209,13 @@ class TestTopSites:
         assert "displayTopSiteStat" in content
         # Check the function exists and references top domain display
         assert "topDomain" in content
+
+    def test_top_sites_cap_50(self):
+        """Verify top_sites is capped at 50 domains."""
+        content = read_ext_file("background.js")
+        assert "50" in content
+        # Verify the cap logic pattern exists
+        assert "keys.length > 50" in content or "length > 50" in content
 
 
 class TestStreakCelebration:

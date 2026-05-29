@@ -1685,6 +1685,18 @@ def explain(
     }
 
     if choice is None:
+        # Non-interactive mode: print all Q&As without prompting
+        if not sys.stdout.isatty():
+            console.print()
+            console.print("📖 鉴真使用说明", style="bold")
+            console.print()
+            for num, answer in answers.items():
+                questions = {1: "评分维度是什么？", 2: "规则引擎如何工作？", 3: "为什么这条内容被标记？"}
+                console.print(f"{num}. {questions[num]}")
+                console.print(f"   {answer}")
+                console.print()
+            return
+
         console.print()
         console.print("📖 鉴真使用说明", style="bold")
         console.print()

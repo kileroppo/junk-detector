@@ -595,8 +595,42 @@
     });
   }
 
+  /**
+   * Check for active silent mode and display remaining time in popup.
+   * Shows a message with remaining minutes and an early-end button.
+   */
+  function checkSilentMode() {
+    chrome.storage.local.get("silent_until", function (data) {
+      var silentUntil = data.silent_until;
+      if (!silentUntil || Date.now() >= silentUntil) return;
+      var remainingMs = silentUntil - Date.now();
+      var remainingMin = Math.ceil(remainingMs / 60000);
+      var container = document.querySelector(".container");
+      if (!container) return;
+      var silentDiv = document.createElement("div");
+      silentDiv.id = "silent-mode-notice";
+      silentDiv.style.cssText = "background:#2d2d3a;border:1px solid #444;border-radius:8px;padding:10px 14px;margin-bottom:12px;text-align:center;";
+      var msg = document.createElement("span");
+      msg.textContent = "\u23f8\ufe0f \u9759\u9ed8\u6a21\u5f0f\uff08\u5269\u4f59 " + remainingMin + " \u5206\u949f\uff09";
+      msg.style.cssText = "color:#ccc;font-size:13px;";
+      var endBtn = document.createElement("button");
+      endBtn.textContent = "\u63d0\u524d\u7ed3\u675f";
+      endBtn.style.cssText = "margin-left:10px;padding:3px 10px;border:1px solid #666;border-radius:4px;background:transparent;color:#ff9500;cursor:pointer;font-size:12px;";
+      endBtn.addEventListener("click", function () {
+        chrome.storage.local.remove("silent_until", function () {
+          silentDiv.remove();
+          loadResult();
+        });
+      });
+      silentDiv.appendChild(msg);
+      silentDiv.appendChild(endBtn);
+      container.insertBefore(silentDiv, container.firstChild);
+    });
+  }
+
   // Initialize popup
   checkOffline();
+  checkSilentMode();
   setupHamburgerMenu();
   setupDismissButton();
   setupKeyboardShortcuts();
