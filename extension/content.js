@@ -1,13 +1,20 @@
 /**
  * content.js - Content script for extracting article text and showing results.
  *
- * Runs on: mp.weixin.qq.com, xiaohongshu.com, zhihu.com
+ * Runs on: mp.weixin.qq.com, xiaohongshu.com, zhihu.com, juejin.cn, weibo.com
  * Extracts article body text, sends to background for scoring,
  * and displays a floating traffic-light indicator.
+ * Features: toast notification, scroll-aware timing, paywall detection, dismiss check.
  */
 
 (function () {
   "use strict";
+
+  // Scroll-aware timing: track last scroll timestamp
+  var lastScrollTime = Date.now();
+  window.addEventListener("scroll", function () {
+    lastScrollTime = Date.now();
+  }, { passive: true });
 
   /**
    * Detect if the page is being viewed on a mobile device.
@@ -16,6 +23,121 @@
   function isMobile() {
     return document.documentElement.clientWidth < 768 ||
       document.querySelector('meta[name="viewport"][content*="width=device-width"]') !== null;
+  }
+
+  /**
+   * Detect paywalled content.
+   * Checks for known paywall indicators on supported platforms.
+   * @returns {boolean}
+   */
+  function detectPaywall() {
+    // Zhihu salt select (paid content)
+    if (document.querySelector(".zu-pay-tip")) return true;
+    // WeChat pay-to-read
+    if (document.querySelector(".pay-content-mask")) return true;
+    // Generic paywall class
+    if (document.querySelector(".article-paywall")) return true;
+    return false;
+  }
+
+  /**
+   * Check if the current URL has been dismissed within the last 24 hours.
+   * @param {function} callback - Called with true if dismissed (should skip), false otherwise
+   */
+  function checkDismissed(callback) {
+    var currentUrl = window.location.href;
+    chrome.storage.local.get("dismissals", function (data) {
+      var dismissals = data.dismissals || [];
+      var now = Date.now();
+      var twentyFourHours = 24 * 60 * 60 * 1000;
+      var isDismissed = dismissals.some(function (d) {
+        return d.url === currentUrl && (now - d.timestamp) < twentyFourHours;
+      });
+      callback(isDismissed);
+    });
+  }
+
+  /**
+   * Show a toast notification for suspicious/junk verdicts.
+   * Fixed position at top-right, auto-fades after 5 seconds.
+   * Respects scroll-aware timing (waits for user to stop scrolling).
+   * @param {{verdict: string, explanation: string}} result
+   */
+  function showToastNotification(result) {
+    if (result.verdict !== "suspicious" && result.verdict !== "junk") return;
+
+    // Check notifications setting
+    chrome.storage.sync.get("notifications", function (data) {
+      if (data.notifications === false) return;
+
+      // Wait until user has paused scrolling for 2+ seconds
+      function waitForScrollPause() {
+        var elapsed = Date.now() - lastScrollTime;
+        if (elapsed >= 2000) {
+          renderToast(result);
+        } else {
+          setTimeout(waitForScrollPause, 2000 - elapsed);
+        }
+      }
+      waitForScrollPause();
+    });
+  }
+
+  /**
+   * Render the toast notification element.
+   * @param {{verdict: string, explanation: string}} result
+   */
+  function renderToast(result) {
+    // Remove any existing toast
+    var existing = document.getElementById("junk-detector-toast");
+    if (existing) existing.remove();
+
+    var borderColor = result.verdict === "junk" ? "#FF3B30" : "#FF9500";
+    var toast = document.createElement("div");
+    toast.id = "junk-detector-toast";
+
+    var shortExplanation = (result.explanation || "").substring(0, 60);
+    toast.innerHTML = '<span style="margin-right:6px;">\u26a0\ufe0f</span>' +
+      '<span>\u8fd9\u7bc7\u5185\u5bb9\u53ef\u80fd\u6709\u95ee\u9898</span>' +
+      (shortExplanation ? '<div style="font-size:11px;color:#6b7280;margin-top:4px;">' + shortExplanation + '</div>' : '');
+
+    Object.assign(toast.style, {
+      position: "fixed",
+      top: "16px",
+      right: "16px",
+      zIndex: "2147483647",
+      width: "300px",
+      padding: "12px 16px",
+      borderRadius: "8px",
+      backgroundColor: "#ffffff",
+      borderLeft: "4px solid " + borderColor,
+      boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      fontSize: "13px",
+      color: "#1d1d1f",
+      opacity: "0",
+      transform: "translateX(20px)",
+      transition: "opacity 0.4s ease, transform 0.4s ease"
+    });
+
+    document.body.appendChild(toast);
+
+    // Trigger slide-in
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        toast.style.opacity = "1";
+        toast.style.transform = "translateX(0)";
+      });
+    });
+
+    // Auto-fade after 5 seconds
+    setTimeout(function () {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateX(20px)";
+      setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 400);
+    }, 5000);
   }
 
   /**
@@ -105,10 +227,8 @@
     const indicator = document.createElement("div");
     indicator.id = "junk-detector-indicator";
     indicator.title = result.explanation || verdictLabels[result.verdict] || "";
-    indicator.innerHTML = `
-      <span style="font-size: 16px;">${icons[result.verdict] || "\u2753"}</span>
-      <span style="font-size: 12px; margin-left: 4px; font-weight: 500;">${result.score}</span>
-    `;
+    indicator.innerHTML = '<span style="font-size: 16px;">' + (icons[result.verdict] || "\u2753") + '</span>' +
+      '<span style="font-size: 12px; margin-left: 4px; font-weight: 500;">' + result.score + '</span>';
 
     Object.assign(indicator.style, {
       position: "fixed",
@@ -120,7 +240,7 @@
       padding: "8px 12px",
       borderRadius: "20px",
       backgroundColor: "white",
-      border: `2px solid ${colors[result.verdict] || "#ccc"}`,
+      border: "2px solid " + (colors[result.verdict] || "#ccc"),
       boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
       cursor: "pointer",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
@@ -139,13 +259,52 @@
       });
     });
 
-    indicator.addEventListener("mouseenter", () => {
+    indicator.addEventListener("mouseenter", function () {
       indicator.style.transform = "scale(1.05)";
       indicator.style.boxShadow = "0 4px 16px rgba(0,0,0,0.2)";
     });
-    indicator.addEventListener("mouseleave", () => {
+    indicator.addEventListener("mouseleave", function () {
       indicator.style.transform = "scale(1) translateY(0)";
       indicator.style.boxShadow = "0 2px 12px rgba(0,0,0,0.15)";
+    });
+  }
+
+  /**
+   * Show paywall indicator instead of scoring.
+   */
+  function showPaywallIndicator() {
+    var existing = document.getElementById("junk-detector-indicator");
+    if (existing) existing.remove();
+
+    var indicator = document.createElement("div");
+    indicator.id = "junk-detector-indicator";
+    indicator.innerHTML = '<span style="font-size: 14px;">\ud83d\udd12 \u65e0\u6cd5\u68c0\u6d4b\u4ed8\u8d39\u5185\u5bb9</span>';
+
+    Object.assign(indicator.style, {
+      position: "fixed",
+      bottom: "20px",
+      right: "20px",
+      zIndex: "2147483647",
+      display: "flex",
+      alignItems: "center",
+      padding: "8px 12px",
+      borderRadius: "20px",
+      backgroundColor: "white",
+      border: "2px solid #9ca3af",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      opacity: "0",
+      transform: "translateY(8px)",
+      transition: "opacity 0.4s ease, transform 0.4s ease"
+    });
+
+    document.body.appendChild(indicator);
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        indicator.style.opacity = "1";
+        indicator.style.transform = "translateY(0)";
+      });
     });
   }
 
@@ -165,24 +324,41 @@
    * Main execution: extract text, score it, and display result.
    */
   function run() {
-    // Check whitelist before scoring
-    checkWhitelist(function (shouldProceed) {
-      if (!shouldProceed) return;
+    // Check if URL is dismissed within last 24 hours
+    checkDismissed(function (isDismissed) {
+      if (isDismissed) return;
 
-      var text = extractArticleText();
-      if (!text || text.trim().length < 20) {
-        return; // Not enough content to analyze
-      }
+      // Check whitelist before scoring
+      checkWhitelist(function (shouldProceed) {
+        if (!shouldProceed) return;
 
-      // Send to background script for scoring
-      chrome.runtime.sendMessage(
-        { type: "SCORE_CONTENT", text: text },
-        function (response) {
-          if (response && response.result) {
-            showIndicator(response.result);
-          }
+        // Check for paywalled content
+        if (detectPaywall()) {
+          showPaywallIndicator();
+          return;
         }
-      );
+
+        var text = extractArticleText();
+        if (!text || text.trim().length < 20) {
+          return; // Not enough content to analyze
+        }
+
+        // Send to background script for scoring
+        try {
+          chrome.runtime.sendMessage(
+            { type: "SCORE_CONTENT", text: text },
+            function (response) {
+              if (chrome.runtime.lastError) return;
+              if (response && response.result) {
+                showIndicator(response.result);
+                showToastNotification(response.result);
+              }
+            }
+          );
+        } catch (e) {
+          // Gracefully handle disconnected extension context
+        }
+      });
     });
   }
 
@@ -246,14 +422,19 @@
    */
   function scoreAndDisplay(text) {
     if (!text || text.trim().length < 20) return;
-    chrome.runtime.sendMessage(
-      { type: "SCORE_CONTENT", text: text },
-      function (response) {
-        if (response && response.result) {
-          showIndicator(response.result);
+    try {
+      chrome.runtime.sendMessage(
+        { type: "SCORE_CONTENT", text: text },
+        function (response) {
+          if (chrome.runtime.lastError) return;
+          if (response && response.result) {
+            showIndicator(response.result);
+          }
         }
-      }
-    );
+      );
+    } catch (e) {
+      // Gracefully handle disconnected extension context
+    }
   }
 
   /**
@@ -278,14 +459,19 @@
       item.setAttribute('data-jz-scored', 'true');
       var text = item.innerText || item.textContent || "";
       if (text.length > 50) {
-        chrome.runtime.sendMessage(
-          { type: "SCORE_CONTENT", text: text },
-          function (resp) {
-            if (resp && resp.result) {
-              addMiniBadge(item, resp.result);
+        try {
+          chrome.runtime.sendMessage(
+            { type: "SCORE_CONTENT", text: text },
+            function (resp) {
+              if (chrome.runtime.lastError) return;
+              if (resp && resp.result) {
+                addMiniBadge(item, resp.result);
+              }
             }
-          }
-        );
+          );
+        } catch (e) {
+          // Gracefully handle disconnected extension context
+        }
       }
     });
   }
@@ -410,6 +596,7 @@
       // Skip nodes inside our own elements
       if (node.parentElement && (
         node.parentElement.id === 'junk-detector-indicator' ||
+        node.parentElement.id === 'junk-detector-toast' ||
         node.parentElement.classList.contains('jz-highlight-scam') ||
         node.parentElement.classList.contains('jz-highlight-anxiety') ||
         node.parentElement.classList.contains('jz-highlight-advertorial')

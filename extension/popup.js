@@ -2,6 +2,8 @@
  * popup.js - Popup UI logic for the Chrome extension.
  *
  * Reads the latest scoring result from chrome.storage.local and displays it.
+ * Features: hamburger menu, dismiss, keyboard shortcuts, offline mode,
+ * smooth loading, alternative suggestions.
  */
 
 (function () {
@@ -14,6 +16,90 @@
   };
 
   /**
+   * Check if the browser is offline and show the badge.
+   */
+  function checkOffline() {
+    const badge = document.getElementById("offline-badge");
+    if (!navigator.onLine) {
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+    }
+  }
+
+  /**
+   * Setup hamburger menu toggle.
+   */
+  function setupHamburgerMenu() {
+    const btn = document.getElementById("hamburger-btn");
+    const panel = document.getElementById("menu-panel");
+    btn.addEventListener("click", function () {
+      panel.classList.toggle("hidden");
+      btn.classList.toggle("active");
+    });
+  }
+
+  /**
+   * Show alternative search links for suspicious/junk content.
+   * @param {string} title - The page title to search for
+   * @param {string} verdict - The verdict result
+   */
+  function showAlternatives(title, verdict) {
+    const section = document.getElementById("alternatives-section");
+    const linksEl = document.getElementById("alternatives-links");
+
+    if (verdict !== "suspicious" && verdict !== "junk") {
+      section.classList.add("hidden");
+      return;
+    }
+
+    if (!title || title.trim().length === 0) {
+      section.classList.add("hidden");
+      return;
+    }
+
+    const query = encodeURIComponent(title.trim());
+    linksEl.innerHTML = "";
+
+    const zhihuLink = document.createElement("a");
+    zhihuLink.href = "https://www.zhihu.com/search?type=content&q=" + query;
+    zhihuLink.textContent = "\u5728\u77e5\u4e4e\u641c\u7d22";
+    zhihuLink.target = "_blank";
+
+    const googleLink = document.createElement("a");
+    googleLink.href = "https://www.google.com/search?q=" + query;
+    googleLink.textContent = "\u5728Google\u641c\u7d22";
+    googleLink.target = "_blank";
+
+    linksEl.appendChild(zhihuLink);
+    linksEl.appendChild(googleLink);
+    section.classList.remove("hidden");
+  }
+
+  /**
+   * Setup dismiss button click handler.
+   * Stores {url, timestamp} in chrome.storage.local under 'dismissals'.
+   */
+  function setupDismissButton() {
+    const dismissBtn = document.getElementById("dismiss-btn");
+    dismissBtn.addEventListener("click", function () {
+      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        if (!tabs || tabs.length === 0) return;
+        const url = tabs[0].url || "";
+        chrome.storage.local.get("dismissals", function (data) {
+          const dismissals = data.dismissals || [];
+          dismissals.push({ url: url, timestamp: Date.now() });
+          chrome.storage.local.set({ dismissals: dismissals }, function () {
+            dismissBtn.textContent = "\u5df2\u5ffd\u7565";
+            dismissBtn.disabled = true;
+            dismissBtn.style.opacity = "0.5";
+          });
+        });
+      });
+    });
+  }
+
+  /**
    * Update the popup UI with scoring results.
    * @param {object|null} result
    * @param {string|null} pageTitle - Title of the active tab
@@ -24,12 +110,15 @@
     const scoreEl = document.getElementById("score-value");
     const keywordsEl = document.getElementById("keywords-list");
     const dailyStatsEl = document.getElementById("daily-stats");
+    const dismissBtn = document.getElementById("dismiss-btn");
 
     if (!result) {
       iconEl.textContent = "\u2753";
       explanationEl.textContent = "\u8bf7\u5728\u652f\u6301\u7684\u7f51\u7ad9\u4e0a\u6253\u5f00\u6587\u7ae0\u540e\u518d\u68c0\u6d4b";
       scoreEl.textContent = "--";
       scoreEl.className = "score-value";
+      dismissBtn.classList.add("hidden");
+      document.getElementById("alternatives-section").classList.add("hidden");
       // Show daily stats when no active result
       showDailyStats(dailyStatsEl);
       return;
@@ -40,6 +129,16 @@
 
     iconEl.textContent = VERDICT_ICONS[result.verdict] || "\u2753";
     explanationEl.textContent = result.explanation || "";
+
+    // Show dismiss button for suspicious/junk verdicts
+    if (result.verdict === "suspicious" || result.verdict === "junk") {
+      dismissBtn.classList.remove("hidden");
+    } else {
+      dismissBtn.classList.add("hidden");
+    }
+
+    // Show alternative suggestions for suspicious/junk
+    showAlternatives(pageTitle, result.verdict);
 
     // Invert score: display as quality score (100 = best, 0 = worst)
     var qualityScore = 100 - (result.score || 0);
@@ -173,20 +272,16 @@
   }
 
   /**
-   * Load the result for the current active tab.
+   * Load the result for the current active tab with smooth loading transition.
    */
   function loadResult() {
-    // Show loading state initially
     var container = document.querySelector(".container");
     var iconEl = document.getElementById("verdict-icon");
     var explanationEl = document.getElementById("explanation");
-    if (container) container.classList.add("loading");
-    if (iconEl) iconEl.textContent = "\u23f3";
-    if (explanationEl) explanationEl.textContent = "\u6b63\u5728\u5206\u6790...";
+    var overlay = document.getElementById("updating-overlay");
 
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       if (!tabs || tabs.length === 0) {
-        if (container) container.classList.remove("loading");
         displayResult(null, null);
         return;
       }
@@ -195,11 +290,46 @@
       const tabId = tab.id;
       const pageTitle = tab.title || null;
       const key = "result_" + tabId;
+
       chrome.storage.local.get(key, function (data) {
-        if (container) container.classList.remove("loading");
         const result = data[key] || null;
-        displayResult(result, pageTitle);
+
+        if (result) {
+          // We have a result, display it directly
+          displayResult(result, pageTitle);
+        } else {
+          // No result yet - show brand icon with loading text
+          if (container) container.classList.add("loading");
+          iconEl.textContent = "\ud83d\udd0d";
+          explanationEl.textContent = "\u68c0\u6d4b\u4e2d...";
+        }
       });
+    });
+  }
+
+  /**
+   * Setup keyboard shortcuts for popup.
+   * Esc: close popup, D: toggle details, S: share, F: feedback
+   */
+  function setupKeyboardShortcuts() {
+    document.addEventListener("keydown", function (e) {
+      // Ignore if typing in an input
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+
+      var key = e.key.toUpperCase();
+
+      if (e.key === "Escape") {
+        window.close();
+      } else if (key === "D") {
+        var toggle = document.getElementById("details-toggle");
+        if (toggle) toggle.click();
+      } else if (key === "S") {
+        var shareBtn = document.getElementById("share-btn");
+        if (shareBtn) shareBtn.click();
+      } else if (key === "F") {
+        var feedbackBtn = document.getElementById("feedback-btn");
+        if (feedbackBtn) feedbackBtn.click();
+      }
     });
   }
 
@@ -307,7 +437,11 @@
     }
   }
 
-  // Load result and history on popup open
+  // Initialize popup
+  checkOffline();
+  setupHamburgerMenu();
+  setupDismissButton();
+  setupKeyboardShortcuts();
   loadResult();
   loadHistory();
   setupFeedbackButton();

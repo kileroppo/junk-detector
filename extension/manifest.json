@@ -3,7 +3,7 @@
   "name": "鉴真 - 内容质量检测",
   "version": "0.1.0",
   "description": "一眼看穿垃圾信息 - 本地规则引擎实时检测",
-  "permissions": ["activeTab", "storage", "contextMenus"],
+  "permissions": ["activeTab", "storage", "contextMenus", "notifications"],
   "options_page": "options.html",
   "action": {
     "default_popup": "popup.html",
@@ -24,5 +24,14 @@
     "16": "icons/icon-gray-16.png",
     "48": "icons/icon-gray-48.png",
     "128": "icons/icon-gray-128.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+J",
+        "mac": "Command+Shift+J"
+      },
+      "description": "打开/关闭鉴真"
+    }
   }
 }

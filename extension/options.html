@@ -135,6 +135,31 @@
       font-size: 12px;
       color: #9ca3af;
     }
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn {
+      font-size: 13px;
+      padding: 8px 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #374151;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .btn:hover {
+      background-color: #f3f4f6;
+    }
+    .btn-danger {
+      border-color: #fca5a5;
+      color: #dc2626;
+    }
+    .btn-danger:hover {
+      background-color: #fef2f2;
+    }
     /* Dark mode support */
     @media (prefers-color-scheme: dark) {
       body {
@@ -167,6 +192,21 @@
       }
       .save-msg {
         color: #34d399;
+      }
+      .btn {
+        background: #2c2c2e;
+        border-color: #48484a;
+        color: #e5e5ea;
+      }
+      .btn:hover {
+        background-color: #3a3a3c;
+      }
+      .btn-danger {
+        border-color: #991b1b;
+        color: #fca5a5;
+      }
+      .btn-danger:hover {
+        background-color: #451a1a;
       }
     }
   </style>
@@ -204,10 +244,32 @@
   </div>
 
   <div class="setting-group">
+    <div class="toggle-row">
+      <div>
+        <div class="setting-label">声音提醒</div>
+        <div class="setting-desc">检测到垃圾内容时播放提示音</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="sound-toggle">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="setting-group">
     <div class="setting-label">信任网站（白名单）</div>
     <div class="setting-desc">通过右键菜单添加的信任网站，不再进行检测</div>
     <div id="whitelist-container">
       <span class="no-result">暂无信任网站</span>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="setting-label">检测历史</div>
+    <div class="setting-desc">管理你的检测历史记录</div>
+    <div class="btn-group">
+      <button class="btn" id="export-history-btn">导出历史 (CSV)</button>
+      <button class="btn btn-danger" id="clear-history-btn">清除历史</button>
     </div>
   </div>
 
