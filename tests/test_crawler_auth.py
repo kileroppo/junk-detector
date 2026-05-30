@@ -1,0 +1,495 @@
+"""Comprehensive tests for the crawler_auth module."""
+from __future__ import annotations
+
+import time
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import httpx
+import pytest
+
+from src.crawler_auth import AuthenticatedClient, CookieStore, SignerHook
+from src.crawler_auth.base import PlatformAuth as PlatformAuthProtocol
+from src.crawler_auth.platforms import (
+    PLATFORMS,
+    BilibiliAuth,
+    WechatAuth,
+    WeiboAuth,
+    XiaohongshuAuth,
+    ZhihuAuth,
+)
+
+# =============================================================================
+# TestCookieStore
+# =============================================================================
+
+
+class TestCookieStore:
+    """Tests for CookieStore persistence and TTL logic."""
+
+    def test_save_and_load(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        cookies = {"session_id": "abc123", "token": "xyz789"}
+        store.save("zhihu", cookies)
+
+        loaded = store.load("zhihu")
+        assert loaded == cookies
+
+    def test_load_nonexistent(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        assert store.load("nonexistent") is None
+
+    def test_expire_cookies(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        cookies = {"session_id": "abc"}
+        store.save("weibo", cookies, ttl_hours=0)  # Immediate expiry
+
+        # Wait a tiny bit to ensure expiry
+        time.sleep(0.01)
+        assert store.load("weibo") is None
+        assert store.is_expired("weibo") is True
+
+    def test_not_expired(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        cookies = {"session_id": "abc"}
+        store.save("zhihu", cookies, ttl_hours=168)
+
+        assert store.is_expired("zhihu") is False
+        assert store.load("zhihu") == cookies
+
+    def test_clear(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        store.save("bilibili", {"key": "val"})
+        store.clear("bilibili")
+        assert store.load("bilibili") is None
+
+    def test_list_platforms(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        store.save("zhihu", {"a": "1"})
+        store.save("weibo", {"b": "2"})
+        store.save("bilibili", {"c": "3"})
+
+        platforms = store.list_platforms()
+        assert set(platforms) == {"zhihu", "weibo", "bilibili"}
+
+    def test_clear_nonexistent_no_error(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        store.clear("nope")  # Should not raise
+
+    def test_is_expired_missing_platform(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        assert store.is_expired("missing") is True
+
+    def test_corrupted_json(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        # Write corrupted data
+        (tmp_path / "broken.json").write_text("not json{{")
+        assert store.load("broken") is None
+        assert store.is_expired("broken") is True
+
+
+# =============================================================================
+# TestPlatformDetection
+# =============================================================================
+
+
+class TestPlatformDetection:
+    """Tests for AuthenticatedClient.detect_platform()."""
+
+    def setup_method(self):
+        self.client = AuthenticatedClient()
+
+    def test_zhihu_urls(self):
+        assert self.client.detect_platform("https://www.zhihu.com/question/123") == "zhihu"
+        assert self.client.detect_platform("https://zhihu.com/hot") == "zhihu"
+        assert self.client.detect_platform("https://zhuanlan.zhihu.com/p/456") == "zhihu"
+
+    def test_weibo_urls(self):
+        assert self.client.detect_platform("https://weibo.com/u/123") == "weibo"
+        assert self.client.detect_platform("https://www.weibo.com/hot") == "weibo"
+        assert self.client.detect_platform("https://s.weibo.com/weibo?q=test") == "weibo"
+
+    def test_xiaohongshu_urls(self):
+        assert (
+            self.client.detect_platform("https://www.xiaohongshu.com/explore/abc")
+            == "xiaohongshu"
+        )
+        assert self.client.detect_platform("https://xhslink.com/abc") == "xiaohongshu"
+
+    def test_wechat_urls(self):
+        assert (
+            self.client.detect_platform("https://weixin.sogou.com/weixin?query=test")
+            == "wechat"
+        )
+        assert self.client.detect_platform("https://mp.weixin.qq.com/s/abc") == "wechat"
+
+    def test_bilibili_urls(self):
+        assert self.client.detect_platform("https://www.bilibili.com/video/BV123") == "bilibili"
+        assert self.client.detect_platform("https://b23.tv/abc") == "bilibili"
+        assert (
+            self.client.detect_platform("https://api.bilibili.com/x/web-interface/nav")
+            == "bilibili"
+        )
+
+    def test_unknown_urls(self):
+        assert self.client.detect_platform("https://www.google.com") is None
+        assert self.client.detect_platform("https://example.com") is None
+        assert self.client.detect_platform("https://github.com/repo") is None
+
+
+# =============================================================================
+# TestPlatformHeaders
+# =============================================================================
+
+
+class TestPlatformHeaders:
+    """Tests that each platform generates correct headers."""
+
+    def test_zhihu_headers(self):
+        auth = ZhihuAuth()
+        cookies = {"z_c0": "token_value", "_xsrf": "csrf_val"}
+        headers = auth.get_headers(cookies, "https://www.zhihu.com/api/v4/questions")
+
+        assert "Cookie" in headers
+        assert "z_c0=token_value" in headers["Cookie"]
+        assert "User-Agent" in headers
+
+    def test_weibo_headers(self):
+        auth = WeiboAuth()
+        cookies = {"SUB": "sub_val", "SUBP": "subp_val"}
+        headers = auth.get_headers(cookies)
+
+        assert "Cookie" in headers
+        assert "SUB=sub_val" in headers["Cookie"]
+        assert "User-Agent" in headers
+
+    def test_xiaohongshu_headers(self):
+        auth = XiaohongshuAuth()
+        cookies = {"a1": "val1", "webId": "id123"}
+        headers = auth.get_headers(cookies, "https://www.xiaohongshu.com/api/sns/v1")
+
+        assert "Cookie" in headers
+        assert "Origin" in headers
+        assert headers["Origin"] == "https://www.xiaohongshu.com"
+
+    def test_wechat_headers(self):
+        auth = WechatAuth()
+        cookies = {"SNUID": "snuid_val", "ABTEST": "ab_val"}
+        headers = auth.get_headers(cookies)
+
+        assert "Cookie" in headers
+        assert "SNUID=snuid_val" in headers["Cookie"]
+
+    def test_bilibili_headers(self):
+        auth = BilibiliAuth()
+        cookies = {"SESSDATA": "sess_val", "bili_jct": "csrf_token_123"}
+        headers = auth.get_headers(cookies, "https://api.bilibili.com/x/web-interface/nav")
+
+        assert "Cookie" in headers
+        assert "x-csrf-token" in headers
+        assert headers["x-csrf-token"] == "csrf_token_123"
+        assert "Referer" in headers
+
+    def test_bilibili_headers_no_csrf(self):
+        auth = BilibiliAuth()
+        cookies = {"SESSDATA": "sess_val"}
+        headers = auth.get_headers(cookies)
+
+        assert "Cookie" in headers
+        assert "x-csrf-token" not in headers
+
+
+# =============================================================================
+# TestBrowserLogin
+# =============================================================================
+
+
+class TestBrowserLogin:
+    """Tests for browser_login with mocked Playwright."""
+
+    async def test_browser_login_success(self):
+        """Test browser login flow with mocked playwright."""
+        mock_cookie = [
+            {"name": "session", "value": "abc123", "domain": ".zhihu.com"},
+            {"name": "token", "value": "xyz", "domain": ".zhihu.com"},
+            {"name": "other", "value": "val", "domain": ".google.com"},
+        ]
+
+        mock_page = AsyncMock()
+        mock_page.url = "https://www.zhihu.com/hot"  # Already navigated away
+        mock_page.goto = AsyncMock()
+        mock_page.query_selector = AsyncMock(return_value=MagicMock())
+
+        mock_context = AsyncMock()
+        mock_context.new_page = AsyncMock(return_value=mock_page)
+        mock_context.cookies = AsyncMock(return_value=mock_cookie)
+
+        mock_browser = AsyncMock()
+        mock_browser.new_context = AsyncMock(return_value=mock_context)
+        mock_browser.close = AsyncMock()
+
+        mock_playwright = AsyncMock()
+        mock_playwright.chromium.launch = AsyncMock(return_value=mock_browser)
+
+        mock_pw_context = AsyncMock()
+        mock_pw_context.__aenter__ = AsyncMock(return_value=mock_playwright)
+        mock_pw_context.__aexit__ = AsyncMock(return_value=False)
+
+        mock_async_pw = MagicMock(return_value=mock_pw_context)
+
+        with patch(
+            "playwright.async_api.async_playwright",
+            mock_async_pw,
+        ):
+            from src.crawler_auth.browser_login import browser_login
+
+            result = await browser_login(
+                login_url="https://www.zhihu.com/signin",
+                cookie_domains=["zhihu.com"],
+                headless=True,
+                wait_for_login_indicator=".AppHeader-profileAvatar",
+            )
+
+        assert "session" in result
+        assert result["session"] == "abc123"
+        assert "token" in result
+        # google.com cookie should be excluded
+        assert "other" not in result
+
+    async def test_browser_login_import_error(self):
+        """Test graceful handling when playwright is not installed."""
+        import sys
+
+        # Remove playwright from sys.modules temporarily
+        orig_modules = {}
+        for key in list(sys.modules.keys()):
+            if "playwright" in key:
+                orig_modules[key] = sys.modules.pop(key)
+
+        try:
+            with patch.dict(
+                "sys.modules",
+                {"playwright": None, "playwright.async_api": None},
+            ):
+                from src.crawler_auth.browser_login import browser_login as bl_fn
+
+                with pytest.raises(ImportError, match="playwright"):
+                    await bl_fn(
+                        login_url="https://test.com",
+                        cookie_domains=["test.com"],
+                    )
+        finally:
+            # Restore modules
+            sys.modules.update(orig_modules)
+
+
+# =============================================================================
+# TestAuthenticatedClient
+# =============================================================================
+
+
+class TestAuthenticatedClient:
+    """Tests for AuthenticatedClient fetch pipeline."""
+
+    def test_auto_discovers_platforms(self):
+        client = AuthenticatedClient()
+        assert "zhihu" in client._platforms
+        assert "weibo" in client._platforms
+        assert "xiaohongshu" in client._platforms
+        assert "wechat" in client._platforms
+        assert "bilibili" in client._platforms
+
+    def test_custom_platforms(self):
+        mock_platform = MagicMock()
+        mock_platform.platform_name = "custom"
+        client = AuthenticatedClient(platforms={"custom": mock_platform})
+        assert "custom" in client._platforms
+        assert "zhihu" not in client._platforms
+
+    async def test_fetch_with_platform(self, tmp_path: Path):
+        """Test fetch with mocked HTTP response."""
+        store = CookieStore(store_dir=tmp_path)
+        store.save("zhihu", {"z_c0": "test_token"})
+
+        client = AuthenticatedClient(cookie_store=store)
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "<html>content</html>"
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            resp = await client.fetch("https://www.zhihu.com/hot")
+            assert resp.status_code == 200
+
+    async def test_fetch_unknown_platform(self):
+        """Test fetch for unknown platform uses plain request."""
+        client = AuthenticatedClient()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            resp = await client.fetch("https://example.com/page")
+            assert resp.status_code == 200
+
+    async def test_ensure_login_with_valid_cookies(self, tmp_path: Path):
+        """Test that ensure_login skips login if cookies are valid."""
+        store = CookieStore(store_dir=tmp_path)
+        store.save("zhihu", {"z_c0": "valid_token"})
+
+        mock_platform = AsyncMock()
+        mock_platform.platform_name = "zhihu"
+        mock_platform.validate_cookies = AsyncMock(return_value=True)
+        mock_platform.login = AsyncMock()
+
+        client = AuthenticatedClient(
+            cookie_store=store, platforms={"zhihu": mock_platform}
+        )
+        await client.ensure_login("zhihu")
+
+        # login should NOT have been called since cookies are valid
+        mock_platform.login.assert_not_called()
+
+    async def test_ensure_login_with_expired_cookies(self, tmp_path: Path):
+        """Test that ensure_login triggers login if cookies expired."""
+        store = CookieStore(store_dir=tmp_path)
+        # Save with 0 TTL so they expire immediately
+        store.save("zhihu", {"z_c0": "old"}, ttl_hours=0)
+        time.sleep(0.01)
+
+        mock_platform = AsyncMock()
+        mock_platform.platform_name = "zhihu"
+        mock_platform.login = AsyncMock(return_value={"z_c0": "new_token"})
+
+        client = AuthenticatedClient(
+            cookie_store=store, platforms={"zhihu": mock_platform}
+        )
+        await client.ensure_login("zhihu")
+
+        mock_platform.login.assert_called_once_with(headless=False)
+        # Cookies should be saved
+        assert store.load("zhihu") == {"z_c0": "new_token"}
+
+    async def test_ensure_login_unknown_platform(self):
+        """Test ensure_login raises for unknown platform."""
+        client = AuthenticatedClient(platforms={})
+        with pytest.raises(ValueError, match="Unknown platform"):
+            await client.ensure_login("nonexistent")
+
+    def test_get_client_returns_async_client(self, tmp_path: Path):
+        """Test get_client returns configured httpx.AsyncClient."""
+        store = CookieStore(store_dir=tmp_path)
+        store.save("bilibili", {"SESSDATA": "val", "bili_jct": "csrf"})
+
+        client = AuthenticatedClient(cookie_store=store)
+        async_client = client.get_client("bilibili")
+        assert isinstance(async_client, httpx.AsyncClient)
+
+
+# =============================================================================
+# TestSignerHook
+# =============================================================================
+
+
+class TestSignerHook:
+    """Tests for the SignerHook protocol and integration with platforms."""
+
+    def test_signer_protocol_check(self):
+        """Verify SignerHook is a runtime checkable protocol."""
+
+        class MySigner:
+            def sign(self, url: str, cookies: dict[str, str]) -> dict[str, str]:
+                return {"x-zse-96": f"2.0_signed_{url}"}
+
+        signer = MySigner()
+        assert isinstance(signer, SignerHook)
+
+    def test_zhihu_with_signer_hook(self):
+        """Test that ZhihuAuth invokes signer_hook in get_headers."""
+
+        class ZhihuSigner:
+            def sign(self, url: str, cookies: dict[str, str]) -> dict[str, str]:
+                return {"x-zse-96": "2.0_ABCDEF", "x-zst-81": "sig_value"}
+
+        signer = ZhihuSigner()
+        auth = ZhihuAuth(signer_hook=signer)
+        cookies = {"z_c0": "token"}
+        headers = auth.get_headers(cookies, "https://www.zhihu.com/api/v4/questions")
+
+        assert headers["x-zse-96"] == "2.0_ABCDEF"
+        assert headers["x-zst-81"] == "sig_value"
+        assert "Cookie" in headers
+
+    def test_xiaohongshu_with_signer_hook(self):
+        """Test that XiaohongshuAuth invokes signer_hook in get_headers."""
+
+        class XhsSigner:
+            def sign(self, url: str, cookies: dict[str, str]) -> dict[str, str]:
+                return {"x-s": "signed_val", "x-t": "1234567890"}
+
+        signer = XhsSigner()
+        auth = XiaohongshuAuth(signer_hook=signer)
+        cookies = {"a1": "val"}
+        headers = auth.get_headers(cookies, "https://www.xiaohongshu.com/api/sns/v1")
+
+        assert headers["x-s"] == "signed_val"
+        assert headers["x-t"] == "1234567890"
+
+    def test_zhihu_without_signer_hook(self):
+        """Test ZhihuAuth works without signer_hook."""
+        auth = ZhihuAuth()
+        cookies = {"z_c0": "token"}
+        headers = auth.get_headers(cookies, "https://www.zhihu.com/api/v4")
+
+        assert "x-zse-96" not in headers
+        assert "Cookie" in headers
+
+    def test_xiaohongshu_without_signer_hook(self):
+        """Test XiaohongshuAuth works without signer_hook."""
+        auth = XiaohongshuAuth()
+        cookies = {"a1": "val"}
+        headers = auth.get_headers(cookies, "https://www.xiaohongshu.com/api/sns/v1")
+
+        assert "x-s" not in headers
+        assert "Cookie" in headers
+
+    def test_non_signer_does_not_match_protocol(self):
+        """Objects without sign() method should not match SignerHook."""
+
+        class NotASigner:
+            def compute(self, url: str) -> str:
+                return "nope"
+
+        assert not isinstance(NotASigner(), SignerHook)
+
+
+# =============================================================================
+# TestProtocolCompliance
+# =============================================================================
+
+
+class TestProtocolCompliance:
+    """Verify all platform classes implement the PlatformAuth protocol."""
+
+    def test_zhihu_is_platform_auth(self):
+        assert isinstance(ZhihuAuth(), PlatformAuthProtocol)
+
+    def test_weibo_is_platform_auth(self):
+        assert isinstance(WeiboAuth(), PlatformAuthProtocol)
+
+    def test_xiaohongshu_is_platform_auth(self):
+        assert isinstance(XiaohongshuAuth(), PlatformAuthProtocol)
+
+    def test_wechat_is_platform_auth(self):
+        assert isinstance(WechatAuth(), PlatformAuthProtocol)
+
+    def test_bilibili_is_platform_auth(self):
+        assert isinstance(BilibiliAuth(), PlatformAuthProtocol)
+
+    def test_platforms_registry_complete(self):
+        assert len(PLATFORMS) == 5
+        assert set(PLATFORMS.keys()) == {
+            "zhihu", "weibo", "xiaohongshu", "wechat", "bilibili"
+        }

@@ -1,0 +1,64 @@
+"""Persistent cookie storage with TTL-based expiry."""
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+
+class CookieStore:
+    """File-based cookie store with TTL expiry per platform."""
+
+    def __init__(self, store_dir: Path | None = None) -> None:
+        if store_dir is None:
+            store_dir = Path.home() / ".crawler_auth" / "cookies"
+        self._store_dir = store_dir
+        self._store_dir.mkdir(parents=True, exist_ok=True)
+
+    def _path_for(self, platform: str) -> Path:
+        return self._store_dir / f"{platform}.json"
+
+    def save(
+        self, platform: str, cookies: dict[str, str], ttl_hours: int = 168
+    ) -> None:
+        """Save cookies for a platform with a TTL (default 7 days)."""
+        data = {
+            "cookies": cookies,
+            "expires_at": time.time() + ttl_hours * 3600,
+            "saved_at": time.time(),
+        }
+        self._path_for(platform).write_text(json.dumps(data, ensure_ascii=False))
+
+    def load(self, platform: str) -> dict[str, str] | None:
+        """Load cookies for a platform, returning None if missing or expired."""
+        path = self._path_for(platform)
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return None
+        if data.get("expires_at", 0) < time.time():
+            return None
+        return data.get("cookies")
+
+    def is_expired(self, platform: str) -> bool:
+        """Check if stored cookies for a platform have expired."""
+        path = self._path_for(platform)
+        if not path.exists():
+            return True
+        try:
+            data = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return True
+        return data.get("expires_at", 0) < time.time()
+
+    def clear(self, platform: str) -> None:
+        """Remove stored cookies for a platform."""
+        path = self._path_for(platform)
+        if path.exists():
+            path.unlink()
+
+    def list_platforms(self) -> list[str]:
+        """List all platforms with stored cookies."""
+        return [p.stem for p in self._store_dir.glob("*.json")]
