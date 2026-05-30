@@ -38,7 +38,21 @@ async def browser_login(
     cookies_result: dict[str, str] = {}
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=headless)
+        # Try browsers in order: chromium, firefox, webkit
+        browser = None
+        for browser_type in [p.chromium, p.firefox, p.webkit]:
+            try:
+                browser = await browser_type.launch(headless=headless)
+                break
+            except Exception:
+                continue
+        if browser is None:
+            raise RuntimeError(
+                "No browser available. Please install at least one:\n"
+                "  playwright install chromium\n"
+                "  playwright install firefox\n"
+                "  playwright install webkit"
+            )
         try:
             context = await browser.new_context()
             page = await context.new_page()
