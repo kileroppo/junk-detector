@@ -5,6 +5,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi.testclient import TestClient
 
 from src.api.websocket import ConnectionManager
 from src.api.notifications import NotificationDispatcher
@@ -86,6 +87,52 @@ class TestConnectionManager:
         await mgr.broadcast("test", {"data": 1})
         assert mgr.active_count == 1  # Dead connection removed
 
+    @pytest.mark.asyncio
+    async def test_send_to_user_only_targets_matching_user(self):
+        """send_to_user() sends only to connections with matching user_id."""
+        mgr = ConnectionManager()
+        ws_user1 = AsyncMock()
+        ws_user2 = AsyncMock()
+        ws_anon = AsyncMock()
+
+        await mgr.connect(ws_user1, user_id=1)
+        await mgr.connect(ws_user2, user_id=2)
+        await mgr.connect(ws_anon, user_id=None)
+
+        await mgr.send_to_user(1, "score_completed", {"score": 75})
+
+        assert ws_user1.send_text.called
+        assert not ws_user2.send_text.called
+        assert not ws_anon.send_text.called
+
+        # Verify message format
+        sent = ws_user1.send_text.call_args[0][0]
+        msg = json.loads(sent)
+        assert msg["event"] == "score_completed"
+        assert msg["data"] == {"score": 75}
+        assert "timestamp" in msg
+
+    @pytest.mark.asyncio
+    async def test_send_to_user_no_connections(self):
+        """send_to_user() with no connections does nothing."""
+        mgr = ConnectionManager()
+        await mgr.send_to_user(1, "test", {})  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_send_to_user_removes_dead_connections(self):
+        """send_to_user() removes dead connections for the target user."""
+        mgr = ConnectionManager()
+        ws_good = AsyncMock()
+        ws_dead = AsyncMock()
+        ws_dead.send_text.side_effect = Exception("Connection closed")
+
+        await mgr.connect(ws_good, user_id=1)
+        await mgr.connect(ws_dead, user_id=1)
+        assert mgr.active_count == 2
+
+        await mgr.send_to_user(1, "test", {"data": 1})
+        assert mgr.active_count == 1  # Dead connection removed
+
 
 class TestNotificationDispatcher:
     """Tests for NotificationDispatcher."""
@@ -133,3 +180,51 @@ class TestNotificationDispatcher:
             mock_manager.broadcast = AsyncMock()
             await dispatcher.notify_score_completed({"score": 50})
             mock_manager.broadcast.assert_not_called()
+
+
+class TestWebSocketAuth:
+    """Tests for WebSocket authentication via JWT token query parameter."""
+
+    def test_valid_token_connects(self):
+        """WebSocket with valid token connects successfully with user_id stored."""
+        from src.api.app import app
+
+        client = TestClient(app)
+
+        with patch("src.api.websocket.AuthService.verify_token") as mock_verify:
+            mock_verify.return_value = {"user_id": 1, "username": "testuser"}
+            with client.websocket_connect("/ws?token=valid") as ws:
+                ws.send_text("ping")
+                data = ws.receive_text()
+                msg = json.loads(data)
+                assert msg["event"] == "pong"
+
+            mock_verify.assert_called_once_with("valid")
+
+    def test_invalid_token_rejected_4001(self):
+        """WebSocket with invalid token gets closed with code 4001."""
+        from starlette.websockets import WebSocketDisconnect
+
+        from src.api.app import app
+
+        client = TestClient(app)
+
+        with patch("src.api.websocket.AuthService.verify_token") as mock_verify:
+            mock_verify.side_effect = ValueError("Invalid token")
+            with pytest.raises(WebSocketDisconnect) as exc_info:
+                with client.websocket_connect("/ws?token=bad") as ws:
+                    ws.send_text("ping")
+
+            assert exc_info.value.code == 4001
+
+    def test_no_token_connects_anonymous(self):
+        """WebSocket without token connects successfully (anonymous, backward compat)."""
+        from src.api.app import app
+
+        client = TestClient(app)
+
+        with client.websocket_connect("/ws") as ws:
+            ws.send_text("ping")
+            data = ws.receive_text()
+            msg = json.loads(data)
+            assert msg["event"] == "pong"

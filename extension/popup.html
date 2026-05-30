@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鉴真 - 内容质量检测</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div id="offline-badge" class="offline-badge hidden">离线模式 - 使用本地规则引擎</div>
+    <div class="hamburger-btn" id="hamburger-btn" aria-label="打开菜单">&#9776;</div>
+    <div id="verdict-icon" class="verdict-icon" aria-live="polite">&#9203;</div>
+    <div id="severity-badge" class="severity-badge hidden"></div>
+    <div id="explanation" class="explanation" role="status">正在检测...</div>
+    <button id="dismiss-btn" class="dismiss-btn hidden" aria-label="忽略此次检测">这次忽略</button>
+    <div id="alternatives-section" class="alternatives-section hidden">
+      <div class="alternatives-title">搜索其他来源验证</div>
+      <div id="alternatives-links" class="alternatives-links"></div>
+    </div>
+    <div id="updating-overlay" class="updating-overlay hidden">更新中...</div>
+    <div id="menu-panel" class="menu-panel hidden">
+      <div id="score-display" class="score-display">
+        <span class="score-label">质量分数</span>
+        <span id="score-value" class="score-value">--</span>
+        <span class="score-hint">100=优质 0=垃圾</span>
+      </div>
+      <button id="share-btn" class="share-btn" aria-label="分享结果">&#128203; 分享结果</button>
+      <div id="share-toast" class="share-toast hidden">已复制!</div>
+      <button id="highlight-btn" class="highlight-btn" aria-label="标记页面问题词">&#128397;&#65039; 标记问题词</button>
+      <button id="feedback-btn" class="feedback-btn" aria-label="反馈结果不准确">&#128078; 结果不对？点击反馈</button>
+      <div id="feedback-toast" class="feedback-toast hidden">感谢反馈!</div>
+      <div class="details-toggle" id="details-toggle">
+        <span>查看详情</span>
+        <span id="toggle-arrow" class="toggle-arrow">&#9660;</span>
+      </div>
+      <div id="details-section" class="details-section hidden">
+        <div class="details-title">匹配关键词</div>
+        <div id="keywords-list" class="keywords-list"></div>
+        <div class="why-section" id="why-section" style="display:none;">
+          <div class="why-toggle" id="why-toggle">
+            <span>为什么这是问题?</span>
+            <span id="why-arrow" class="toggle-arrow">&#9660;</span>
+          </div>
+          <div id="why-content" class="why-content hidden"></div>
+        </div>
+      </div>
+      <div id="daily-stats" class="daily-stats hidden"></div>
+      <div id="reading-time" class="daily-stats hidden"></div>
+      <div id="top-site-stat" class="daily-stats hidden"></div>
+      <div id="history-section" class="history-section">
+        <div class="section-title">最近检测</div>
+        <div id="history-list" class="history-list"></div>
+      </div>
+    </div>
+    <div id="update-notification" class="update-notification hidden"></div>
+    <div id="streak-celebration" class="streak-celebration hidden"></div>
+    <div class="popup-footer">
+      <div id="social-proof" class="social-proof"></div>
+      <span class="limitations-text">&#9881;&#65039; 暂不支持：视频/图片/加密内容/需登录页面</span>
+      <span class="version-text" id="version-text">v0.1.0</span>
+    </div>
+  </div>
+  <script src="rules.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

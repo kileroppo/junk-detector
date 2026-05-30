@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鉴真 - 设置</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 0 20px;
+      color: #1d1d1f;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 24px;
+      color: #10B981;
+    }
+    .setting-group {
+      margin-bottom: 24px;
+      padding: 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+    }
+    .setting-label {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .setting-desc {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+    .radio-group {
+      display: flex;
+      gap: 16px;
+    }
+    .radio-group label {
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    textarea {
+      width: 100%;
+      height: 80px;
+      font-size: 13px;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      resize: vertical;
+      font-family: monospace;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #d1d5db;
+      border-radius: 24px;
+      transition: background-color 0.2s;
+    }
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: #10B981;
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+    }
+    .save-msg {
+      font-size: 12px;
+      color: #10B981;
+      margin-top: 16px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .save-msg.visible {
+      opacity: 1;
+    }
+    .whitelist-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      background: #f9fafb;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .whitelist-item .domain {
+      color: #374151;
+    }
+    .whitelist-remove {
+      background: none;
+      border: none;
+      color: #EF4444;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .whitelist-remove:hover {
+      background-color: #FEE2E2;
+    }
+    .no-result {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn {
+      font-size: 13px;
+      padding: 8px 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #374151;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .btn:hover {
+      background-color: #f3f4f6;
+    }
+    .btn-danger {
+      border-color: #fca5a5;
+      color: #dc2626;
+    }
+    .btn-danger:hover {
+      background-color: #fef2f2;
+    }
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #1c1c1e;
+        color: #e5e5ea;
+      }
+      h1 {
+        color: #34d399;
+      }
+      .setting-group {
+        border-color: #38383a;
+        background: #2c2c2e;
+      }
+      .setting-label {
+        color: #e5e5ea;
+      }
+      .setting-desc {
+        color: #98989d;
+      }
+      .radio-group label {
+        color: #e5e5ea;
+      }
+      textarea {
+        background: #1c1c1e;
+        border-color: #48484a;
+        color: #e5e5ea;
+      }
+      .toggle-slider {
+        background-color: #48484a;
+      }
+      .save-msg {
+        color: #34d399;
+      }
+      .btn {
+        background: #2c2c2e;
+        border-color: #48484a;
+        color: #e5e5ea;
+      }
+      .btn:hover {
+        background-color: #3a3a3c;
+      }
+      .btn-danger {
+        border-color: #991b1b;
+        color: #fca5a5;
+      }
+      .btn-danger:hover {
+        background-color: #451a1a;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>鉴真 设置</h1>
+
+  <div class="setting-group">
+    <div class="setting-label">检测灵敏度</div>
+    <div class="setting-desc">调整判定阈值。严格模式更容易标记可疑内容。</div>
+    <div class="radio-group">
+      <label><input type="radio" name="sensitivity" value="strict"> 严格</label>
+      <label><input type="radio" name="sensitivity" value="standard" checked> 标准</label>
+      <label><input type="radio" name="sensitivity" value="relaxed"> 宽松</label>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="toggle-row">
+      <div>
+        <div class="setting-label">暂停检测</div>
+        <div class="setting-desc">暂停所有检测 30 分钟，图标变灰</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="silent-toggle">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="setting-label">排除网站</div>
+    <div class="setting-desc">在这些网站上不进行检测（每行一个域名）</div>
+    <textarea id="excluded-sites" placeholder="example.com&#10;another-site.cn"></textarea>
+  </div>
+
+  <div class="setting-group">
+    <div class="setting-label">自定义关键词</div>
+    <div class="setting-desc">添加你自己的风险关键词，每行一个（会合并到内置规则中）</div>
+    <textarea id="custom-keywords" placeholder="虚假宣传&#10;割韭菜&#10;传销"></textarea>
+  </div>
+
+  <div class="setting-group">
+    <div class="toggle-row">
+      <div>
+        <div class="setting-label">通知提醒</div>
+        <div class="setting-desc">检测到高风险内容时显示通知</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="notifications-toggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="toggle-row">
+      <div>
+        <div class="setting-label">声音提醒</div>
+        <div class="setting-desc">检测到垃圾内容时播放提示音</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="sound-toggle">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="setting-label">信任网站（白名单）</div>
+    <div class="setting-desc">通过右键菜单添加的信任网站，不再进行检测</div>
+    <div id="whitelist-container">
+      <span class="no-result">暂无信任网站</span>
+    </div>
+  </div>
+
+  <div class="setting-group">
+    <div class="setting-label">检测历史</div>
+    <div class="setting-desc">管理你的检测历史记录</div>
+    <div class="btn-group">
+      <button class="btn" id="export-history-btn">导出历史 (CSV)</button>
+      <button class="btn btn-danger" id="clear-history-btn">清除历史</button>
+    </div>
+  </div>
+
+  <div class="save-msg" id="save-msg">设置已保存</div>
+
+  <script src="options.js"></script>
+</body>
+</html>

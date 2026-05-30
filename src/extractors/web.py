@@ -44,7 +44,7 @@ NOISE_CLASSES = [
     "qr",
 ]
 
-USER_AGENT = "Mozilla/5.0 (compatible; JunkDetectorBot/0.1; +https://github.com/junk-detector)"
+USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 TIMEOUT = 10.0
 
@@ -175,7 +175,19 @@ async def extract_from_url_simple(url: str, max_chars: int = 10000) -> Content:
         ValueError: If the URL returns an error or no text can be extracted.
         TimeoutError: If the request times out.
     """
-    headers = {"User-Agent": USER_AGENT}
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Cache-Control": "max-age=0",
+    }
 
     try:
         async with httpx.AsyncClient(
@@ -239,7 +251,19 @@ async def extract_from_url(url: str) -> Content:
         ValueError: If the URL returns a 404 or the response is not HTML.
         TimeoutError: If the request times out.
     """
-    headers = {"User-Agent": USER_AGENT}
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Cache-Control": "max-age=0",
+    }
 
     try:
         async with httpx.AsyncClient(

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Calm, open eye with green iris - quality content -->
+  <path d="M8 3C4 3 1.5 8 1.5 8s2.5 5 6.5 5 6.5-5 6.5-5S12 3 8 3z" fill="none" stroke="#374151" stroke-width="1.2"/>
+  <circle cx="8" cy="8" r="3" fill="#10B981"/>
+  <circle cx="8" cy="8" r="1.2" fill="#1F2937"/>
+</svg>

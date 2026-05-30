@@ -56,7 +56,7 @@ class TestScorePrettyOutput:
         )
 
         assert result.exit_code == 0, f"Output: {result.output}"
-        assert "评分结果" in result.output
+        assert "鉴真评分" in result.output
         assert "综合评分" in result.output
         assert "原创性" in result.output
         assert "信息密度" in result.output
@@ -106,6 +106,20 @@ class TestScoreInputValidation:
 
         assert result.exit_code == 1
         assert "只能指定" in result.output or "一个" in result.output
+
+
+class TestNoArgsShowsDemo:
+    """Test that running with no arguments shows the demo."""
+
+    def test_no_args_shows_demo(self):
+        """Running junk-detector with no subcommand shows demo output, not --help."""
+        result = runner.invoke(app, [])
+
+        assert result.exit_code == 0, f"Output: {result.output}"
+        # Demo output should contain scoring-related content
+        assert "鉴真" in result.output or "评分" in result.output or "演示" in result.output
+        # Should NOT just be the --help text
+        assert "--help" not in result.output or "演示" in result.output
 
 
 class TestScoreErrorHandling:

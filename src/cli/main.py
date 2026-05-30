@@ -27,10 +27,24 @@ from src.models.score import Content, FastScoreResult, ScoreResult
 
 app = typer.Typer(
     name="junk-detector",
-    help="AI content quality scorer — detect junk content with LLM-as-Judge + rules.",
+    help="鉴真 — AI 内容质量检测工具，一眼看穿垃圾信息。",
 )
 
-console = Console()
+
+@app.callback(invoke_without_command=True)
+def main_callback(ctx: typer.Context) -> None:
+    """Show demo when run with no subcommand."""
+    if ctx.invoked_subcommand is None:
+        demo()
+
+# Detect non-interactive (piped/redirected) output
+_IS_INTERACTIVE = sys.stdout.isatty()
+
+# Use plain console when output is piped
+if _IS_INTERACTIVE:
+    console = Console()
+else:
+    console = Console(no_color=True, highlight=False, force_terminal=False)
 
 
 # ---------------------------------------------------------------------------
@@ -74,24 +88,31 @@ def _overall_emoji(score: float) -> str:
 
 def _pretty_print_result(result: ScoreResult, content: Content) -> None:
     """Print a nicely formatted, colored score result to the console."""
+    from rich.panel import Panel
+
     title = content.title or "无标题"
     emoji = _overall_emoji(result.overall_score)
     overall_color = _score_color(result.overall_score)
 
-    console.print()
-    console.print("📊 Junk Detector 评分结果", style="bold")
-    console.print("━━━━━━━━━━━━━━━━━━━━━━━━━")
-    console.print(f"标题: {title}")
+    # Build the panel body using a separate console to capture output
+    from io import StringIO
+
+    from rich.console import Console as RichConsole
+
+    buf = StringIO()
+    inner = RichConsole(file=buf, no_color=not _IS_INTERACTIVE, highlight=False, force_terminal=_IS_INTERACTIVE)
+
+    inner.print(f"标题: {title}")
 
     overall_text = Text()
     overall_text.append("综合评分: ")
     overall_text.append(f"{result.overall_score:.0f}/100", style=f"bold {overall_color}")
     overall_text.append(f"  {emoji}")
-    console.print(overall_text)
+    inner.print(overall_text)
 
     # Positive dimensions
-    console.print()
-    console.print("📈 正面维度:", style="bold")
+    inner.print()
+    inner.print("📈 正面维度:", style="bold")
     dims = result.dimensions
     positive_dims = [
         ("原创性", dims.originality),
@@ -105,11 +126,11 @@ def _pretty_print_result(result: ScoreResult, content: Content) -> None:
         line = Text()
         line.append(f"  {name}:".ljust(14))
         line.append(f"{value:.0f}/100", style=color)
-        console.print(line)
+        inner.print(line)
 
     # Negative / risk dimensions
-    console.print()
-    console.print("⚠️  风险维度:", style="bold")
+    inner.print()
+    inner.print("⚠️  风险维度:", style="bold")
     negative_dims = [
         ("AI生成概率", dims.ai_generated_prob),
         ("情绪操纵度", dims.emotional_manipulation),
@@ -121,13 +142,24 @@ def _pretty_print_result(result: ScoreResult, content: Content) -> None:
         line = Text()
         line.append(f"  {name}:".ljust(16))
         line.append(f"{value:.0f}/100", style=color)
-        console.print(line)
+        inner.print(line)
 
     # Labels and summary
-    console.print()
+    inner.print()
     labels_str = ", ".join(result.labels) if result.labels else "无"
-    console.print(f"🏷️  标签: {labels_str}")
-    console.print(f"💬 总结: {result.summary}")
+    inner.print(f"🏷️  标签: {labels_str}")
+    inner.print(f"💬 总结: {result.summary}")
+    if result.explanation:
+        inner.print(f"📝 解释: {result.explanation}")
+
+    panel_body = buf.getvalue()
+    console.print()
+    console.print(Panel(
+        panel_body.rstrip(),
+        border_style="dim",
+        title="鉴真评分",
+        subtitle="junk-detector.dev",
+    ))
     console.print()
 
 
@@ -314,7 +346,14 @@ def score(
         # Pre-check: validate API key for the configured model
         _validate_api_key(config.primary_model)
 
-        result: ScoreResult = asyncio.run(do_score(content.text, config=config))
+        if not json_output:
+            if _IS_INTERACTIVE:
+                with console.status("[bold cyan]\u6b63\u5728\u6df1\u5ea6\u5206\u6790...[/bold cyan]", spinner="dots"):
+                    result: ScoreResult = asyncio.run(do_score(content.text, config=config))
+            else:
+                result: ScoreResult = asyncio.run(do_score(content.text, config=config))
+        else:
+            result: ScoreResult = asyncio.run(do_score(content.text, config=config))
     except typer.Exit:
         raise
     except Exception as exc:
@@ -375,16 +414,79 @@ def _extract_content(
     raise ValueError("No input source provided")
 
 
-def _print_quick_verdict(result: FastScoreResult, threshold: int = 60) -> None:
-    """Print a single-line verdict based on the fast score result."""
+def _print_quick_verdict(result: FastScoreResult, threshold: int = 60, explanation: str = "") -> None:
+    """Print a magazine-style verdict panel based on the fast score result."""
+    from rich.panel import Panel
+    from rich.text import Text as RichText
+
+    if explanation:
+        console.print(explanation)
+
     score_val = result.quick_verdict
+
+    # Non-interactive: plain text output
+    if not _IS_INTERACTIVE:
+        if score_val >= threshold:
+            prefix = "[OK]"
+        elif score_val >= 40:
+            prefix = "[WARN]"
+        else:
+            prefix = "[DANGER]"
+        summary_text = result.summary or ""
+        typer.echo(f"{prefix} score={score_val:.0f} {summary_text}")
+        return
+
+    # Determine verdict info
     if score_val >= threshold:
-        verdict = f"\u2705 \u770b\u8d77\u6765\u6b63\u5e38 (score: {score_val:.0f})"
+        emoji = "\u2705"
+        label = "\u770b\u8d77\u6765\u6b63\u5e38"
+        border_color = "green"
     elif score_val >= 40:
-        verdict = f"\u26a0\ufe0f \u9700\u8981\u6ce8\u610f (score: {score_val:.0f})"
+        emoji = "\u26a0\ufe0f"
+        label = "\u9700\u8981\u6ce8\u610f"
+        border_color = "yellow"
     else:
-        verdict = f"\U0001f6a8 \u7591\u4f3c\u5783\u573e\u5185\u5bb9 (score: {score_val:.0f})"
-    console.print(verdict)
+        emoji = "\U0001f6a8"
+        label = "\u7591\u4f3c\u5783\u573e\u5185\u5bb9"
+        border_color = "red"
+
+    # Build panel body
+    body = RichText()
+    body.append(f" {emoji} ", style="bold")
+    body.append(f"{label}", style=f"bold {border_color}")
+    body.append(f"  (score: {score_val:.0f})\n", style="dim")
+
+    # Add summary if available
+    if result.summary:
+        body.append(f"\n  {result.summary}\n", style="")
+
+    panel = Panel(
+        body,
+        border_style=border_color,
+        padding=(0, 1),
+    )
+    console.print(panel)
+
+
+def _print_verbose_dimensions(result: FastScoreResult) -> None:
+    """Print dimension breakdown below the verdict panel."""
+    from rich.table import Table as RichTable
+
+    table = RichTable(show_header=True, header_style="bold", show_lines=False, padding=(0, 1))
+    table.add_column("维度", style="cyan")
+    table.add_column("值", justify="right", width=8)
+
+    dims = [
+        ("诈骗概率", result.scam_prob, True),
+        ("软文概率", result.advertorial_prob, True),
+        ("情绪操纵", result.emotional_manipulation, True),
+        ("置信度", result.confidence * 100, False),
+    ]
+    for name, value, inverted in dims:
+        color = _score_color(value, inverted=inverted)
+        table.add_row(name, f"[{color}]{value:.0f}[/{color}]")
+
+    console.print(table)
 
 
 def _output_quick_result(
@@ -393,6 +495,7 @@ def _output_quick_result(
     output_format: str,
     json_output: bool,
     threshold: int,
+    verbose: bool = False,
 ) -> None:
     """Output quick result in the requested format (human, json, csv)."""
     # --json flag is equivalent to --format json
@@ -417,6 +520,8 @@ def _output_quick_result(
         typer.echo(f"{score_val:.0f},{verdict_str},{summary}")
     else:
         _print_quick_verdict(result, threshold)
+        if verbose:
+            _print_verbose_dimensions(result)
 
 
 @app.command()
@@ -430,11 +535,16 @@ def quick(
     rules_only: bool = typer.Option(
         False, "--rules-only", "-r", help="Use rules-only evaluation without LLM"
     ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full dimension breakdown"),
     consistent: bool = typer.Option(
         False, "--consistent", help="Score 3 times and return median for stability"
     ),
     threshold: int = typer.Option(60, "--threshold", help="Score threshold for pass/fail (default 60)"),
     output_format: str = typer.Option("human", "--format", help="Output format: human, json, csv"),
+    profile: Optional[str] = typer.Option(
+        None, "--profile", "-p",
+        help="Scoring profile: strict (严格), standard (标准), relaxed (宽松)"
+    ),
 ) -> None:
     """Quick content screening - single-line pass/fail verdict."""
 
@@ -473,6 +583,30 @@ def quick(
     except Exception as exc:
         console.print(f"\u274c \u672a\u77e5\u9519\u8bef: {exc}", style="bold red")
         raise typer.Exit(code=2)
+
+    # Apply profile if specified
+    if profile:
+        from src.core.config import load_profile as _load_profile
+        try:
+            profile_config = _load_profile(profile)
+            threshold = profile_config.get("threshold", threshold)
+            # Apply scoring_overrides as threshold adjustment for rules-only mode.
+            # More negative overrides (stricter profile) lower the effective threshold
+            # proportionally, making the profile catch more borderline content.
+            scoring_overrides = profile_config.get("scoring_overrides", {})
+            if scoring_overrides:
+                override_values = [v for v in scoring_overrides.values() if isinstance(v, (int, float))]
+                if override_values:
+                    # Average override magnitude scales the threshold down.
+                    # e.g., strict overrides avg=-1.6 -> threshold adjustment of -8
+                    avg_override = sum(override_values) / len(override_values)
+                    threshold_adjustment = int(avg_override * 5)
+                    threshold = max(20, threshold + threshold_adjustment)
+            if _IS_INTERACTIVE:
+                console.print(f"\U0001f4cb \u4f7f\u7528\u914d\u7f6e: {profile_config.get('description', profile)}", style="dim")
+        except ValueError as e:
+            console.print(f"\u274c {e}", style="bold red")
+            raise typer.Exit(code=2)
 
     # Auto rules-only when no API key is available
     auto_rules_only = False
@@ -524,7 +658,7 @@ def quick(
                     model_used="rules_only",
                 )
 
-            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold, verbose=verbose)
             if not json_output and output_format == "human":
                 console.print(
                     "\U0001f4a1 Rules are deterministic - consistent mode ran once.",
@@ -550,7 +684,7 @@ def quick(
                 )
                 raise typer.Exit(code=2)
 
-            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+            _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold, verbose=verbose)
             raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
 
     # Rules-only mode: skip API key validation and LLM call
@@ -593,7 +727,7 @@ def quick(
                 model_used="rules_only",
             )
 
-        _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+        _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold, verbose=verbose)
         # Hint when auto rules-only is engaged and rules returned uncertain
         if not json_output and output_format == "human" and auto_rules_only and fast_result.confidence <= 0.2:
             console.print(
@@ -608,16 +742,27 @@ def quick(
 
         config = load_config(override_model=model)
 
-        fast_result: FastScoreResult = asyncio.run(
-            score_fast(content.text, config=config, max_retries=retry)
-        )
+        if not json_output and output_format != "json":
+            if _IS_INTERACTIVE:
+                with console.status("[bold cyan]\u6b63\u5728\u5206\u6790...[/bold cyan]", spinner="dots"):
+                    fast_result: FastScoreResult = asyncio.run(
+                        score_fast(content.text, config=config, max_retries=retry)
+                    )
+            else:
+                fast_result: FastScoreResult = asyncio.run(
+                    score_fast(content.text, config=config, max_retries=retry)
+                )
+        else:
+            fast_result: FastScoreResult = asyncio.run(
+                score_fast(content.text, config=config, max_retries=retry)
+            )
     except typer.Exit:
         raise
     except Exception as exc:
         console.print(f"\u274c \u5feb\u901f\u8bc4\u5206\u5931\u8d25: {exc}", style="bold red")
         raise typer.Exit(code=2)
 
-    _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold)
+    _output_quick_result(fast_result, output_format=output_format, json_output=json_output, threshold=threshold, verbose=verbose)
     raise typer.Exit(code=0 if fast_result.quick_verdict >= threshold else 1)
 
 
@@ -754,6 +899,17 @@ def _batch_verdict_emoji(score: float) -> str:
 
 def _batch_table_output(results: list[dict]) -> None:
     """Print batch results as a Rich table."""
+    # Non-interactive: tab-separated values
+    if not _IS_INTERACTIVE:
+        typer.echo("URL\tScore\tVerdict\tSummary")
+        for item in results:
+            if item["error"]:
+                typer.echo(f"{item['url']}\t--\tERROR\t{item['error'][:50]}")
+            else:
+                verdict_text = _batch_verdict_text(item["score"])
+                typer.echo(f"{item['url']}\t{item['score']:.0f}\t{verdict_text}\t{(item.get('summary', '') or '')[:50]}")
+        return
+
     table = Table(title="批量评分结果", show_lines=False)
     table.add_column("URL", max_width=40, overflow="ellipsis")
     table.add_column("Score", justify="right", width=6)
@@ -1160,6 +1316,8 @@ def rules(
     expand: bool = typer.Option(False, "--expand", help="Expand keywords using LLM"),
     apply: bool = typer.Option(False, "--apply", help="Apply expansions to .junk-rules.yaml"),
     model: Optional[str] = typer.Option(None, "--model", "-m", help="Model for keyword expansion"),
+    test_file: Optional[str] = typer.Option(None, "--test", help="Test a rules file against a dataset"),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="JSONL dataset for testing (needs 'text' and 'label' fields)"),
 ) -> None:
     """Manage detection rules (built-in + custom)."""
     from src.core.custom_rules import (
@@ -1174,6 +1332,102 @@ def rules(
         _COMBO_RULES,
         _SCAM_KEYWORDS,
     )
+
+    # A/B testing mode: compare test rules against current rules on a dataset
+    if test_file and dataset:
+        import yaml as _yaml
+
+        from src.core.rules import apply_rules
+
+        test_path = Path(test_file)
+        dataset_path = Path(dataset)
+
+        if not test_path.exists():
+            console.print(f"[red]Rules file not found: {test_file}[/red]")
+            raise typer.Exit(code=1)
+        if not dataset_path.exists():
+            console.print(f"[red]Dataset file not found: {dataset}[/red]")
+            raise typer.Exit(code=1)
+
+        # Load dataset (JSONL: each line has "text" and "label")
+        items: list[dict] = []
+        for line in dataset_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                items.append(json.loads(line))
+
+        if not items:
+            console.print("[red]Dataset is empty[/red]")
+            raise typer.Exit(code=1)
+
+        # Score each item with current rules
+        current_results: list[dict] = []
+        for item in items:
+            text_content = item.get("text", "")
+            label = item.get("label", "quality")
+            rule_result = apply_rules(text_content)
+            overrides = rule_result.dimension_overrides
+            max_risk = max(
+                overrides.get("scam_prob", 0.0),
+                overrides.get("advertorial_prob", 0.0),
+                overrides.get("emotional_manipulation", 0.0),
+            )
+            predicted = "junk" if max_risk >= 70 else ("suspicious" if max_risk >= 40 else "quality")
+            current_results.append({"label": label, "predicted": predicted})
+
+        # Load test rules and score with them
+        test_rules_data = _yaml.safe_load(test_path.read_text(encoding="utf-8")) or {}
+        test_keywords: list[str] = []
+        for rule in test_rules_data.get("rules", []):
+            test_keywords.extend(rule.get("keywords", []))
+
+        test_results: list[dict] = []
+        for item in items:
+            text_content = item.get("text", "")
+            label = item.get("label", "quality")
+            # Simple keyword matching for test rules
+            matched = sum(1 for kw in test_keywords if kw in text_content)
+            # Also run base rules
+            rule_result = apply_rules(text_content)
+            overrides = rule_result.dimension_overrides
+            max_risk = max(
+                overrides.get("scam_prob", 0.0),
+                overrides.get("advertorial_prob", 0.0),
+                overrides.get("emotional_manipulation", 0.0),
+            )
+            # Boost risk if test keywords match
+            if matched > 0:
+                max_risk = min(100, max_risk + matched * 20)
+            predicted = "junk" if max_risk >= 70 else ("suspicious" if max_risk >= 40 else "quality")
+            test_results.append({"label": label, "predicted": predicted})
+
+        # Compare results
+        current_tp = sum(1 for r in current_results if r["label"] == "junk" and r["predicted"] == "junk")
+        current_fp = sum(1 for r in current_results if r["label"] == "quality" and r["predicted"] == "junk")
+        test_tp = sum(1 for r in test_results if r["label"] == "junk" and r["predicted"] == "junk")
+        test_fp = sum(1 for r in test_results if r["label"] == "quality" and r["predicted"] == "junk")
+
+        tp_gained = test_tp - current_tp
+        fp_introduced = test_fp - current_fp
+        total_junk = sum(1 for item in items if item.get("label") == "junk")
+        current_recall = (current_tp / total_junk * 100) if total_junk > 0 else 0
+        test_recall = (test_tp / total_junk * 100) if total_junk > 0 else 0
+
+        console.print()
+        console.print("[bold]A/B Test Results: Current vs Test Rules[/bold]")
+        console.print("-" * 40)
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Metric")
+        table.add_column("Current", justify="right")
+        table.add_column("Test", justify="right")
+        table.add_column("Delta", justify="right")
+        table.add_row("True Positives", str(current_tp), str(test_tp), f"+{tp_gained}" if tp_gained >= 0 else str(tp_gained))
+        table.add_row("False Positives", str(current_fp), str(test_fp), f"+{fp_introduced}" if fp_introduced >= 0 else str(fp_introduced))
+        table.add_row("Recall", f"{current_recall:.1f}%", f"{test_recall:.1f}%", f"{test_recall - current_recall:+.1f}%")
+        console.print(table)
+        console.print(f"\n  Dataset: {len(items)} items ({total_junk} junk)")
+        console.print()
+        return
 
     if expand:
         import yaml
@@ -1275,11 +1529,190 @@ def rules(
 
 
 @app.command()
+def demo() -> None:
+    """运行内置演示 -- 展示鉴真的检测能力。"""
+    from rich.panel import Panel
+
+    from src.core.explainer import explain_result
+    from src.core.rules import apply_rules, should_skip_llm
+    from src.models.score import DimensionScores, ScoreResult
+
+    console.print()
+    console.print("🔍 鉴真 演示模式", style="bold cyan")
+    console.print("━" * 40)
+    console.print()
+
+    samples = [
+        (
+            "诈骗信息",
+            "想要财富自由吗？加入我们的区块链投资群，日入过万不是梦！零风险，限时免费名额，加微信 btc888 立即领取。",
+        ),
+        (
+            "隐性软文",
+            "最近皮肤状态特别好，朋友都问我用了什么。其实就是这款精华液，用了三个月真的白了好几度。亲测有效，回购无数次了，推荐码 BEAUTY20 还能打八折。",
+        ),
+        (
+            "优质技术文章",
+            "React 18 引入了并发渲染模式，通过 startTransition API 允许开发者标记非紧急更新。这意味着用户输入等高优先级更新不会被大量重渲染阻塞，从而提升交互体验。",
+        ),
+        (
+            "情绪操纵标题党",
+            "震惊！99%的人每天都在喝的东西竟然致癌！！！专家紧急呼吁停止饮用！再不看就晚了！转发救人一命！！！",
+        ),
+        (
+            "AI 生成水文",
+            "在当今社会，随着科技的发展，人工智能已经成为不可忽视的力量。需要注意的是，综上所述，我们不难发现，AI 技术的应用前景是毋庸置疑的。",
+        ),
+    ]
+
+    for idx, (category, text) in enumerate(samples, 1):
+        rule_result = apply_rules(text)
+        skip, _reason = should_skip_llm(rule_result, text)
+
+        # Build a ScoreResult from rule overrides
+        overrides = rule_result.dimension_overrides
+        scam_prob = overrides.get("scam_prob", 0.0)
+        advertorial_prob = overrides.get("advertorial_prob", 0.0)
+        emotional_manipulation = overrides.get("emotional_manipulation", 0.0)
+        ai_generated_prob = overrides.get("ai_generated_prob", 0.0)
+
+        overall = 100 - max(scam_prob, advertorial_prob, emotional_manipulation, ai_generated_prob)
+
+        dims = DimensionScores(
+            originality=50.0,
+            info_density=50.0,
+            reasoning_quality=50.0,
+            readability=50.0,
+            timeliness=50.0,
+            ai_generated_prob=ai_generated_prob,
+            emotional_manipulation=emotional_manipulation,
+            advertorial_prob=advertorial_prob,
+            scam_prob=scam_prob,
+        )
+        score_result = ScoreResult(
+            overall_score=overall,
+            dimensions=dims,
+            labels=[],
+            summary="demo",
+            rule_hits=rule_result.matched_rules,
+        )
+
+        explanation = explain_result(score_result, rule_result, content=text)
+
+        # Color coding
+        if overall >= 70:
+            score_style = "bold green"
+        elif overall >= 40:
+            score_style = "bold yellow"
+        else:
+            score_style = "bold red"
+
+        display_text = text[:200]
+        body = Text()
+        body.append(display_text, style="dim")
+        body.append("\n")
+        body.append("─" * 36, style="dim")
+        body.append("\n")
+        body.append(explanation, style="bold")
+        body.append("\n")
+        body.append(f"得分: {overall:.0f}/100", style=score_style)
+
+        panel = Panel(
+            body,
+            title=f"[bold]样本 {idx}: {category}[/bold]",
+            border_style="blue" if overall >= 70 else ("yellow" if overall >= 40 else "red"),
+        )
+        console.print(panel)
+
+    console.print()
+    console.print(
+        "💡 以上结果均由本地规则引擎生成，无需 API key，毫秒级响应。",
+        style="bold green",
+    )
+    console.print()
+
+
+@app.command(name="explain-methodology")
+def explain_methodology() -> None:
+    """展示鉴真的评分方法论 - 透明度建立信任。"""
+    from rich.markdown import Markdown
+    from rich.panel import Panel
+
+    methodology = """
+# 鉴真评分方法论
+
+## 评分维度
+- **诈骗概率** (scam_prob): 检测投资诱惑、虚假承诺、私聊引导
+- **软文概率** (advertorial_prob): 识别隐性广告、推广码、带货话术
+- **情绪操纵** (emotional_manipulation): 焦虑营销、标题党、紧迫感制造
+- **AI生成概率** (ai_generated_prob): 检测模板化、套话、缺乏具体信息
+
+## 评分流程
+1. 规则引擎快速扫描（50+关键词，组合规则）
+2. 置信度判断：高置信度直接出结果
+3. 低置信度时调用LLM深度分析（可选）
+
+## 分数含义
+- 70-100: 内容质量正常
+- 40-69: 存在风险信号，建议人工复核
+- 0-39: 高风险内容
+
+## 透明度承诺
+- 所有规则开源可查
+- 不存在商业利益驱动的评分偏向
+- 误判可通过 feedback 命令反馈改进
+"""
+    console.print(Panel(Markdown(methodology), title="[bold]鉴真评分方法论[/bold]", border_style="blue"))
+
+
+@app.command()
 def mcp_server() -> None:
     """Start the MCP server for AI tool integration."""
     from src.mcp.server import mcp as mcp_app
 
     mcp_app.run()
+
+
+@app.command()
+def explain(
+    choice: Optional[int] = typer.Option(None, "--choice", "-c", help="选择编号 (1-3)，跳过交互式提示"),
+) -> None:
+    """交互式使用说明 - 了解鉴真如何工作。"""
+    answers = {
+        1: "鉴真从9个维度评估内容：原创性、信息密度、论证质量、可读性、时效性，以及AI生成概率、情绪操纵、软文概率、诈骗概率。综合评分越高，内容质量越好。",
+        2: "规则引擎通过关键词匹配识别已知的诈骗话术、焦虑营销和软文特征。匹配即时触发，无需调用AI，毫秒级响应。",
+        3: "当内容中出现多个已知风险关键词时，规则引擎会标记该内容。具体触发的关键词会在评分结果中列出。",
+    }
+
+    if choice is None:
+        # Non-interactive mode: print all Q&As without prompting
+        if not sys.stdout.isatty():
+            console.print()
+            console.print("📖 鉴真使用说明", style="bold")
+            console.print()
+            for num, answer in answers.items():
+                questions = {1: "评分维度是什么？", 2: "规则引擎如何工作？", 3: "为什么这条内容被标记？"}
+                console.print(f"{num}. {questions[num]}")
+                console.print(f"   {answer}")
+                console.print()
+            return
+
+        console.print()
+        console.print("📖 鉴真使用说明", style="bold")
+        console.print()
+        console.print("1. 评分维度是什么？")
+        console.print("2. 规则引擎如何工作？")
+        console.print("3. 为什么这条内容被标记？")
+        console.print()
+        choice = typer.prompt("请选择", type=int)
+
+    if choice not in answers:
+        console.print("❌ 无效选择，请输入 1-3", style="bold red")
+        raise typer.Exit(code=1)
+
+    console.print()
+    console.print(answers[choice])
+    console.print()
 
 
 if __name__ == "__main__":

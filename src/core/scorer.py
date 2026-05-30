@@ -9,15 +9,18 @@ from __future__ import annotations
 import hashlib
 import logging
 import statistics
+import time
 from datetime import datetime, timedelta, timezone
 
+from src.core.explainer import explain_result
+from src.core.errors import get_degradation_message
 from src.core.llm_judge import judge
 from src.core.platform_profiles import (
     apply_platform_weights,
     check_platform_extra_rules,
     detect_platform,
 )
-from src.core.rules import apply_rules, should_skip_llm
+from src.core.rules import RuleResult, apply_rules, should_skip_llm
 from src.models.score import DimensionScores, FastScoreResult, ScoreResult, ScoringConfig
 
 logger = logging.getLogger(__name__)
@@ -108,6 +111,8 @@ async def score(
     Returns:
         Complete ScoreResult with dimensions, labels, and metadata.
     """
+    start_time = time.time()
+
     if config is None:
         from src.core.config import load_config
 
@@ -142,6 +147,9 @@ async def score(
             model_used="content_filter",
             cost=0.0,
             rule_hits=filter_result.matched_patterns,
+            explanation=f"\U0001f6a8 高风险内容。触发内容过滤器：{filter_result.violation_type}。",
+            scored_by="content_filter",
+            duration_ms=int((time.time() - start_time) * 1000),
         )
 
     # Cache check: return cached result if scored within 7 days
@@ -168,6 +176,7 @@ async def score(
                         model_used="cache",
                         cost=0.0,
                         rule_hits=cached.get("rule_hits", []),
+                        explanation=cached.get("explanation", ""),
                     )
     except Exception as e:
         logger.debug("Cache lookup failed: %s", e)
@@ -262,6 +271,9 @@ async def score(
         # 8. Generate labels from thresholds
         result.labels = _generate_labels(result.dimensions, config)
 
+        # 9. Generate explanation
+        result.explanation = explain_result(result, rule_result)
+
         # Track stats
         try:
             from src.storage.db import increment_rules_only
@@ -269,6 +281,10 @@ async def score(
             increment_rules_only()
         except Exception as e:
             logger.debug("Failed to increment rules_only stats: %s", e)
+
+        # Populate provenance fields
+        result.duration_ms = int((time.time() - start_time) * 1000)
+        result.scored_by = "rules"
 
         return result
 
@@ -303,6 +319,7 @@ async def score(
             cost=0.0,
             rule_hits=rule_result.matched_rules,
             dimension_sources={dim: "rule" for dim in all_dimensions},
+            scored_by="rules",
         )
 
         # Track stats
@@ -472,6 +489,18 @@ async def score(
 
     # 8. Generate labels from thresholds
     result.labels = _generate_labels(result.dimensions, config)
+
+    # 9. Generate explanation
+    result.explanation = explain_result(result, rule_result)
+
+    # 9.5. If LLM failed (low confidence fallback), prepend degradation message
+    if result.confidence <= 0.1 and "解析失败" in (result.labels or []):
+        degradation_msg = get_degradation_message()
+        result.explanation = f"{degradation_msg}\n{result.explanation}"
+
+    # 10. Populate provenance fields
+    result.duration_ms = int((time.time() - start_time) * 1000)
+    result.scored_by = config.primary_model if config else "rules"
 
     return result
 

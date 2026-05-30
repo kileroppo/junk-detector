@@ -49,6 +49,9 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=5.0.0",
 ]
+postgres = [
+    "asyncpg>=0.29.0",
+]
 
 [project.scripts]
 junk-detector = "src.cli.main:app"

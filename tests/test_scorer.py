@@ -788,3 +788,67 @@ class TestScoreOrchestration:
         result = await score("Content with out-of-range dimensions")
         assert result.dimensions.originality == 100
         assert result.dimensions.timeliness == 0
+
+
+class TestScoreResultStatus:
+    """Tests for ScoreResult status field computation."""
+
+    def test_status_junk(self):
+        """ScoreResult with overall_score=30 has status 'junk'."""
+        from src.models.score import ScoreResult
+
+        result = ScoreResult(
+            overall_score=30,
+            dimensions=DimensionScores(
+                originality=30, info_density=30, reasoning_quality=30,
+                readability=30, timeliness=30, ai_generated_prob=70,
+                emotional_manipulation=70, advertorial_prob=70, scam_prob=70,
+            ),
+            summary="Low quality content",
+        )
+        assert result.status == "junk"
+
+    def test_status_suspicious(self):
+        """ScoreResult with overall_score=50 has status 'suspicious'."""
+        from src.models.score import ScoreResult
+
+        result = ScoreResult(
+            overall_score=50,
+            dimensions=DimensionScores(
+                originality=50, info_density=50, reasoning_quality=50,
+                readability=50, timeliness=50, ai_generated_prob=50,
+                emotional_manipulation=50, advertorial_prob=50, scam_prob=50,
+            ),
+            summary="Suspicious content",
+        )
+        assert result.status == "suspicious"
+
+    def test_status_normal(self):
+        """ScoreResult with overall_score=70 has status 'normal'."""
+        from src.models.score import ScoreResult
+
+        result = ScoreResult(
+            overall_score=70,
+            dimensions=DimensionScores(
+                originality=70, info_density=70, reasoning_quality=70,
+                readability=70, timeliness=70, ai_generated_prob=30,
+                emotional_manipulation=30, advertorial_prob=30, scam_prob=30,
+            ),
+            summary="Normal content",
+        )
+        assert result.status == "normal"
+
+    def test_status_quality(self):
+        """ScoreResult with overall_score=85 has status 'quality'."""
+        from src.models.score import ScoreResult
+
+        result = ScoreResult(
+            overall_score=85,
+            dimensions=DimensionScores(
+                originality=85, info_density=85, reasoning_quality=85,
+                readability=85, timeliness=85, ai_generated_prob=10,
+                emotional_manipulation=10, advertorial_prob=10, scam_prob=10,
+            ),
+            summary="High quality content",
+        )
+        assert result.status == "quality"
