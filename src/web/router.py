@@ -337,10 +337,38 @@ async def score_stream(
         try:
             # Determine input
             if input_type == "url" and url:
-                content = await extract_from_url(url)
+                try:
+                    content = await extract_from_url(url)
+                except (ValueError, TimeoutError) as e:
+                    error_msg = str(e)
+                    if "403" in error_msg:
+                        error_msg = f"该网站拒绝了访问请求（HTTP 403）。可能需要登录或该网站有反爬虫保护。URL: {url}"
+                    elif "404" in error_msg:
+                        error_msg = f"页面不存在（HTTP 404）。请检查链接是否正确。URL: {url}"
+                    elif "timed out" in error_msg.lower():
+                        error_msg = f"请求超时。该网站响应太慢或无法访问。URL: {url}"
+                    else:
+                        error_msg = f"无法获取页面内容：{error_msg}"
+                    error_data = json.dumps({"error": error_msg}, ensure_ascii=False)
+                    yield f"event: error\ndata: {error_data}\n\n"
+                    return
             elif text:
                 if text.startswith(("http://", "https://")) and not url:
-                    content = await extract_from_url(text)
+                    try:
+                        content = await extract_from_url(text)
+                    except (ValueError, TimeoutError) as e:
+                        error_msg = str(e)
+                        if "403" in error_msg:
+                            error_msg = f"该网站拒绝了访问请求（HTTP 403）。可能需要登录或该网站有反爬虫保护。URL: {text}"
+                        elif "404" in error_msg:
+                            error_msg = f"页面不存在（HTTP 404）。请检查链接是否正确。URL: {text}"
+                        elif "timed out" in error_msg.lower():
+                            error_msg = f"请求超时。该网站响应太慢或无法访问。URL: {text}"
+                        else:
+                            error_msg = f"无法获取页面内容：{error_msg}"
+                        error_data = json.dumps({"error": error_msg}, ensure_ascii=False)
+                        yield f"event: error\ndata: {error_data}\n\n"
+                        return
                 else:
                     content = extract_from_text(text, title=title)
             else:
