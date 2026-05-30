@@ -112,6 +112,94 @@ class TestCookieStore:
         mode = stat.S_IMODE(os.stat(path).st_mode)
         assert mode == 0o600
 
+    def test_load_unchecked_ignores_expiry(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        store.save("zhihu", {"old": "1"}, ttl_hours=0)
+        time.sleep(0.01)
+        assert store.load("zhihu") is None
+        assert store.load_unchecked("zhihu") == {"old": "1"}
+
+    def test_update_merge(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        store.save("zhihu", {"a": "1", "b": "2"})
+        merged = store.update("zhihu", {"b": "updated", "c": "3"}, merge=True)
+        assert merged == {"a": "1", "b": "updated", "c": "3"}
+        assert store.load("zhihu") == merged
+
+    def test_update_replace(self, tmp_path: Path):
+        store = CookieStore(store_dir=tmp_path)
+        store.save("zhihu", {"a": "1"})
+        merged = store.update("zhihu", {"b": "2"}, merge=False)
+        assert merged == {"b": "2"}
+
+
+# =============================================================================
+# TestCookieUtils
+# =============================================================================
+
+
+class TestCookieUtils:
+    def test_parse_semicolon_string(self):
+        from src.crawler_auth.cookie_utils import parse_cookie_string
+
+        raw = "z_c0=abc; __zse_ck=def"
+        assert parse_cookie_string(raw) == {"z_c0": "abc", "__zse_ck": "def"}
+
+    def test_parse_cookie_header_prefix(self):
+        from src.crawler_auth.cookie_utils import parse_cookie_string
+
+        raw = "Cookie: z_c0=abc; __zse_ck=def"
+        assert parse_cookie_string(raw) == {"z_c0": "abc", "__zse_ck": "def"}
+
+    def test_parse_json(self):
+        from src.crawler_auth.cookie_utils import parse_cookie_string
+
+        raw = '{"z_c0": "abc", "__zse_ck": "def"}'
+        assert parse_cookie_string(raw) == {"z_c0": "abc", "__zse_ck": "def"}
+
+    def test_parse_empty_raises(self):
+        from src.crawler_auth.cookie_utils import parse_cookie_string
+
+        with pytest.raises(ValueError, match="Empty"):
+            parse_cookie_string("   ")
+
+
+# =============================================================================
+# TestCookieManager
+# =============================================================================
+
+
+class TestCookieManager:
+    def test_list_all_platform_statuses(self, tmp_path: Path):
+        from src.crawler_auth import CookieStore, list_all_platform_statuses
+
+        store = CookieStore(store_dir=tmp_path)
+        store.save("zhihu", {"z_c0": "abc"})
+        statuses = list_all_platform_statuses(store)
+        ids = {s["id"] for s in statuses}
+        assert "zhihu" in ids
+        assert "weibo" in ids
+        zhihu = next(s for s in statuses if s["id"] == "zhihu")
+        assert zhihu["status"] == "active"
+        assert zhihu["cookie_count"] == 1
+
+    def test_import_cookies_merge(self, tmp_path: Path):
+        from src.crawler_auth import CookieStore, import_cookies
+
+        store = CookieStore(store_dir=tmp_path)
+        store.save("weibo", {"SUB": "old"})
+        result = import_cookies("weibo", "SUB=new; _T_WM=1", store=store)
+        assert result["total_count"] == 2
+        assert "SUB" in result["imported_keys"]
+
+    def test_clear_platform_cookies(self, tmp_path: Path):
+        from src.crawler_auth import CookieStore, clear_platform_cookies
+
+        store = CookieStore(store_dir=tmp_path)
+        store.save("zhihu", {"z_c0": "abc"})
+        result = clear_platform_cookies("zhihu", store=store)
+        assert result["platform"]["status"] == "missing"
+
 
 # =============================================================================
 # TestPlatformDetection
@@ -133,6 +221,7 @@ class TestPlatformDetection:
         assert self.client.detect_platform("https://weibo.com/u/123") == "weibo"
         assert self.client.detect_platform("https://www.weibo.com/hot") == "weibo"
         assert self.client.detect_platform("https://s.weibo.com/weibo?q=test") == "weibo"
+        assert self.client.detect_platform("https://m.weibo.cn/detail/123") == "weibo"
 
     def test_xiaohongshu_urls(self):
         assert (
@@ -186,7 +275,13 @@ class TestPlatformHeaders:
 
         assert "Cookie" in headers
         assert "SUB=sub_val" in headers["Cookie"]
-        assert "User-Agent" in headers
+        assert "iPhone" in headers["User-Agent"]
+        assert headers["Referer"] == "https://m.weibo.cn/"
+
+    def test_weibo_h5_config(self):
+        auth = WeiboAuth()
+        assert "mweibo" in auth.login_url
+        assert "weibo.cn" in auth.cookie_domains
 
     def test_xiaohongshu_headers(self):
         auth = XiaohongshuAuth()
@@ -599,6 +694,7 @@ class TestCLIAuth:
         assert "login" in result.output
         assert "status" in result.output
         assert "logout" in result.output
+        assert "import" in result.output
 
     def test_auth_login_unknown_platform(self):
         """Login with an unknown platform should fail."""
@@ -706,6 +802,74 @@ class TestCLIAuth:
         result = runner.invoke(app, ["auth", "logout"])
         assert result.exit_code == 1
         assert "Specify --platform or --all" in result.output
+
+    def test_auth_import_from_cookie(self, tmp_path: Path):
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        with patch(
+            "src.crawler_auth.cookie_store.CookieStore.__init__",
+            return_value=None,
+        ), patch(
+            "src.crawler_auth.cookie_store.CookieStore.update",
+            return_value={"z_c0": "abc", "__zse_ck": "def"},
+        ) as mock_update:
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                [
+                    "auth",
+                    "import",
+                    "--platform",
+                    "zhihu",
+                    "--cookie",
+                    "z_c0=abc; __zse_ck=def",
+                ],
+            )
+            assert result.exit_code == 0
+            assert "Imported 2 cookie(s)" in result.output
+            mock_update.assert_called_once()
+            assert mock_update.call_args.args[1] == {
+                "z_c0": "abc",
+                "__zse_ck": "def",
+            }
+
+    def test_auth_import_from_clipboard(self):
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        with patch(
+            "src.crawler_auth.cookie_store.CookieStore.__init__",
+            return_value=None,
+        ), patch(
+            "src.crawler_auth.cookie_store.CookieStore.update",
+            return_value={"z_c0": "abc"},
+        ), patch(
+            "src.crawler_auth.read_clipboard",
+            return_value="z_c0=abc",
+        ):
+            runner = CliRunner()
+            result = runner.invoke(
+                app,
+                ["auth", "import", "--platform", "zhihu"],
+            )
+            assert result.exit_code == 0
+            assert "Reading cookies from clipboard" in result.output
+
+    def test_auth_import_invalid_cookie(self):
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(
+            app,
+            ["auth", "import", "--platform", "zhihu", "--cookie", "not-a-cookie"],
+        )
+        assert result.exit_code == 1
+        assert "No valid cookies" in result.output
 
 
 # =============================================================================

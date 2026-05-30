@@ -71,20 +71,163 @@ junk-detector monitor add-source --type wechat
 
 部分平台（知乎、微博、小红书等）需要登录才能正常抓取内容。鉴真提供了通用的 Cookie 认证模块。
 
-### 登录平台
+Cookie 保存在本地：`~/.crawler_auth/cookies/<platform>.json`，默认有效期 7 天。
+
+### 导入 Cookie（日常推荐）
+
+**最省事的更新方式**：在浏览器复制 Cookie，终端一条命令写入，无需手动改文件。
+
+#### 知乎（需搜索页 Cookie）
+
+知乎搜索接口需要搜索页产生的 Cookie（如 `z_c0`、`__zse_ck`），仅登录页 Cookie 可能不够用。
+
+**推荐流程：**
+
+1. 浏览器登录 [知乎](https://www.zhihu.com)，打开任意搜索页，例如：  
+   `https://www.zhihu.com/search?type=content&q=test`
+2. 打开 DevTools → **Network**，刷新页面，点任意请求 → **Headers** → 复制 `Cookie` 整行  
+   （或 Application → Cookies → `zhihu.com` 下全部项）
+3. 复制到剪贴板后执行：
 
 ```bash
-# 登录知乎（会打开浏览器，扫码或手动登录）
+junk-detector auth import --platform zhihu
+```
+
+不传 `--cookie` / `--file` 时，**默认从系统剪贴板读取**。
+
+#### 微博（需 H5 版 Cookie）
+
+微博抓取默认使用 **H5 移动版**（`m.weibo.cn`）Cookie，桌面版 `weibo.com` 的 Cookie 通常无效。
+
+**推荐流程：**
+
+1. 手机浏览器或 Chrome 设备模拟登录 [m.weibo.cn](https://m.weibo.cn/)  
+   （Chrome DevTools → Toggle device toolbar，选 iPhone，再访问 `https://m.weibo.cn/`）
+2. 登录后打开 H5 搜索页，例如：  
+   `https://m.weibo.cn/search?containerid=100103type%3D1%26q%3Dtest`
+3. DevTools → **Network** → 刷新 → 复制任意请求的 `Cookie`  
+   （或 Application → Cookies → `m.weibo.cn` / `weibo.cn` 下全部项）
+4. 复制到剪贴板后执行：
+
+```bash
+junk-detector auth import --platform weibo
+```
+
+常见 H5 Cookie 字段：`SUB`、`SUBP`、`_T_WM`、`XSRF-TOKEN`（域名 `weibo.cn`）。
+
+#### 命令参考
+
+```bash
+# 从剪贴板导入（默认，推荐）
+junk-detector auth import --platform zhihu
+
+# 显式指定剪贴板
+junk-detector auth import --platform zhihu --clipboard
+
+# 直接粘贴 Cookie 字符串
+junk-detector auth import --platform zhihu --cookie "z_c0=...; __zse_ck=..."
+junk-detector auth import --platform weibo --cookie "SUB=...; SUBP=...; _T_WM=..."
+
+# 从文件读取（整行 Cookie 或 JSON 均可）
+junk-detector auth import --platform zhihu --file ~/cookies.txt
+junk-detector auth import --platform weibo --file ~/weibo-cookies.txt
+```
+
+#### 合并与替换
+
+| 行为 | 命令 | 说明 |
+|------|------|------|
+| 合并（默认） | `auth import -p zhihu` | 新 Cookie 覆盖同名项，保留未提供的旧项 |
+| 完全替换 | `auth import -p zhihu --replace` | 丢弃旧 Cookie，只保留本次导入的 |
+
+知乎、微博示例：
+
+```bash
+junk-detector auth import -p zhihu          # 合并知乎搜索页 Cookie
+junk-detector auth import -p weibo          # 合并微博 H5 Cookie
+junk-detector auth import -p weibo --replace # 完全替换微博 Cookie
+```
+
+支持的输入格式：
+
+- 分号分隔：`z_c0=abc; __zse_ck=def`
+- 带前缀的 Request Header：`Cookie: z_c0=abc; __zse_ck=def`
+- JSON 对象：`{"z_c0": "abc", "__zse_ck": "def"}`
+
+导入后验证：
+
+```bash
+junk-detector auth status
+```
+
+### Web UI 管理（推荐）
+
+启动服务后，在 **设置页** 管理 Cookie 与模型 API：
+
+```bash
+junk-detector serve
+# 设置 → http://localhost:8000/settings
+# Cookie 区块 → http://localhost:8000/settings#cookies
+# 模型配置   → http://localhost:8000/settings#model
+```
+
+**Cookie 管理：**
+
+- 查看所有已注册平台的 Cookie 状态（已配置 / 已过期 / 未配置）
+- 粘贴 Cookie 一键导入（默认合并）
+- 按平台清除 Cookie
+
+**模型配置：**
+
+- 选择提供商：DeepSeek、OpenAI、Anthropic、智谱、Moonshot、Ollama、自定义/中转
+- 配置 **API Base URL**、**API Key**、**模型**
+- 自定义/中转：填 OpenAI 兼容 Base URL + 模型 ID + Key
+- 配置保存在 `~/.junk_detector/settings.json`（本地，权限 600）
+
+**评分权重：**
+
+- 设置 → **评分权重**（`/settings#weights`）
+- 拖动滑块调整 9 个维度权重，点击「保存权重」
+- 「恢复默认」会读回 `config.yaml` 中的系统默认值
+- 保存后对 Web 端评分立即生效（CLI `score` 仍读 `config.yaml`，除非通过 `/preferences` API 配置）
+
+新增平台时，在 `src/crawler_auth/platform_meta.py` 添加条目即可自动出现在 Cookie 区块。
+
+**扩展新平台（两步）：**
+
+1. 在 `src/crawler_auth/platforms/` 实现认证类，并注册到 `PLATFORMS`
+2. 在 `src/crawler_auth/platform_meta.py` 的 `PLATFORM_META` 添加展示信息：
+
+```python
+"newplatform": {
+    "label": "新平台",
+    "domain": "example.com",
+    "hint": "Cookie 获取说明",
+    "guide_url": "https://example.com/login",
+    "key_cookies": ["session_id"],
+},
+```
+
+保存后刷新 **设置 → 平台 Cookie** 即可看到新平台卡片。
+
+### 浏览器登录
+
+若已安装 Playwright，也可用浏览器自动登录并保存 Cookie：
+
+```bash
+# 登录知乎（打开浏览器，扫码或手动登录；登录后会自动访问搜索页再保存）
 junk-detector auth login --platform zhihu
 
-# 登录其他平台
+# 登录微博（H5 移动版；登录后会自动访问 m.weibo.cn 搜索页再保存）
 junk-detector auth login --platform weibo
+
+# 登录其他平台
 junk-detector auth login --platform xiaohongshu
 junk-detector auth login --platform bilibili
 junk-detector auth login --platform wechat
 ```
 
-登录完成后，Cookie 自动保存（默认有效期 7 天），后续检测该平台内容无需重复登录。
+登录完成后 Cookie 自动保存，后续检测该平台内容无需重复登录。
 
 ### 查看登录状态
 
@@ -140,13 +283,13 @@ platform = client.detect_platform("https://weibo.com/...")  # -> "weibo"
 
 支持的平台：
 
-| 平台 | 域名 | 登录方式 |
-|------|------|----------|
-| 知乎 | zhihu.com | 扫码/密码 |
-| 微博 | weibo.com | 扫码/密码 |
-| 小红书 | xiaohongshu.com | 扫码 |
-| B站 | bilibili.com | 扫码/密码 |
-| 微信/搜狗 | weixin.sogou.com | 减少验证码频率 |
+| 平台 | 域名 | 推荐方式 | 说明 |
+|------|------|----------|------|
+| 知乎 | zhihu.com | `auth import` | 需搜索页 Cookie；`auth login` 登录后会自动访问搜索页 |
+| 微博 | m.weibo.cn | `auth import` | 需 H5 移动版 Cookie（`weibo.cn` 域）；桌面版无效 |
+| 小红书 | xiaohongshu.com | 扫码 | |
+| B站 | bilibili.com | 扫码/密码 | |
+| 微信/搜狗 | weixin.sogou.com | 减少验证码频率 | |
 
 ## API 服务
 

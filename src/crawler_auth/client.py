@@ -13,6 +13,7 @@ from .platforms import PLATFORMS
 _DOMAIN_MAP: dict[str, str] = {
     "zhihu.com": "zhihu",
     "weibo.com": "weibo",
+    "weibo.cn": "weibo",
     "sina.com.cn": "weibo",
     "xiaohongshu.com": "xiaohongshu",
     "xhslink.com": "xiaohongshu",

@@ -483,14 +483,56 @@ class TestClassification:
         assert result is not None
         assert len(result.information_nuggets) > 0
 
-    def test_nuggets_have_summaries(self):
-        """Information nuggets should have non-empty summaries."""
+    def test_nuggets_have_rich_metadata(self):
+        """Information nuggets should have previews, anchors, and why_read."""
         score = _make_score(overall=45.0, ai_prob=55.0)
         result = generate_focus_guide(GENUINE_HUMAN_TEXT, score)
         assert result is not None
+        assert len(result.top_nuggets) <= 3
         for nugget in result.information_nuggets:
             assert nugget.summary != ""
-            assert nugget.index >= 0
+            assert nugget.preview != ""
+            assert nugget.search_anchor != ""
+            assert nugget.why_read != ""
+            assert nugget.position_label in ("开篇", "前部", "中部", "后部", "结尾", "全文")
+
+    def test_verdict_and_caution_present_for_ai_text(self):
+        score = _make_score()
+        result = generate_focus_guide(AI_GENERATED_CN, score)
+        assert result is not None
+        assert result.verdict_headline != ""
+        assert result.verdict_detail != ""
+        assert len(result.snippets) > 0
+
+    def test_skippable_sections_have_evidence(self):
+        """Empty paragraphs should become grouped skippable sections with previews."""
+        score = _make_score()
+        result = generate_focus_guide(AI_GENERATED_CN, score)
+        assert result is not None
+        assert len(result.skippable_sections) > 0
+        for section in result.skippable_sections:
+            assert section.preview != ""
+            assert section.search_anchor != ""
+            assert section.start_index <= section.end_index
+            assert section.headline != ""
+            assert section.skip_advice != ""
+            assert section.pattern_type in (
+                "filler",
+                "transition",
+                "water",
+                "vague",
+                "low_density",
+            )
+            assert section.paragraph_count == section.end_index - section.start_index + 1
+
+    def test_reading_map_matches_paragraph_count(self):
+        """Reading map should have one segment per paragraph."""
+        score = _make_score()
+        result = generate_focus_guide(AI_GENERATED_CN, score)
+        assert result is not None
+        assert result.paragraph_count > 0
+        assert len(result.reading_map) == result.paragraph_count
+        assert all(s in ("gold", "skip", "neutral") for s in result.reading_map)
 
     def test_empty_calories_valid_indices(self):
         """Empty calorie indices should be valid paragraph indices."""

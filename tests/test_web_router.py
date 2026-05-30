@@ -307,13 +307,17 @@ class TestScoreSubmit:
         assert "text/html" in response.headers["content-type"]
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.storage.db.query_by_content_hash")
     @patch("src.storage.db.save")
     @patch("src.extractors.text.extract_from_text")
-    def test_submit_htmx_request(self, mock_extract, mock_save, mock_score, web_client):
+    def test_submit_htmx_request(self, mock_extract, mock_save, mock_query_hash, mock_score, web_client):
         """POST /score-submit with HX-Request header returns inline template."""
-        mock_extract.return_value = _make_content()
+        content = _make_content()
+        content.compute_hash()
+        mock_extract.return_value = content
         mock_score.return_value = _make_score_result()
         mock_save.return_value = None
+        mock_query_hash.return_value = {"id": 42, "content_hash": content.content_hash}
 
         response = web_client.post(
             "/score-submit",
@@ -323,6 +327,36 @@ class TestScoreSubmit:
 
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
+        assert "<!DOCTYPE html>" not in response.text
+        assert "score-result-inline" in response.text
+        assert "Junk Detector" not in response.text
+        assert "result-actions" in response.text
+        assert 'data-score-id="42"' in response.text
+        assert "复制结论" in response.text
+        assert "准确" in response.text
+        assert "不准" in response.text
+
+    @patch("src.core.scorer.score", new_callable=AsyncMock)
+    @patch("src.storage.db.query_by_content_hash")
+    @patch("src.storage.db.save")
+    @patch("src.extractors.text.extract_from_text")
+    def test_submit_passes_record_id_to_full_result(self, mock_extract, mock_save, mock_query_hash, mock_score, web_client):
+        """POST /score-submit passes record_id to result.html context."""
+        content = _make_content()
+        content.compute_hash()
+        mock_extract.return_value = content
+        mock_score.return_value = _make_score_result()
+        mock_save.return_value = None
+        mock_query_hash.return_value = {"id": 7, "content_hash": content.content_hash}
+
+        response = web_client.post(
+            "/score-submit",
+            data={"input_type": "text", "text": "Some text"},
+        )
+
+        assert response.status_code == 200
+        assert 'data-score-id="7"' in response.text
+        assert 'href="/result/7"' in response.text
 
 
 class TestScoreSubmitSaveError:
@@ -516,3 +550,134 @@ class TestRecentScoresExceptionHandling:
 
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
+
+
+class TestCookieManagementRoutes:
+    """Tests for /cookies page and cookie API."""
+
+    def test_cookies_redirects_to_settings(self, web_client):
+        response = web_client.get("/cookies", follow_redirects=False)
+        assert response.status_code == 302
+        assert "/settings#cookies" in response.headers["location"]
+
+    def test_settings_has_cookies_section(self, web_client):
+        response = web_client.get("/settings")
+        assert response.status_code == 200
+        assert "平台 Cookie" in response.text
+        assert "模型配置" in response.text
+        assert "zhihu" in response.text
+
+    def test_api_cookies_list(self, web_client):
+        response = web_client.get("/api/cookies")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert any(p["id"] == "zhihu" for p in data)
+
+    @patch("src.crawler_auth.import_cookies")
+    def test_api_cookies_import(self, mock_import, web_client):
+        mock_import.return_value = {
+            "imported_keys": ["z_c0"],
+            "total_count": 1,
+            "platform": {
+                "id": "zhihu",
+                "label": "知乎",
+                "status": "active",
+                "hint": "",
+                "domain": "",
+                "guide_url": "",
+                "key_cookies": [],
+                "cookie_count": 1,
+                "cookie_keys": ["z_c0"],
+                "expires_at": None,
+                "expires_at_label": None,
+                "saved_at_label": None,
+            },
+        }
+        response = web_client.post(
+            "/api/cookies/zhihu/import",
+            data={"cookie_raw": "z_c0=abc"},
+        )
+        assert response.status_code == 200
+        assert "cookie-card-zhihu" in response.text
+        mock_import.assert_called_once()
+
+    @patch("src.crawler_auth.clear_platform_cookies")
+    def test_api_cookies_clear(self, mock_clear, web_client):
+        mock_clear.return_value = {
+            "platform": {
+                "id": "zhihu",
+                "label": "知乎",
+                "status": "missing",
+                "hint": "",
+                "domain": "",
+                "guide_url": "",
+                "key_cookies": [],
+                "cookie_count": 0,
+                "cookie_keys": [],
+                "expires_at": None,
+                "expires_at_label": None,
+                "saved_at_label": None,
+            }
+        }
+        response = web_client.post("/api/cookies/zhihu/clear")
+        assert response.status_code == 200
+        assert "未配置" in response.text
+        mock_clear.assert_called_once_with("zhihu")
+
+    def test_api_cookies_import_invalid(self, web_client):
+        response = web_client.post(
+            "/api/cookies/zhihu/import",
+            data={"cookie_raw": "not-valid"},
+        )
+        assert response.status_code == 400
+
+    @patch("src.core.user_settings.save_llm_settings")
+    def test_api_settings_model_save(self, mock_save, web_client):
+        mock_save.return_value = {
+            "provider": "deepseek",
+            "model": "deepseek/deepseek-chat",
+            "api_base": "https://api.deepseek.com",
+            "api_key": "sk-test",
+        }
+        with patch(
+            "src.core.user_settings.get_llm_settings_display",
+            return_value={
+                "provider": "deepseek",
+                "model": "deepseek/deepseek-chat",
+                "api_base": "https://api.deepseek.com",
+                "api_key_masked": "sk-t••••test",
+                "configured": True,
+            },
+        ):
+            response = web_client.post(
+                "/api/settings/model",
+                data={
+                    "provider": "deepseek",
+                    "model": "deepseek/deepseek-chat",
+                    "api_base": "https://api.deepseek.com",
+                    "api_key": "sk-test",
+                },
+            )
+        assert response.status_code == 200
+        mock_save.assert_called_once()
+
+    def test_settings_has_scoring_weights(self, web_client):
+        response = web_client.get("/settings")
+        assert response.status_code == 200
+        assert "评分权重" in response.text
+        assert 'name="weight_originality"' in response.text
+
+    def test_api_settings_weights_save(self, web_client):
+        from unittest.mock import patch
+
+        with patch("src.web.scoring_prefs.save_scoring_weights") as mock_save:
+            response = web_client.post(
+                "/api/settings/weights",
+                data={"weight_originality": "150", "weight_scam_prob": "120"},
+            )
+        assert response.status_code == 200
+        assert "保存权重" in response.text
+        mock_save.assert_called_once()
+        assert mock_save.call_args.args[0]["originality"] == 1.5
+        assert mock_save.call_args.args[0]["scam_prob"] == -1.2

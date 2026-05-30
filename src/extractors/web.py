@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import httpx
 from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify
@@ -21,32 +23,144 @@ NOISE_TAGS = [
     "form",
 ]
 
-NOISE_CLASSES = [
-    "nav",
-    "navbar",
-    "footer",
-    "sidebar",
+# Whole class/id tokens (hyphen-separated) — avoids matching "ad" inside "preload"
+_NOISE_CLASS_TOKENS = frozenset(
+    {
+        "nav",
+        "navbar",
+        "footer",
+        "sidebar",
+        "ad",
+        "ads",
+        "menu",
+        "qr",
+        "social",
+        "share",
+        "comment",
+        "comments",
+        "related",
+        "recommended",
+        "popup",
+        "modal",
+        "cookie",
+        "banner",
+        "newsletter",
+        "subscribe",
+        "subscription",
+        "breadcrumb",
+        "widget",
+        "preloader",
+        "a11y",
+    }
+)
+
+# Longer phrases: safe to match as substrings in class + id text
+_NOISE_CLASS_SUBSTRINGS = [
     "advertisement",
-    "ad",
-    "ads",
-    "social",
-    "share",
-    "comment",
-    "comments",
-    "related",
-    "recommended",
-    "popup",
-    "modal",
-    "cookie",
-    "banner",
-    "menu",
+    "accessibility",
+    "lang-switch",
+    "language-switch",
+    "skip-link",
+    "site-nav",
+    "global-nav",
     "qr-code",
-    "qr",
 ]
+
+# Lines dropped from article text after DOM extraction (site chrome, i18n bars, etc.)
+_BOILERPLATE_LINE_RE = re.compile(
+    r"^("
+    r"跳到内容|跳到导航|跳到页脚|无障碍设置|无障碍|"
+    r"浅色主题|深色主题|高对比度|文字大小|行距|段距|"
+    r"下划线链接|减弱动画|易读字体|大光标|重置|"
+    r"订阅邮件|保持关注|"
+    r"填写\s*表单|隐私政策|条款|"
+    r"OK|×|news|ZH|IT|EN|FR|ES|DE|TR|RU|PT|JA"
+    r")$",
+    re.I,
+)
+
+_TRUNCATE_MARKERS = (
+    "相关文章",
+    "订阅邮件",
+    "保持关注",
+    "在寻找计算机工程师",
+    "### 相关文章",
+    "Cerca articoli",
+)
+
+
+def _trim_article_boilerplate(text: str) -> str:
+    """Remove leading site chrome and trailing newsletter/related blocks from plain text."""
+    lines = [line.strip() for line in text.splitlines()]
+    lines = [line for line in lines if line and not _BOILERPLATE_LINE_RE.match(line)]
+
+    # Drop short language-switch runs at the top (e.g. IT EN FR …)
+    while lines and len(lines[0]) <= 3 and lines[0].isalpha():
+        lines.pop(0)
+
+    # Start near first heading-like line if early lines look like nav
+    for i, line in enumerate(lines[:40]):
+        if len(line) >= 12 and not re.match(r"^(首页|关于|简历|博客|工具|联系方式|广告)$", line):
+            if i > 0 and sum(1 for prev in lines[:i] if len(prev) < 8) >= 3:
+                lines = lines[i:]
+            break
+
+    trimmed: list[str] = []
+    truncate_after = int(len(lines) * 0.72) if lines else 0
+    for i, line in enumerate(lines):
+        if i >= truncate_after and any(
+            line.startswith(marker) or line.strip() == marker for marker in _TRUNCATE_MARKERS
+        ):
+            break
+        trimmed.append(line)
+
+    return "\n".join(trimmed) if trimmed else text.strip()
 
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 TIMEOUT = 10.0
+
+
+def _element_class_tokens(element: Tag) -> set[str]:
+    tokens: set[str] = set()
+    for cls in element.get("class") or []:
+        for part in str(cls).lower().replace("_", "-").split("-"):
+            if part:
+                tokens.add(part)
+    el_id = element.get("id")
+    if el_id:
+        for part in str(el_id).lower().replace("_", "-").split("-"):
+            if part:
+                tokens.add(part)
+    return tokens
+
+
+_ARTICLE_BODY_CLASS_HINTS = (
+    "entry-content",
+    "post-content",
+    "article-content",
+    "article-body",
+    "post-body",
+    "single-content",
+    "blog-post",
+)
+
+
+def _is_noise_element(element: Tag) -> bool:
+    classes = " ".join(element.get("class") or []).lower()
+    if any(hint in classes for hint in _ARTICLE_BODY_CLASS_HINTS):
+        return False
+    if element.get("itemprop") == "articleBody":
+        return False
+    if _element_class_tokens(element) & _NOISE_CLASS_TOKENS:
+        # Layout helpers like has-sidebar are not chrome sidebars
+        tokens = _element_class_tokens(element)
+        if tokens & {"sidebar"} and tokens & {"has", "with", "row"}:
+            return False
+        return True
+    el_id = element.get("id") or ""
+    combined = f"{classes} {el_id}".lower()
+    return any(noise in combined for noise in _NOISE_CLASS_SUBSTRINGS)
 
 
 def _strip_noise(soup: BeautifulSoup) -> None:
@@ -62,10 +176,7 @@ def _strip_noise(soup: BeautifulSoup) -> None:
             continue
         if not element.attrs:
             continue
-        classes = " ".join(element.get("class") or [])
-        el_id = element.get("id") or ""
-        combined = f"{classes} {el_id}".lower()
-        if any(noise in combined for noise in NOISE_CLASSES):
+        if _is_noise_element(element):
             element.decompose()
 
 
@@ -113,6 +224,21 @@ def _find_main_content(soup: BeautifulSoup) -> Tag | None:
     return None
 
 
+def _pick_main_content(soup: BeautifulSoup) -> Tag | None:
+    """Choose main content; fall back if the candidate block is too short."""
+    main_content = _find_main_content(soup)
+    if main_content and len(main_content.get_text(strip=True)) >= 400:
+        return main_content
+    body = soup.find("body")
+    if body and isinstance(body, Tag):
+        blocks = body.find_all(["article", "div", "section"])
+        if blocks:
+            largest = max(blocks, key=lambda el: len(el.get_text(strip=True)))
+            if len(largest.get_text(strip=True)) > len(main_content.get_text(strip=True) if main_content else ""):
+                return largest
+    return main_content
+
+
 def _extract_title(soup: BeautifulSoup) -> str | None:
     """Extract the page title from <title> tag or first <h1>."""
     title_tag = soup.find("title")
@@ -146,7 +272,7 @@ def _extract_text(content_element: Tag) -> str:
         lines = [line for line in lines if line]  # Remove empty lines
         cleaned = "\n".join(lines)
         if len(cleaned) > 50:
-            return cleaned
+            return _trim_article_boilerplate(cleaned)
 
     # Fallback: use markdownify for better structure
     html_str = str(content_element)
@@ -154,7 +280,7 @@ def _extract_text(content_element: Tag) -> str:
     # Clean up the markdown output
     lines = [line.strip() for line in markdown_text.splitlines()]
     lines = [line for line in lines if line]
-    return "\n".join(lines)
+    return _trim_article_boilerplate("\n".join(lines))
 
 
 async def extract_from_url_simple(url: str, max_chars: int = 10000) -> Content:
@@ -372,7 +498,7 @@ async def extract_from_url(url: str) -> Content:
     _strip_noise(soup)
 
     # Find main content area
-    main_content = _find_main_content(soup)
+    main_content = _pick_main_content(soup)
 
     if main_content:
         text = _extract_text(main_content)

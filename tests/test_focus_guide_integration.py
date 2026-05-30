@@ -107,7 +107,7 @@ class TestFocusGuideIntegration:
         assert response.status_code == 200
         html = response.text
         # Focus guide section should be present
-        assert "重点关注指南" in html
+        assert "阅读结论" in html or "必看" in html
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.storage.db.save")
@@ -128,7 +128,7 @@ class TestFocusGuideIntegration:
         assert response.status_code == 200
         html = response.text
         # Focus guide section should NOT be present
-        assert "重点关注指南" not in html
+        assert "阅读指南" not in html and "阅读结论" not in html
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.storage.db.save")
@@ -151,7 +151,7 @@ class TestFocusGuideIntegration:
         # Should contain one of the recommendation labels
         assert any(
             label in html
-            for label in ["建议跳过", "建议略读", "建议细读"]
+            for label in ["建议别读完", "跳读即可", "整体可读", "阅读结论"]
         )
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
@@ -192,7 +192,7 @@ class TestFocusGuideIntegration:
 
         assert response.status_code == 200
         html = response.text
-        assert "TL;DR" in html
+        assert "30 秒看懂" in html or "阅读结论" in html
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.storage.db.save")
@@ -231,7 +231,7 @@ class TestFocusGuideIntegration:
 
         assert response.status_code == 200
         html = response.text
-        assert "重点关注指南" in html
+        assert "阅读结论" in html or "必看" in html
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.storage.db.save")
@@ -276,4 +276,4 @@ class TestFocusGuideIntegration:
         html = response.text
         # With the widened gate (score < 70 OR ai_prob > 30), this mid-range
         # content should now get a focus guide generated
-        assert "重点关注指南" in html
+        assert "阅读结论" in html or "必看" in html

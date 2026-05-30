@@ -1,0 +1,39 @@
+<details class="skip-zone-disclosure">
+    <summary class="skip-zone-summary">
+        <span class="skip-zone-badge skip-zone-badge--{{ zone.pattern_type }}">{{ zone.pattern_label }}</span>
+        <span class="skip-zone-summary-text">{{ zone.compact_title }}</span>
+        <span class="skip-zone-summary-meta">{{ zone.index_label }}</span>
+    </summary>
+    <div class="skip-zone-body">
+        <p class="skip-zone-reason">{{ zone.reason }}</p>
+
+        {% if zone.evidence %}
+        <ul class="skip-zone-evidence list-none m-0 p-0">
+            {% for phrase in zone.evidence[:3] %}
+            <li class="skip-zone-chip">「{{ phrase }}」</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if zone.preview %}
+        <p class="skip-zone-preview">「{{ zone.preview }}」</p>
+        {% endif %}
+
+        <p class="skip-zone-advice">{{ zone.skip_advice }}</p>
+
+        {% if result.annotated_paragraphs or zone.search_anchor %}
+        <div class="skip-zone-actions">
+            {% if result.annotated_paragraphs %}
+            {% with index=zone.start_index, sm=true %}
+            {% include "partials/btn_focus_goto.html" %}
+            {% endwith %}
+            {% endif %}
+            {% if zone.search_anchor %}
+            {% with anchor=zone.search_anchor, muted=false, sm=true %}
+            {% include "partials/btn_focus_copy.html" %}
+            {% endwith %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</details>

@@ -62,13 +62,21 @@ def reload_config() -> None:
 def get_model_config(override_model: str | None = None) -> dict[str, Any]:
     """Return the active model preset configuration.
 
-    Args:
-        override_model: If provided, use this preset name instead of config/env.
-
-    Returns:
-        Dict with keys: primary, fallback, and optionally api_base.
-        Returns default deepseek config if no config file found.
+    Priority: user settings (Web UI) > CLI/env override > config.yaml > defaults.
     """
+    from src.core.user_settings import apply_llm_settings, get_llm_settings
+
+    user_llm = get_llm_settings()
+    if user_llm.get("model") and override_model is None:
+        apply_llm_settings(user_llm)
+        model = user_llm["model"]
+        return {
+            "primary": model,
+            "fallback": model,
+            "api_base": user_llm.get("api_base") or None,
+            "provider": user_llm.get("provider"),
+        }
+
     data = _load_yaml()
 
     # Determine active model: CLI override > env var > config file > default

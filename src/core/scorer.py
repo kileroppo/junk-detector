@@ -26,6 +26,48 @@ from src.models.score import DimensionScores, FastScoreResult, ScoreResult, Scor
 logger = logging.getLogger(__name__)
 
 
+def rule_only_score(rule_result: RuleResult, config: ScoringConfig) -> float:
+    """Compute weighted overall score using rule overrides only (no LLM dimensions)."""
+    positive_default = 50.0
+    negative_default = 0.0
+    dims_dict: dict[str, float] = {}
+    for dim in [
+        "originality",
+        "info_density",
+        "reasoning_quality",
+        "readability",
+        "timeliness",
+    ]:
+        dims_dict[dim] = rule_result.dimension_overrides.get(dim, positive_default)
+    for dim in [
+        "ai_generated_prob",
+        "emotional_manipulation",
+        "advertorial_prob",
+        "scam_prob",
+    ]:
+        dims_dict[dim] = rule_result.dimension_overrides.get(dim, negative_default)
+    return _calculate_overall(DimensionScores(**dims_dict), config)
+
+
+def attach_rule_dual_score(
+    result: ScoreResult, rule_result: RuleResult, config: ScoringConfig
+) -> ScoreResult:
+    """Attach pure rule-engine score metadata for display and persistence."""
+    result.rule_score = rule_only_score(rule_result, config)
+    result.rules_fired = bool(rule_result.matched_rules)
+    return result
+
+
+def attach_focus_guide(result: ScoreResult, content_text: str) -> ScoreResult:
+    """Attach reading guide (nuggets, skippable paragraphs) when content is flagged."""
+    from src.core.focus_guide import generate_focus_guide
+
+    guide = generate_focus_guide(content_text, result)
+    if guide:
+        result.focus_guide = guide.model_dump()
+    return result
+
+
 def _calculate_overall(dimensions: DimensionScores, config: ScoringConfig) -> float:
     """Calculate weighted overall score from dimension scores.
 
@@ -88,6 +130,7 @@ async def score(
     config: ScoringConfig | None = None,
     source_url: str | None = None,
     language: str = "zh",
+    content_genre: str | None = None,
 ) -> ScoreResult:
     """Main scoring orchestrator.
 
@@ -117,6 +160,17 @@ async def score(
         from src.core.config import load_config
 
         config = load_config()
+
+    from src.core.content_genre import (
+        GENRE_ROUNDUP,
+        calculate_roundup_overall,
+        detect_content_genre,
+        filter_roundup_labels,
+        finalize_roundup_dimensions,
+        sanitize_roundup_summary,
+    )
+
+    genre = content_genre or detect_content_genre(content_text)
 
     # Pre-filter: reject obviously violating content before spending tokens
     from src.core.content_filter import check_content
@@ -253,6 +307,8 @@ async def score(
             dims_dict[dim] = rule_result.dimension_overrides.get(dim, _negative_default)
 
         dimensions = DimensionScores(**dims_dict)
+        if genre == GENRE_ROUNDUP:
+            dimensions = finalize_roundup_dimensions(dimensions, content_text, rule_result)
         result = ScoreResult(
             overall_score=0,
             dimensions=dimensions,
@@ -263,13 +319,16 @@ async def score(
             cost=0.0,
             rule_hits=rule_result.matched_rules,
             dimension_sources={dim: "rule" for dim in rule_result.dimension_overrides},
+            content_genre=genre,
         )
 
         # 7. Recalculate overall_score with weights
-        result.overall_score = _calculate_overall(result.dimensions, config)
-
-        # 8. Generate labels from thresholds
-        result.labels = _generate_labels(result.dimensions, config)
+        if genre == GENRE_ROUNDUP:
+            result.overall_score = calculate_roundup_overall(result.dimensions, config)
+            result.labels = filter_roundup_labels(_generate_labels(result.dimensions, config))
+        else:
+            result.overall_score = _calculate_overall(result.dimensions, config)
+            result.labels = _generate_labels(result.dimensions, config)
 
         # 9. Generate explanation
         result.explanation = explain_result(result, rule_result)
@@ -285,6 +344,8 @@ async def score(
         # Populate provenance fields
         result.duration_ms = int((time.time() - start_time) * 1000)
         result.scored_by = "rules"
+        attach_rule_dual_score(result, rule_result, config)
+        attach_focus_guide(result, content_text)
 
         return result
 
@@ -331,7 +392,7 @@ async def score(
             logger.debug("Failed to increment rules_only stats: %s", e)
     else:
         # 3. Call LLM judge with primary model
-        result = await judge(content_text, config, language=language)
+        result = await judge(content_text, config, language=language, content_genre=genre)
         logger.info(
             "Primary model (%s) returned confidence=%.2f",
             config.primary_model,
@@ -348,7 +409,9 @@ async def score(
             )
             fallback_config = config.model_copy(deep=True)
             fallback_config.primary_model = config.fallback_model
-            fallback_result = await judge(content_text, fallback_config, language=language)
+            fallback_result = await judge(
+                content_text, fallback_config, language=language, content_genre=genre
+            )
 
             # Use fallback result if it has higher confidence
             if fallback_result.confidence > result.confidence:
@@ -412,6 +475,8 @@ async def score(
                 cost=result.cost,
                 rule_hits=[],
             )
+            attach_rule_dual_score(result, rule_result, config)
+            attach_focus_guide(result, content_text)
             return result
 
         # 4.6. Detect injection indicators in response text
@@ -464,6 +529,8 @@ async def score(
                 cost=result.cost,
                 rule_hits=[],
             )
+            attach_rule_dual_score(result, rule_result, config)
+            attach_focus_guide(result, content_text)
             return result
 
         # 5. Apply rule overrides (high confidence rules override LLM dimensions)
@@ -484,11 +551,25 @@ async def score(
     # 6. Record rule hits
     result.rule_hits = rule_result.matched_rules
 
+    # 6.5 Genre calibration (roundup / tool lists)
+    if genre == GENRE_ROUNDUP:
+        result.dimensions = finalize_roundup_dimensions(
+            result.dimensions, content_text, rule_result
+        )
+        result.summary = sanitize_roundup_summary(result.summary, result.dimensions)
+
+    result.content_genre = genre
+
     # 7. Recalculate overall_score with weights
-    result.overall_score = _calculate_overall(result.dimensions, config)
+    if genre == GENRE_ROUNDUP:
+        result.overall_score = calculate_roundup_overall(result.dimensions, config)
+    else:
+        result.overall_score = _calculate_overall(result.dimensions, config)
 
     # 8. Generate labels from thresholds
     result.labels = _generate_labels(result.dimensions, config)
+    if genre == GENRE_ROUNDUP:
+        result.labels = filter_roundup_labels(result.labels)
 
     # 9. Generate explanation
     result.explanation = explain_result(result, rule_result)
@@ -501,6 +582,8 @@ async def score(
     # 10. Populate provenance fields
     result.duration_ms = int((time.time() - start_time) * 1000)
     result.scored_by = config.primary_model if config else "rules"
+    attach_rule_dual_score(result, rule_result, config)
+    attach_focus_guide(result, content_text)
 
     return result
 

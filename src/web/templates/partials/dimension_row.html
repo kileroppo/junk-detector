@@ -1,0 +1,31 @@
+{# dim: {key, label, description, evidence?}, value: float, variant: 'positive'|'negative' #}
+{% set bar_variant = variant | default('positive') %}
+{% set ev = dim.evidence if dim.evidence is defined else (result.dimension_evidence.get(dim.key) if result.dimension_evidence else none) %}
+{% set linkable = ev and ev.linkable and ev.paragraph_indices %}
+<div class="dimension-row flex items-center gap-3{% if linkable %} dimension-row--linkable{% endif %}"
+     {% if linkable %}
+     role="button"
+     tabindex="0"
+     data-dim-key="{{ dim.key }}"
+     data-paragraph-indices="{{ ev.paragraph_indices | join(',') }}"
+     title="{{ ev.hint }}"
+     aria-label="{{ dim.label }}：{{ ev.hint }}"
+     onclick="ResultPage.linkDimensionToSource(this)"
+     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ResultPage.linkDimensionToSource(this);}"
+     {% endif %}>
+    <div class="w-28 shrink-0">{% include "partials/dimension_label.html" %}</div>
+    <div class="flex-1 bg-navy-900 rounded-full h-5 overflow-hidden pointer-events-none">
+        <div class="dimension-bar dimension-bar-{{ bar_variant }} h-full flex items-center justify-end pr-2"
+             style="width: {{ value }}%">
+            <span class="text-xs font-medium tabular-nums">{{ "%.0f"|format(value) }}</span>
+        </div>
+    </div>
+    {% if linkable %}
+    <span class="dimension-row-locate shrink-0" aria-hidden="true" title="定位原文">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+        </svg>
+    </span>
+    {% endif %}
+</div>

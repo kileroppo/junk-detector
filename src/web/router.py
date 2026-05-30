@@ -8,11 +8,12 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.responses import StreamingResponse
 
 from src.core.config import get_model_config
+from src.core.dimension_meta import DIMENSION_LABELS, NEGATIVE_DIMENSIONS, POSITIVE_DIMENSIONS
 from src.storage.db import count_records, get_history, get_trends, query
 
 # Template and static directories (relative to this file)
@@ -22,6 +23,81 @@ _STATIC_DIR = _BASE_DIR / "static"
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+
+templates.env.globals["positive_dimensions"] = POSITIVE_DIMENSIONS
+templates.env.globals["negative_dimensions"] = NEGATIVE_DIMENSIONS
+templates.env.globals["dimension_labels"] = DIMENSION_LABELS
+
+_FETCH_EXCEPTIONS = (ValueError, TimeoutError, RuntimeError)
+
+
+def _fetch_error_template_context(exc: BaseException, url: str | None = None) -> dict:
+    from src.web.extraction_errors import classify_fetch_error
+
+    info = classify_fetch_error(exc, url=url)
+    return {
+        "fetch_error": info.to_dict(),
+        "show_technical_detail": False,
+    }
+
+
+def _render_fetch_error_response(
+    request: Request,
+    exc: BaseException,
+    url: str | None = None,
+    *,
+    is_htmx: bool = False,
+    status_code: int = 422,
+) -> HTMLResponse:
+    ctx = _fetch_error_template_context(exc, url=url)
+    if is_htmx:
+        return templates.TemplateResponse(
+            request,
+            "partials/score_fetch_error.html",
+            ctx,
+            status_code=status_code,
+        )
+    return templates.TemplateResponse(
+        request,
+        "score_fetch_error_page.html",
+        ctx,
+        status_code=status_code,
+    )
+
+
+def _fetch_error_sse_payload(exc: BaseException, url: str | None = None) -> str:
+    from src.web.extraction_errors import classify_fetch_error
+
+    info = classify_fetch_error(exc, url=url)
+    return json.dumps({"fetch_error": info.to_dict()}, ensure_ascii=False)
+
+
+async def _resolve_score_content(
+    input_type: Optional[str],
+    text: Optional[str],
+    url: Optional[str],
+    title: Optional[str],
+):
+    """Resolve form input to Content; raises on missing input or fetch failure."""
+    from src.extractors.text import extract_from_text
+    from src.extractors.web import extract_from_url
+
+    if input_type == "url" and url:
+        return await extract_from_url(url)
+    if text:
+        if text.startswith(("http://", "https://")) and not url:
+            return await extract_from_url(text)
+        return extract_from_text(text, title=title)
+    raise ValueError("请输入文本或 URL")
+
+
+def _find_record(record_id: int) -> dict | None:
+    """Load a single score record by id."""
+    try:
+        records = query(filters=None, limit=1000)
+        return next((r for r in records if r.get("id") == record_id), None)
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -109,117 +185,105 @@ async def score_submit(
     Otherwise, redirect to the result detail page.
     """
     from src.core.scorer import score
-    from src.extractors.text import extract_from_text
-    from src.extractors.web import extract_from_url
     from src.storage.db import save
 
-    # Determine input
+    is_htmx = request.headers.get("HX-Request") == "true"
+    target_url = url or (
+        text if text and text.startswith(("http://", "https://")) else None
+    )
+
     try:
-        if input_type == "url" and url:
-            content = await extract_from_url(url)
-        elif text:
-            # If text looks like a URL, try extracting
-            if text.startswith(("http://", "https://")) and not url:
-                content = await extract_from_url(text)
-            else:
-                content = extract_from_text(text, title=title)
-        else:
-            # Return error
-            return HTMLResponse(
-                content='<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">请输入文本或 URL</div>',
+        content = await _resolve_score_content(input_type, text, url, title)
+    except ValueError as e:
+        if str(e) == "请输入文本或 URL":
+            empty_ctx = {
+                "fetch_error": {
+                    "title": "缺少输入",
+                    "reason": "请填写要评分的文本，或粘贴网页链接。",
+                    "hints": ("在「URL」标签页粘贴链接，或在「文本」标签页粘贴正文。",),
+                    "level": "error",
+                    "detail": None,
+                    "url": None,
+                    "code": "empty_input",
+                },
+                "show_technical_detail": False,
+            }
+            if is_htmx:
+                return templates.TemplateResponse(
+                    request,
+                    "partials/score_fetch_error.html",
+                    empty_ctx,
+                    status_code=422,
+                )
+            return templates.TemplateResponse(
+                request,
+                "score_fetch_error_page.html",
+                empty_ctx,
                 status_code=422,
             )
+        return _render_fetch_error_response(
+            request, e, target_url, is_htmx=is_htmx, status_code=422
+        )
+    except _FETCH_EXCEPTIONS as e:
+        return _render_fetch_error_response(
+            request, e, target_url, is_htmx=is_htmx, status_code=422
+        )
 
-        # Score the content (with adaptive weights from user feedback)
-        from src.core.adaptive_weights import get_adjusted_weights
+    try:
+        # Score with user-configured weights (+ optional feedback adjustments)
+        from src.web.scoring_prefs import build_web_scoring_config
 
-        adjusted_weights = get_adjusted_weights(user_id="anonymous")
-        # Build a ScoringConfig with adjusted weights if feedback has modified them
-        scoring_config = None
-        if adjusted_weights:
-            try:
-                from src.core.config import load_config as _load_scoring_cfg
-
-                base_cfg = _load_scoring_cfg()
-                # Only customize if adjustments differ from base
-                if adjusted_weights != base_cfg.weights:
-                    scoring_config = base_cfg.model_copy(deep=True)
-                    scoring_config.weights = adjusted_weights
-            except Exception:
-                pass
-
+        scoring_config = build_web_scoring_config()
         result = await score(content.text, config=scoring_config)
+
+        from src.core.scorer import attach_focus_guide
+
+        if not content.content_hash:
+            content.compute_hash()
+
+        if result.focus_guide is None:
+            attach_focus_guide(result, content.text)
+
+        record_id = None
+        content_hash = content.content_hash
 
         # Save to storage
         try:
+            from src.storage.db import query_by_content_hash
+
             save(result, content)
+            stored = query_by_content_hash(content.content_hash)
+            if stored:
+                record_id = stored.get("id")
         except Exception:
             pass
 
-        # Compute dual-score: rule_score vs llm_score (overall)
-        from src.core.rules import apply_rules
-        from src.core.scorer import _calculate_overall
-        from src.models.score import DimensionScores
+        from src.storage.db import prepare_content_for_storage
 
-        rule_result = apply_rules(content.text)
+        stored_content, content_truncated = prepare_content_for_storage(content.text)
 
-        # Build rule-only dimensions
-        rule_dims_dict: dict[str, float] = {}
-        for dim in ["originality", "info_density", "reasoning_quality", "readability", "timeliness"]:
-            rule_dims_dict[dim] = rule_result.dimension_overrides.get(dim, 50.0)
-        for dim in ["ai_generated_prob", "emotional_manipulation", "advertorial_prob", "scam_prob"]:
-            rule_dims_dict[dim] = rule_result.dimension_overrides.get(dim, 0.0)
+        from src.web.result_display import build_result_display_data
 
-        rule_dimensions = DimensionScores(**rule_dims_dict)
-        try:
-            from src.core.config import load_config as _load_cfg
-
-            _cfg = _load_cfg()
-        except Exception:
-            _cfg = None
-
-        if _cfg:
-            rule_only_score = _calculate_overall(rule_dimensions, _cfg)
-        else:
-            rule_only_score = 50.0
-
-        llm_score = result.overall_score
-        score_divergence = abs(rule_only_score - llm_score)
-        # Only show dual rings if rules actually fired (rule_score != default ~73)
-        rules_fired = bool(rule_result.matched_rules)
-        divergence_warning = score_divergence > 20 and rules_fired
-
-        # Generate focus guide if content is likely AI-generated or low quality
-        # Widen gate so the inner function's own guard handles "definitely good" case
-        focus_guide = None
-        if result.overall_score < 70 or result.dimensions.ai_generated_prob > 30:
-            from src.core.focus_guide import generate_focus_guide
-
-            guide = generate_focus_guide(content.text, result)
-            if guide:
-                focus_guide = guide.model_dump()
-
-        # Build result dict for template
-        result_data = {
-            "overall_score": result.overall_score,
-            "dimensions": result.dimensions.model_dump(),
-            "labels": result.labels,
-            "summary": result.summary,
-            "model_used": result.model_used,
-            "cost": result.cost,
-            "confidence": result.confidence,
-            "scored_at": result.scored_at.isoformat()[:19],
-            "title": content.title,
-            "source_url": content.source_url,
-            "focus_guide": focus_guide,
-            "rule_hits": result.rule_hits,
-            "dimension_sources": result.dimension_sources,
-            "rule_score": rule_only_score,
-            "llm_score": llm_score,
-            "score_divergence": score_divergence,
-            "divergence_warning": divergence_warning,
-            "rules_fired": rules_fired,
-        }
+        result_data = build_result_display_data(
+            overall_score=result.overall_score,
+            dimensions=result.dimensions.model_dump(),
+            labels=result.labels,
+            summary=result.summary,
+            model_used=result.model_used,
+            cost=result.cost,
+            confidence=result.confidence,
+            scored_at=result.scored_at.isoformat(),
+            title=content.title,
+            source_url=content.source_url,
+            focus_guide=result.focus_guide,
+            content_text=stored_content,
+            content_truncated=content_truncated,
+            rule_hits=result.rule_hits,
+            dimension_sources=result.dimension_sources,
+            rule_score=result.rule_score,
+            rules_fired=result.rules_fired,
+            content_genre=result.content_genre,
+        )
 
         # Source reputation warning
         source_warning = None
@@ -250,44 +314,57 @@ async def score_submit(
 
         result_data["source_warning"] = source_warning
 
-        # Check if HTMX request
-        is_htmx = request.headers.get("HX-Request") == "true"
+        template_ctx = {
+            "result": result_data,
+            "record_id": record_id,
+            "content_hash": content_hash,
+        }
+
         if is_htmx:
-            # Return inline result fragment
             return templates.TemplateResponse(
                 request,
-                "result.html",
-                {"result": result_data},
+                "partials/score_result_inline.html",
+                template_ctx,
             )
-        else:
-            # For non-HTMX, try to find the saved record ID and redirect
-            # Fall back to rendering result directly
-            return templates.TemplateResponse(
-                request,
-                "result.html",
-                {"result": result_data},
-            )
+        return templates.TemplateResponse(
+            request,
+            "result.html",
+            template_ctx,
+        )
 
     except Exception as e:
-        error_msg = str(e)
-        if "403" in error_msg or "auth login" in error_msg:
-            if "auth login" in error_msg:
-                error_html = f'<div class="bg-yellow-900 border border-yellow-700 rounded-lg p-4 text-yellow-300"><strong>需要登录</strong><br>{error_msg}<br><br>在终端运行上述命令登录后，刷新页面重试。</div>'
-            else:
-                error_html = '<div class="bg-yellow-900 border border-yellow-700 rounded-lg p-4 text-yellow-300"><strong>需要登录</strong><br>该网站拒绝了访问请求。请在终端登录对应平台后重试：<br><code>junk-detector auth login --platform zhihu</code></div>'
-        else:
-            error_html = f'<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">评分失败: {error_msg}</div>'
-        return HTMLResponse(content=error_html, status_code=500)
+        from src.web.extraction_errors import FetchErrorInfo
+
+        info = FetchErrorInfo(
+            title="评分失败",
+            reason="内容已获取，但 AI 分析过程出错。",
+            hints=(
+                "请稍后重试。",
+                "若多次失败，请在设置中检查模型与 API Key 是否有效。",
+            ),
+            detail=str(e),
+            code="scoring",
+        )
+        ctx = {"fetch_error": info.to_dict(), "show_technical_detail": False}
+        if is_htmx:
+            return templates.TemplateResponse(
+                request,
+                "partials/score_fetch_error.html",
+                ctx,
+                status_code=500,
+            )
+        return templates.TemplateResponse(
+            request,
+            "score_fetch_error_page.html",
+            ctx,
+            status_code=500,
+        )
 
 
 @router.get("/result/{record_id}", response_class=HTMLResponse)
 async def result_detail(request: Request, record_id: int):
     """Show detailed scoring result for a specific record."""
-    try:
-        records = query(filters=None, limit=1000)
-        record = next((r for r in records if r.get("id") == record_id), None)
-    except Exception:
-        record = None
+    record = _find_record(record_id)
 
     if not record:
         return HTMLResponse(
@@ -295,24 +372,41 @@ async def result_detail(request: Request, record_id: int):
             status_code=404,
         )
 
-    # Build result_data from db record
-    result_data = {
-        "overall_score": record["overall_score"],
-        "dimensions": record.get("dimensions", {}),
-        "labels": record.get("labels", []),
-        "summary": record.get("summary", ""),
-        "model_used": record.get("model_used", ""),
-        "cost": record.get("cost", 0),
-        "confidence": record.get("confidence", 1.0),
-        "scored_at": record.get("scored_at", "")[:19],
-        "title": record.get("title"),
-        "source_url": record.get("source_url"),
-    }
+    from src.web.result_display import build_result_display_data_from_record
+
+    result_data = build_result_display_data_from_record(record)
 
     return templates.TemplateResponse(
         request,
         "result.html",
-        {"result": result_data},
+        {
+            "result": result_data,
+            "record_id": record_id,
+            "content_hash": record.get("content_hash"),
+        },
+    )
+
+
+@router.get("/result/{record_id}/fragment", response_class=HTMLResponse)
+async def result_fragment(request: Request, record_id: int):
+    """Inline result HTML fragment for score-form streaming completion."""
+    record = _find_record(record_id)
+
+    if not record:
+        return HTMLResponse(content="<div class=\"text-red-300\">记录未找到</div>", status_code=404)
+
+    from src.web.result_display import build_result_display_data_from_record
+
+    result_data = build_result_display_data_from_record(record)
+
+    return templates.TemplateResponse(
+        request,
+        "result_fragment.html",
+        {
+            "result": result_data,
+            "record_id": record_id,
+            "content_hash": record.get("content_hash"),
+        },
     )
 
 
@@ -334,59 +428,40 @@ async def score_stream(
 
     from src.core.rules import apply_rules
     from src.core.scorer import _calculate_overall, score
-    from src.extractors.text import extract_from_text
-    from src.extractors.web import extract_from_url
     from src.models.score import DimensionScores
 
     _sse_logger = logging.getLogger(__name__)
 
     async def event_generator():
         try:
-            # Determine input
-            if input_type == "url" and url:
-                try:
-                    content = await extract_from_url(url)
-                except (ValueError, TimeoutError) as e:
-                    error_msg = str(e)
-                    if "403" in error_msg:
-                        if "auth login" in error_msg:
-                            error_msg = str(e)
-                        else:
-                            error_msg = f"该网站拒绝了访问请求（HTTP 403）。请在终端运行登录命令后重试。URL: {url}"
-                    elif "404" in error_msg:
-                        error_msg = f"页面不存在（HTTP 404）。请检查链接是否正确。URL: {url}"
-                    elif "timed out" in error_msg.lower():
-                        error_msg = f"请求超时。该网站响应太慢或无法访问。URL: {url}"
-                    else:
-                        error_msg = f"无法获取页面内容：{error_msg}"
-                    error_data = json.dumps({"error": error_msg}, ensure_ascii=False)
-                    yield f"event: error\ndata: {error_data}\n\n"
-                    return
-            elif text:
-                if text.startswith(("http://", "https://")) and not url:
-                    try:
-                        content = await extract_from_url(text)
-                    except (ValueError, TimeoutError) as e:
-                        error_msg = str(e)
-                        if "403" in error_msg:
-                            if "auth login" in error_msg:
-                                error_msg = str(e)
-                            else:
-                                error_msg = f"该网站拒绝了访问请求（HTTP 403）。请在终端运行登录命令后重试。URL: {text}"
-                        elif "404" in error_msg:
-                            error_msg = f"页面不存在（HTTP 404）。请检查链接是否正确。URL: {text}"
-                        elif "timed out" in error_msg.lower():
-                            error_msg = f"请求超时。该网站响应太慢或无法访问。URL: {text}"
-                        else:
-                            error_msg = f"无法获取页面内容：{error_msg}"
-                        error_data = json.dumps({"error": error_msg}, ensure_ascii=False)
-                        yield f"event: error\ndata: {error_data}\n\n"
-                        return
+            target_url = url or (
+                text if text and text.startswith(("http://", "https://")) else None
+            )
+            try:
+                content = await _resolve_score_content(input_type, text, url, title)
+            except ValueError as e:
+                if str(e) == "请输入文本或 URL":
+                    payload = json.dumps(
+                        {
+                            "fetch_error": {
+                                "title": "缺少输入",
+                                "reason": "请填写要评分的文本，或粘贴网页链接。",
+                                "hints": [
+                                    "在「URL」标签页粘贴链接，或在「文本」标签页粘贴正文。",
+                                ],
+                                "level": "error",
+                                "code": "empty_input",
+                            }
+                        },
+                        ensure_ascii=False,
+                    )
                 else:
-                    content = extract_from_text(text, title=title)
-            else:
-                error_data = json.dumps({"error": "请输入文本或 URL"}, ensure_ascii=False)
-                yield f"event: error\ndata: {error_data}\n\n"
+                    payload = _fetch_error_sse_payload(e, target_url)
+                yield f"event: error\ndata: {payload}\n\n"
+                return
+            except _FETCH_EXCEPTIONS as e:
+                payload = _fetch_error_sse_payload(e, target_url)
+                yield f"event: error\ndata: {payload}\n\n"
                 return
 
             # Step 1: immediate rule-engine results
@@ -424,18 +499,48 @@ async def score_stream(
             yield f"event: rules_result\ndata: {json.dumps(rules_data, ensure_ascii=False)}\n\n"
 
             # Step 2: full LLM scoring (with timeout to prevent indefinite blocking)
+            from src.web.scoring_prefs import build_web_scoring_config
+
+            scoring_config = build_web_scoring_config()
             try:
-                result = await asyncio.wait_for(score(content.text), timeout=60.0)
+                result = await asyncio.wait_for(
+                    score(content.text, config=scoring_config),
+                    timeout=60.0,
+                )
             except asyncio.TimeoutError:
                 _sse_logger.error("LLM scoring timed out after 60s")
-                error_data = json.dumps({"error": "LLM 分析超时，请稍后重试"}, ensure_ascii=False)
-                yield f"event: error\ndata: {error_data}\n\n"
+                payload = json.dumps(
+                    {
+                        "fetch_error": {
+                            "title": "分析超时",
+                            "reason": "AI 评分用时过长，请稍后重试。",
+                            "hints": ("可尝试缩短正文，或更换响应更快的模型。",),
+                            "level": "error",
+                            "code": "llm_timeout",
+                        }
+                    },
+                    ensure_ascii=False,
+                )
+                yield f"event: error\ndata: {payload}\n\n"
                 return
+
+            record_id = None
+            if not content.content_hash:
+                content.compute_hash()
+
+            from src.core.scorer import attach_focus_guide
+
+            if result.focus_guide is None:
+                attach_focus_guide(result, content.text)
 
             # Save to storage
             try:
-                from src.storage.db import save
+                from src.storage.db import query_by_content_hash, save
+
                 save(result, content)
+                stored = query_by_content_hash(content.content_hash)
+                if stored:
+                    record_id = stored.get("id")
             except Exception:
                 pass
 
@@ -451,13 +556,25 @@ async def score_stream(
                 "scored_at": result.scored_at.isoformat()[:19],
                 "title": content.title,
                 "source_url": content.source_url,
+                "record_id": record_id,
             }
             yield f"event: final_result\ndata: {json.dumps(final_data, ensure_ascii=False)}\n\n"
 
         except Exception:
             _sse_logger.exception("SSE score-stream error")
-            error_data = json.dumps({"error": "评分过程出错，请稍后重试"}, ensure_ascii=False)
-            yield f"event: error\ndata: {error_data}\n\n"
+            payload = json.dumps(
+                {
+                    "fetch_error": {
+                        "title": "评分失败",
+                        "reason": "处理过程中出现意外错误，请稍后重试。",
+                        "hints": ("若链接解析正常，请检查设置中的模型配置。",),
+                        "level": "error",
+                        "code": "internal",
+                    }
+                },
+                ensure_ascii=False,
+            )
+            yield f"event: error\ndata: {payload}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -574,18 +691,208 @@ async def monitor_status(request: Request):
 
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
-    """Settings page with model config, scoring preferences, and theme."""
-    api_key_configured = bool(os.environ.get("DEEPSEEK_API_KEY"))
-    try:
-        model_cfg = get_model_config()
-        model_name = model_cfg.get("primary", "deepseek/deepseek-chat")
-    except Exception:
-        model_name = "deepseek/deepseek-chat"
+    """Settings: model API, platform cookies, appearance."""
+    import json
+
+    from src.core.model_presets import list_providers
+    from src.core.user_settings import get_llm_settings_display
+    from src.crawler_auth import list_all_platform_statuses
+    from src.web.scoring_prefs import get_scoring_weight_dims
+
+    llm = get_llm_settings_display()
+    providers = list_providers()
+    scoring_weight_dims = get_scoring_weight_dims()
     return templates.TemplateResponse(
         request,
         "settings.html",
-        {"api_key_configured": api_key_configured, "model_name": model_name},
+        {
+            "llm": llm,
+            "llm_providers": providers,
+            "llm_providers_json": json.dumps(providers, ensure_ascii=False),
+            "platforms": list_all_platform_statuses(),
+            "scoring_weight_dims": scoring_weight_dims,
+            "weights_message": None,
+        },
     )
+
+
+@router.get("/cookies", response_class=HTMLResponse)
+async def cookies_page_redirect():
+    """Legacy route — cookies live under Settings."""
+    return RedirectResponse(url="/settings#cookies", status_code=302)
+
+
+@router.post("/api/settings/model", response_class=HTMLResponse)
+async def api_settings_model(
+    request: Request,
+    provider: str = Form(...),
+    model: str = Form(default=""),
+    model_custom: str = Form(default=""),
+    api_base: str = Form(default=""),
+    api_key: str = Form(default=""),
+):
+    """Save LLM provider / model / base URL / API key."""
+    from src.core.model_presets import LLM_PROVIDERS, get_provider
+    from src.core.user_settings import get_llm_settings_display, save_llm_settings
+
+    provider = provider.strip()
+    if provider not in LLM_PROVIDERS:
+        return HTMLResponse("Unknown provider", status_code=400)
+
+    chosen_model = (model_custom if provider == "custom" else model).strip()
+    if not chosen_model:
+        chosen_model = get_provider(provider).get("default_model", "")
+
+    save_llm_settings(
+        provider=provider,
+        model=chosen_model,
+        api_base=api_base,
+        api_key=api_key or None,
+    )
+    llm = get_llm_settings_display()
+    response = templates.TemplateResponse(
+        request,
+        "partials/model_settings_status.html",
+        {"llm": llm},
+    )
+    response.headers["HX-Trigger"] = json.dumps(
+        {"showToast": {"message": "Model settings saved", "type": "success"}}
+    )
+    return response
+
+
+def _render_scoring_weights_panel(request: Request, *, message: str | None = None):
+    from src.web.scoring_prefs import get_scoring_weight_dims
+
+    return templates.TemplateResponse(
+        request,
+        "partials/scoring_weights_form.html",
+        {
+            "scoring_weight_dims": get_scoring_weight_dims(),
+            "weights_message": message,
+        },
+    )
+
+
+@router.post("/api/settings/weights", response_class=HTMLResponse)
+async def api_settings_weights(request: Request):
+    """Save scoring dimension weights from settings sliders."""
+    from src.web.scoring_prefs import parse_weight_form, save_scoring_weights
+
+    form = await request.form()
+    weights = parse_weight_form({k: str(v) for k, v in form.items()})
+    if not weights:
+        return HTMLResponse("No weights provided", status_code=400)
+    save_scoring_weights(weights)
+    response = _render_scoring_weights_panel(request, message="权重已保存，后续评分将使用新配置。")
+    response.headers["HX-Trigger"] = json.dumps(
+        {"showToast": {"message": "Scoring weights saved", "type": "success"}}
+    )
+    return response
+
+
+@router.post("/api/settings/weights/reset", response_class=HTMLResponse)
+async def api_settings_weights_reset(request: Request):
+    """Reset scoring weights to config.yaml defaults."""
+    from src.web.scoring_prefs import reset_scoring_weights
+
+    reset_scoring_weights()
+    response = _render_scoring_weights_panel(request, message="已恢复为 config.yaml 默认权重。")
+    response.headers["HX-Trigger"] = json.dumps(
+        {"showToast": {"message": "Weights reset to defaults", "type": "info"}}
+    )
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Cookie management API (Web UI + programmatic)
+# ---------------------------------------------------------------------------
+
+
+def _cookie_platforms_context():
+    from src.crawler_auth import list_all_platform_statuses
+
+    return {"platforms": list_all_platform_statuses()}
+
+
+def _single_platform_card(request: Request, platform_id: str):
+    from src.crawler_auth import describe_platform
+    from src.crawler_auth.cookie_store import CookieStore
+
+    return templates.TemplateResponse(
+        request,
+        "partials/cookie_platforms.html",
+        {"platforms": [describe_platform(CookieStore(), platform_id)]},
+    )
+
+
+@router.get("/api/cookies", response_class=JSONResponse)
+async def api_cookies_list():
+    """List cookie status for all registered platforms."""
+    from src.crawler_auth import list_all_platform_statuses
+
+    return JSONResponse(content=list_all_platform_statuses())
+
+
+@router.post("/api/cookies/{platform_id}/import", response_class=HTMLResponse)
+async def api_cookies_import(
+    request: Request,
+    platform_id: str,
+    cookie_raw: str = Form(...),
+    replace: Optional[str] = Form(default=None),
+):
+    """Import cookies for a platform from pasted text."""
+    from src.crawler_auth import import_cookies
+
+    try:
+        result = import_cookies(
+            platform_id,
+            cookie_raw,
+            merge=replace != "true",
+        )
+    except ValueError as exc:
+        return HTMLResponse(
+            content=(
+                f'<div class="bg-red-900/50 border border-red-700 rounded-lg p-3 text-red-300 text-sm">'
+                f"{exc}</div>"
+            ),
+            status_code=400,
+        )
+
+    keys = ", ".join(result["imported_keys"])
+    response = _single_platform_card(request, platform_id)
+    response.headers["HX-Trigger"] = json.dumps(
+        {
+            "showToast": {
+                "message": f"Imported {len(result['imported_keys'])} keys: {keys}",
+                "type": "success",
+            }
+        }
+    )
+    return response
+
+
+@router.post("/api/cookies/{platform_id}/clear", response_class=HTMLResponse)
+async def api_cookies_clear(request: Request, platform_id: str):
+    """Clear stored cookies for a platform."""
+    from src.crawler_auth import clear_platform_cookies
+
+    try:
+        clear_platform_cookies(platform_id)
+    except ValueError as exc:
+        return HTMLResponse(
+            content=(
+                f'<div class="bg-red-900/50 border border-red-700 rounded-lg p-3 text-red-300 text-sm">'
+                f"{exc}</div>"
+            ),
+            status_code=400,
+        )
+
+    response = _single_platform_card(request, platform_id)
+    response.headers["HX-Trigger"] = json.dumps(
+        {"showToast": {"message": "Cookies cleared", "type": "info"}}
+    )
+    return response
 
 
 # ---------------------------------------------------------------------------

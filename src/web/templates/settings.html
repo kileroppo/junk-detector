@@ -1,119 +1,264 @@
 {% extends "base.html" %}
 
 {% block title %}设置 - Junk Detector{% endblock %}
-{% block nav_settings %}text-indigo-400 bg-navy-700{% endblock %}
+{% block nav_settings %}text-indigo-400{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto space-y-6">
-    <h1 class="text-2xl font-bold">设置</h1>
+<div class="max-w-5xl mx-auto">
+    <header class="page-header">
+        <h1 class="page-title">设置</h1>
+        <p class="page-subtitle">模型、Cookie 与评分偏好。</p>
+    </header>
 
-    <!-- Model Configuration -->
-    <div class="bg-white dark:bg-surface rounded-xl p-6 border border-gray-200 dark:border-navy-700">
-        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-            模型配置
-        </h2>
-        <div class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">当前模型</label>
-                <p class="text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-navy-900 rounded-lg px-4 py-2.5 border border-gray-200 dark:border-navy-700">{{ model_name }}</p>
-            </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">API Key 状态</label>
-                {% if api_key_configured %}
-                <p class="text-sm text-emerald-600 dark:text-emerald-400 bg-gray-50 dark:bg-navy-900 rounded-lg px-4 py-2.5 border border-gray-200 dark:border-navy-700 inline-flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    已配置
-                </p>
-                {% else %}
-                <p class="text-sm text-red-600 dark:text-red-400 bg-gray-50 dark:bg-navy-900 rounded-lg px-4 py-2.5 border border-gray-200 dark:border-navy-700 inline-flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    未配置
-                </p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+    <div class="flex flex-col lg:flex-row gap-6 lg:gap-8">
+        <!-- Sidebar -->
+        <aside class="lg:w-52 shrink-0">
+            <nav class="settings-nav lg:sticky lg:top-24 flex lg:flex-col gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1 lg:mx-0 lg:px-0"
+                 aria-label="设置分类">
+                <button type="button" data-settings-nav="model" data-settings-hash="#model"
+                        class="settings-nav-item settings-nav-active">
+                    <span class="settings-nav-label">模型配置</span>
+                    <span class="settings-nav-desc hidden lg:block">API 与模型</span>
+                </button>
+                <button type="button" data-settings-nav="cookies" data-settings-hash="#cookies"
+                        class="settings-nav-item">
+                    <span class="settings-nav-label">平台 Cookie</span>
+                    <span class="settings-nav-desc hidden lg:block">登录态导入</span>
+                </button>
+                <button type="button" data-settings-nav="weights" data-settings-hash="#weights"
+                        class="settings-nav-item">
+                    <span class="settings-nav-label">评分权重</span>
+                    <span class="settings-nav-desc hidden lg:block">9 维度调节</span>
+                </button>
+                <button type="button" data-settings-nav="about" data-settings-hash="#about"
+                        class="settings-nav-item">
+                    <span class="settings-nav-label">关于</span>
+                    <span class="settings-nav-desc hidden lg:block">版本信息</span>
+                </button>
+            </nav>
+        </aside>
 
-    <!-- Scoring Preferences -->
-    <div class="bg-white dark:bg-surface rounded-xl p-6 border border-gray-200 dark:border-navy-700">
-        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-            评分权重
-        </h2>
-        <div class="space-y-4">
-            {% for dim_name, dim_label in [('originality', '原创性'), ('info_density', '信息密度'), ('reasoning_quality', '论证质量'), ('readability', '可读性'), ('timeliness', '时效性')] %}
-            <div>
-                <div class="flex justify-between mb-1">
-                    <label class="text-sm text-gray-600 dark:text-gray-300">{{ dim_label }}</label>
-                    <span class="text-xs text-gray-500">1.0x</span>
+        <!-- Panels -->
+        <div class="flex-1 min-w-0 space-y-0">
+            <!-- Model -->
+            <section id="settings-panel-model" data-settings-panel class="settings-panel">
+                <div class="bg-surface rounded-xl p-6 border border-navy-700">
+                    <header class="mb-5">
+                        <h2 class="text-lg font-semibold text-gray-100">模型配置</h2>
+                        <p class="text-xs text-gray-500 mt-1">选择提供商、模型、Base URL 与 API Key。支持常用大模型及 OpenAI 兼容中转。</p>
+                    </header>
+
+                    <div id="model-save-status">
+                        {% include "partials/model_settings_status.html" %}
+                    </div>
+
+                    <form id="model-settings-form"
+                          hx-post="/api/settings/model"
+                          hx-target="#model-save-status"
+                          hx-swap="innerHTML"
+                          class="space-y-4 mt-4">
+                        <div class="grid sm:grid-cols-2 gap-4">
+                            <div>
+                                <label for="provider" class="block text-sm font-medium text-gray-300 mb-1">提供商</label>
+                                <select id="provider" name="provider" required class="theme-input">
+                                    {% for p in llm_providers %}
+                                    <option value="{{ p.id }}" {% if llm.provider == p.id %}selected{% endif %}>{{ p.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="model" class="block text-sm font-medium text-gray-300 mb-1">模型</label>
+                                <select id="model-select" name="model" class="theme-input"></select>
+                                <input id="model-custom" name="model_custom" type="text" placeholder="自定义模型 ID，如 gpt-4o-mini"
+                                       value="{% if llm.provider == 'custom' %}{{ llm.model }}{% endif %}"
+                                       class="hidden w-full mt-2 theme-input font-mono">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="api_base" class="block text-sm font-medium text-gray-300 mb-1">API Base URL</label>
+                            <input id="api_base" name="api_base" type="url" value="{{ llm.api_base }}"
+                                   placeholder="https://api.deepseek.com"
+                                   class="theme-input font-mono">
+                            <p id="provider-hint" class="text-xs text-gray-500 mt-1"></p>
+                        </div>
+                        <div>
+                            <label for="api_key" class="block text-sm font-medium text-gray-300 mb-1">API Key</label>
+                            <input id="api_key" name="api_key" type="password" autocomplete="off"
+                                   placeholder="{% if llm.api_key_masked %}已保存 {{ llm.api_key_masked }}，留空则不修改{% else %}输入 API Key{% endif %}"
+                                   class="theme-input font-mono">
+                            {% if llm.provider == 'ollama' %}
+                            <p class="text-xs text-gray-500 mt-1">Ollama 本地运行无需 API Key</p>
+                            {% endif %}
+                        </div>
+                        <div class="flex justify-end pt-1">
+                            <button type="submit"
+                                    class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">
+                                保存模型配置
+                            </button>
+                        </div>
+                    </form>
                 </div>
-                <input type="range" min="0" max="200" value="100"
-                       class="w-full accent-indigo-500" disabled>
-            </div>
-            {% endfor %}
-        </div>
-        <p class="text-xs text-gray-500 mt-4">权重调整功能即将推出</p>
-    </div>
+            </section>
 
-    <!-- Theme Toggle -->
-    <div class="bg-white dark:bg-surface rounded-xl p-6 border border-gray-200 dark:border-navy-700">
-        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-            外观
-        </h2>
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-sm text-gray-700 dark:text-gray-300">深色模式</p>
-                <p id="theme-toggle-desc" class="text-xs text-gray-500">当前为深色主题</p>
-            </div>
-            <button id="theme-toggle-btn" class="w-12 h-6 rounded-full bg-indigo-600 relative cursor-pointer transition-colors" onclick="toggleTheme()">
-                <span id="theme-toggle-knob" class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform translate-x-6"></span>
-            </button>
-        </div>
-    </div>
-    <script>
-        // Initialize toggle button state on page load
-        (function() {
-            var theme = localStorage.getItem('theme') || 'dark';
-            var knob = document.getElementById('theme-toggle-knob');
-            var desc = document.getElementById('theme-toggle-desc');
-            var btn = document.getElementById('theme-toggle-btn');
-            if (theme === 'dark') {
-                knob.classList.add('translate-x-6');
-                knob.classList.remove('translate-x-0');
-                btn.classList.add('bg-indigo-600');
-                btn.classList.remove('bg-gray-300');
-            } else {
-                knob.classList.add('translate-x-0');
-                knob.classList.remove('translate-x-6');
-                btn.classList.add('bg-gray-300');
-                btn.classList.remove('bg-indigo-600');
-                desc.textContent = '\u5F53\u524D\u4E3A\u6D45\u8272\u4E3B\u9898';
-            }
-        })();
-    </script>
+            <!-- Cookies -->
+            <section id="settings-panel-cookies" data-settings-panel class="settings-panel hidden">
+                <div class="bg-surface rounded-xl border border-navy-700 overflow-hidden">
+                    <header class="p-6 pb-4 border-b border-navy-700/80">
+                        <h2 class="text-lg font-semibold text-gray-100">平台 Cookie</h2>
+                        <p class="text-xs text-gray-500 mt-1">
+                            浏览器登录后复制 Cookie 粘贴保存。新平台在
+                            <code class="theme-code">platform_meta.py</code>
+                            注册即可。
+                        </p>
+                    </header>
 
-    <!-- About -->
-    <div class="bg-white dark:bg-surface rounded-xl p-6 border border-gray-200 dark:border-navy-700">
-        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-            <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            关于
-        </h2>
-        <div class="space-y-2 text-sm">
-            <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">版本</span>
-                <span class="text-gray-700 dark:text-gray-300">0.1.0</span>
-            </div>
-            <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">评分维度</span>
-                <span class="text-gray-700 dark:text-gray-300">9 维度</span>
-            </div>
-            <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">支持语言</span>
-                <span class="text-gray-700 dark:text-gray-300">中文 / English</span>
-            </div>
+                    <details class="group border-b border-navy-700/80">
+                        <summary class="px-6 py-3 cursor-pointer text-sm text-indigo-600 dark:text-indigo-300 hover:bg-gray-100 dark:hover:bg-navy-900/40 transition-colors list-none flex items-center justify-between">
+                            <span>导入说明</span>
+                            <span class="text-gray-500 group-open:rotate-180 transition-transform">▾</span>
+                        </summary>
+                        <div class="px-6 pb-4 text-xs text-gray-400 space-y-1">
+                            <p>1. 打开平台参考页并登录（知乎搜索页 / 微博 H5 等）</p>
+                            <p>2. DevTools → Network → 复制 <code class="theme-code">Cookie</code></p>
+                            <p>3. 展开对应平台卡片，粘贴保存</p>
+                        </div>
+                    </details>
+
+                    <div id="cookie-platform-list" class="p-4 sm:p-6 space-y-3">
+                        {% include "partials/cookie_platforms.html" %}
+                    </div>
+                </div>
+            </section>
+
+            <!-- Scoring Weights -->
+            <section id="settings-panel-weights" data-settings-panel class="settings-panel hidden">
+                <div class="bg-surface rounded-xl p-6 border border-navy-700">
+                    <header class="mb-4">
+                        <h2 class="text-lg font-semibold text-gray-100">评分权重</h2>
+                        <p class="text-xs text-gray-500 mt-1">调整各维度在综合分中的权重，保存后对 Web 评分立即生效。</p>
+                    </header>
+                    <div id="scoring-weights-panel">
+                        {% include "partials/scoring_weights_form.html" %}
+                    </div>
+                </div>
+            </section>
+
+            <!-- About -->
+            <section id="settings-panel-about" data-settings-panel class="settings-panel hidden">
+                <div class="bg-surface rounded-xl p-6 border border-navy-700">
+                    <header class="mb-4">
+                        <h2 class="text-lg font-semibold text-gray-100">关于</h2>
+                    </header>
+                    <dl class="space-y-3 text-sm">
+                        <div class="flex justify-between py-2 border-b border-navy-700/60">
+                            <dt class="text-gray-500">版本</dt>
+                            <dd class="text-gray-300">0.1.0</dd>
+                        </div>
+                        <div class="flex justify-between py-2">
+                            <dt class="text-gray-500">评分维度</dt>
+                            <dd class="text-gray-300">9 维度</dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
         </div>
     </div>
 </div>
+
+<script id="llm-providers-data" type="application/json">{{ llm_providers_json | safe }}</script>
+<script>
+(function() {
+    var VALID_PANELS = ['model', 'cookies', 'weights', 'about'];
+
+    function panelFromHash() {
+        var hash = (location.hash || '#model').replace('#', '');
+        return VALID_PANELS.indexOf(hash) >= 0 ? hash : 'model';
+    }
+
+    window.showSettingsPanel = function(id) {
+        if (VALID_PANELS.indexOf(id) < 0) id = 'model';
+        document.querySelectorAll('[data-settings-panel]').forEach(function(panel) {
+            panel.classList.add('hidden');
+        });
+        var active = document.getElementById('settings-panel-' + id);
+        if (active) active.classList.remove('hidden');
+        document.querySelectorAll('[data-settings-nav]').forEach(function(btn) {
+            btn.classList.toggle('settings-nav-active', btn.getAttribute('data-settings-nav') === id);
+        });
+        if (location.hash !== '#' + id) {
+            history.replaceState(null, '', '/settings#' + id);
+        }
+    };
+
+    document.querySelectorAll('[data-settings-nav]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            showSettingsPanel(btn.getAttribute('data-settings-nav'));
+        });
+    });
+
+    window.addEventListener('hashchange', function() {
+        showSettingsPanel(panelFromHash());
+    });
+
+    showSettingsPanel(panelFromHash());
+
+    var providers = JSON.parse(document.getElementById('llm-providers-data').textContent);
+    var currentProvider = {{ llm.provider | tojson }};
+    var currentModel = {{ llm.model | tojson }};
+
+    var providerEl = document.getElementById('provider');
+    var modelSelect = document.getElementById('model-select');
+    var modelCustom = document.getElementById('model-custom');
+    var apiBaseEl = document.getElementById('api_base');
+    var hintEl = document.getElementById('provider-hint');
+
+    function findProvider(id) {
+        return providers.find(function(p) { return p.id === id; }) || providers[0];
+    }
+
+    function syncModelField() {
+        var isCustom = providerEl.value === 'custom';
+        modelSelect.classList.toggle('hidden', isCustom);
+        modelCustom.classList.toggle('hidden', !isCustom);
+        if (isCustom) {
+            modelSelect.removeAttribute('name');
+            modelCustom.setAttribute('name', 'model');
+        } else {
+            modelSelect.setAttribute('name', 'model');
+            modelCustom.removeAttribute('name');
+        }
+    }
+
+    function fillModels() {
+        var p = findProvider(providerEl.value);
+        modelSelect.innerHTML = '';
+        (p.models || []).forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.label;
+            if (m.id === currentModel) opt.selected = true;
+            modelSelect.appendChild(opt);
+        });
+        hintEl.textContent = p.hint || '默认 Base URL 可按需修改（中转/私有部署）';
+        syncModelField();
+    }
+
+    providerEl.addEventListener('change', function() {
+        var p = findProvider(providerEl.value);
+        if (!apiBaseEl.value || apiBaseEl.dataset.auto === '1') {
+            apiBaseEl.value = p.default_base || '';
+            apiBaseEl.dataset.auto = '1';
+        }
+        currentModel = p.default_model;
+        fillModels();
+    });
+
+    apiBaseEl.addEventListener('input', function() {
+        apiBaseEl.dataset.auto = '0';
+    });
+
+    fillModels();
+    syncModelField();
+})();
+</script>
 {% endblock %}

@@ -38,6 +38,7 @@ class ZhihuAuth:
             cookie_domains=self.cookie_domains,
             headless=headless,
             wait_for_login_indicator=".AppHeader-profileAvatar, .TopstoryPage",
+            post_login_urls=["https://www.zhihu.com/search?type=content&q=test"],
         )
 
     async def validate_cookies(self, cookies: dict[str, str]) -> bool:

@@ -1,0 +1,11 @@
+{% if result.reading_verdict %}
+<div class="reading-verdict-fallback focus-verdict focus-verdict--{{ result.reading_verdict.recommendation | default('skim') }}">
+    <p class="focus-verdict-label">阅读结论</p>
+    {% if result.reading_verdict.headline %}
+    <h2 class="focus-verdict-headline">{{ result.reading_verdict.headline }}</h2>
+    {% endif %}
+    {% if result.reading_verdict.detail %}
+    <p class="focus-verdict-detail">{{ result.reading_verdict.detail }}</p>
+    {% endif %}
+</div>
+{% endif %}

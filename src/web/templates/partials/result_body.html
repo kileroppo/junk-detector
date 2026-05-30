@@ -1,0 +1,81 @@
+    <!-- Source Warning Banner -->
+    {% if result.source_warning %}
+    <div class="rounded-xl p-4 border flex items-center gap-3
+                {% if result.source_warning.level == 'blacklisted' %}bg-red-900/30 border-red-700 text-red-300
+                {% else %}bg-amber-900/30 border-amber-700 text-amber-300{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+        <span class="text-sm font-medium">{{ result.source_warning.message }}</span>
+    </div>
+    {% endif %}
+
+    {% if result.sticky_bar %}
+    {% include "partials/result_sticky_bar.html" %}
+    {% endif %}
+
+    <!-- Simple Mode View (shown only when body.simple-mode) -->
+    <div class="simple-only" style="display:none">
+        {% include "partials/result_simple.html" %}
+    </div>
+
+    <!-- 1. Primary verdict (action + short reason + compact score) -->
+    <div class="result-section-verdict simple-hidden">
+        {% include "partials/verdict_hero.html" %}
+    </div>
+
+    <!-- 2. Title (when no title in hero context) + optional focus guide details -->
+    <div class="result-section-primary simple-hidden">
+        {% if result.title and not result.focus_guide %}
+        <div class="result-hero-title-block mb-4 text-center">
+            <h1 class="text-xl font-semibold text-gray-200">{{ result.title }}</h1>
+        </div>
+        {% endif %}
+        {% if result.focus_guide %}
+        {% include "partials/focus_guide.html" %}
+        {% endif %}
+    </div>
+
+    <!-- 3. Nine dimensions — collapsed by default -->
+    <div class="result-section-secondary simple-hidden">
+        {% include "partials/dimension_breakdown.html" %}
+    </div>
+
+    <!-- 4. Technical judgment (collapsed) -->
+    <div class="result-section-secondary simple-hidden">
+        {% include "partials/judgment_basis.html" %}
+    </div>
+
+    <!-- 5. Metadata (collapsed, dev-oriented) -->
+    <details class="result-section-secondary bg-surface rounded-xl border border-navy-700 overflow-hidden detail-section simple-hidden">
+        <summary class="px-6 py-4 cursor-pointer text-base font-semibold hover:bg-surface-raised transition-colors flex items-center gap-2 text-gray-300">
+            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            元数据
+        </summary>
+        <div class="px-6 pb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <p class="text-xs text-gray-500 uppercase">模型</p>
+                    <p class="text-sm font-medium mt-0.5">{{ result.model_used or '未知' }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 uppercase">成本</p>
+                    <p class="text-sm font-medium mt-0.5">${{ "%.4f"|format(result.cost or 0) }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500 uppercase">评分时间</p>
+                    <p class="text-sm font-medium mt-0.5">{{ result.scored_at }}</p>
+                </div>
+            </div>
+            {% if result.source_url %}
+            <div class="mt-4 pt-4 border-t border-navy-700">
+                <p class="text-xs text-gray-500 uppercase">来源 URL</p>
+                <a href="{{ result.source_url }}" target="_blank" rel="noopener noreferrer" class="text-sm text-indigo-400 hover:underline break-all">
+                    {{ result.source_url }}
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </details>

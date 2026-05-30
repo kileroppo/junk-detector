@@ -71,6 +71,8 @@ class TestDualScoreDisplay:
                 cost=0.001,
                 rule_hits=["scam_keywords", "emotional_anxiety_phrases"],
                 dimension_sources={"scam_prob": "rule", "emotional_manipulation": "rule"},
+                rule_score=18.0,
+                rules_fired=True,
             )
             mock_score.return_value = mock_result
 
@@ -82,9 +84,9 @@ class TestDualScoreDisplay:
 
             assert response.status_code == 200
             html = response.text
-            # Dual score rings should be present
-            assert "规则引擎" in html
-            assert "综合评分" in html
+            assert "规则预检" in html
+            assert "score-ring-wrap" in html
+            assert "25" in html or "18" in html
 
     def test_divergence_warning_present(self, web_client, sample_junk_text):
         """When rule_score and llm_score differ by >20, show divergence warning."""
@@ -112,6 +114,8 @@ class TestDualScoreDisplay:
                 cost=0.001,
                 rule_hits=["scam_keywords"],
                 dimension_sources={},
+                rule_score=30.0,
+                rules_fired=True,
             )
             mock_score.return_value = mock_result
 
@@ -123,7 +127,8 @@ class TestDualScoreDisplay:
 
             assert response.status_code == 200
             html = response.text
-            assert "规则与AI评分差异较大" in html
+            assert "差异较大" in html
+            assert "建议人工确认" in html
 
     def test_no_divergence_warning_close_scores(self, web_client, sample_good_text):
         """When scores are close (no rules fire), no divergence warning shown."""
@@ -204,17 +209,13 @@ class TestEvidenceChain:
 
             assert response.status_code == 200
             html = response.text
-            # Evidence chain section title
             assert "判定依据" in html
-            # Triggered rules section
-            assert "触发规则" in html
+            assert "命中信号" in html
+            assert "骗局关键词" in html
             assert "scam_keywords" in html
-            # Keyword matches section
-            assert "关键词匹配" in html
-            # LLM assessment
-            assert "AI评估摘要" in html
-            # Confidence factors
-            assert "置信度因子" in html
+            assert "关键词匹配" not in html
+            assert "AI评估摘要" not in html
+            assert "维度来源" in html
 
 
 class TestRSSMonitorFetch:

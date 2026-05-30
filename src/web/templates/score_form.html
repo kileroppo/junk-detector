@@ -1,39 +1,24 @@
 {% extends "base.html" %}
 
 {% block title %}内容评分 - Junk Detector{% endblock %}
-{% block nav_score %}text-indigo-400 bg-navy-700{% endblock %}
+{% block nav_score %}is-active{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto space-y-6">
-    <h1 class="text-2xl font-bold">内容评分</h1>
-    <p class="text-gray-400">输入文本或 URL，AI 将从9个维度分析内容质量。</p>
+<div class="score-page max-w-3xl mx-auto space-y-6">
+    <div id="score-input-panel" class="space-y-8">
+    <header class="page-header">
+        <h1 class="page-title">内容评分</h1>
+        <p class="page-subtitle">粘贴文本或链接，从九个维度得到清晰的质量判断。</p>
+    </header>
 
-    <!-- Tab Navigation -->
-    <div class="border-b border-navy-700">
-        <div class="flex space-x-0">
-            <button onclick="switchTab('text')"
-                    id="tab-text"
-                    class="tab-btn active px-6 py-3 text-sm font-medium border-b-2 border-transparent hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                文本
-            </button>
-            <button onclick="switchTab('url')"
-                    id="tab-url"
-                    class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-                URL
-            </button>
-            <button onclick="switchTab('batch')"
-                    id="tab-batch"
-                    class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent hover:text-indigo-400 transition-colors inline-flex items-center gap-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-                batch (批量)
-            </button>
-        </div>
+    <div class="segmented-control w-full sm:w-auto" role="tablist" aria-label="输入方式">
+        <button type="button" onclick="switchTab('text')" id="tab-text" role="tab" class="tab-btn flex-1 sm:flex-none">文本</button>
+        <button type="button" onclick="switchTab('url')" id="tab-url" role="tab" aria-selected="true" class="tab-btn active flex-1 sm:flex-none">链接</button>
+        <button type="button" onclick="switchTab('batch')" id="tab-batch" role="tab" class="tab-btn flex-1 sm:flex-none">批量</button>
     </div>
 
-    <!-- Text Tab Content -->
-    <div id="content-text" class="tab-content active">
+    <div id="content-text" class="tab-content">
+        <div class="panel">
         <form hx-post="/score-submit"
               hx-target="#result-container"
               hx-swap="innerHTML"
@@ -41,31 +26,30 @@
               class="space-y-4">
             <input type="hidden" name="input_type" value="text">
             <div>
-                <label for="title-input" class="block text-sm font-medium text-gray-300 mb-1">标题（可选）</label>
-                <input type="text" id="title-input" name="title" placeholder="内容标题..."
-                       class="w-full bg-navy-900 border border-navy-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500">
+                <label for="title-input" class="block text-sm font-medium text-gray-300 mb-1.5">标题（可选）</label>
+                <input type="text" id="title-input" name="title" placeholder="内容标题" class="theme-input">
             </div>
             <div>
-                <label for="text-input" class="block text-sm font-medium text-gray-300 mb-1">内容文本</label>
-                <textarea id="text-input" name="text" rows="10" placeholder="粘贴需要评分的文本内容..."
-                          class="w-full bg-navy-900 border border-navy-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 resize-y"
+                <label for="text-input" class="block text-sm font-medium text-gray-300 mb-1.5">内容</label>
+                <textarea id="text-input" name="text" rows="10" placeholder="粘贴需要评分的正文…"
+                          class="theme-input resize-y min-h-[12rem]"
                           oninput="document.getElementById('char-count').textContent = this.value.length"
                           required></textarea>
-                <div class="flex justify-between mt-1">
-                    <span class="text-xs text-gray-500">Ctrl+Enter 快速提交</span>
-                    <span class="text-xs text-gray-500"><span id="char-count">0</span> 字</span>
+                <div class="flex justify-between mt-2 text-xs text-gray-500">
+                    <span>Ctrl+Enter 提交</span>
+                    <span><span id="char-count">0</span> 字</span>
                 </div>
             </div>
-            <button type="submit"
-                    class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 px-8 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+            <button type="submit" class="btn-primary w-full sm:w-auto">
                 <span>开始评分</span>
                 <span id="loading-indicator" class="htmx-indicator spinner"></span>
             </button>
         </form>
+        </div>
     </div>
 
-    <!-- URL Tab Content -->
-    <div id="content-url" class="tab-content">
+    <div id="content-url" class="tab-content active">
+        <div class="panel">
         <form hx-post="/score-submit"
               hx-target="#result-container"
               hx-swap="innerHTML"
@@ -73,25 +57,21 @@
               class="space-y-4">
             <input type="hidden" name="input_type" value="url">
             <div>
-                <label for="url-input" class="block text-sm font-medium text-gray-300 mb-1">网页 URL</label>
-                <input type="url" id="url-input" name="url" placeholder="https://example.com/article..."
-                       class="w-full bg-navy-900 border border-navy-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500"
-                       required>
+                <label for="url-input" class="block text-sm font-medium text-gray-300 mb-1.5">网页链接</label>
+                <input type="url" id="url-input" name="url" placeholder="https://example.com/article"
+                       class="theme-input" required>
             </div>
-            <p class="text-xs text-gray-500">将自动提取网页正文内容进行评分</p>
-            <button type="submit"
-                    class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 px-8 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+            <p class="text-sm text-gray-500">自动提取正文并评分</p>
+            <button type="submit" class="btn-primary w-full sm:w-auto">
                 <span>开始评分</span>
                 <span id="loading-indicator-url" class="htmx-indicator spinner"></span>
             </button>
         </form>
+        </div>
     </div>
 
-    <!-- Result Container (HTMX will inject result here) -->
-    <div id="result-container"></div>
-
-    <!-- Batch Tab Content -->
     <div id="content-batch" class="tab-content">
+        <div class="panel">
         <form hx-post="/score-batch"
               hx-target="#result-container"
               hx-swap="innerHTML"
@@ -99,33 +79,74 @@
               class="space-y-4"
               data-use-htmx="true">
             <div>
-                <label for="batch-urls" class="block text-sm font-medium text-gray-300 mb-1">URL 列表（每行一个）</label>
-                <textarea id="batch-urls" name="urls" rows="8" placeholder="https://example.com/article1&#10;https://example.com/article2&#10;https://example.com/article3"
-                          class="w-full bg-navy-900 border border-navy-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 resize-y"
-                          required></textarea>
+                <label for="batch-urls" class="block text-sm font-medium text-gray-300 mb-1.5">链接列表（每行一个）</label>
+                <textarea id="batch-urls" name="urls" rows="8" placeholder="https://example.com/one&#10;https://example.com/two"
+                          class="theme-input resize-y font-mono text-sm" required></textarea>
             </div>
-            <!-- Drop zone -->
             <div id="batch-drop-zone"
-                 class="border-2 border-dashed border-navy-700 rounded-lg p-6 text-center text-gray-500 hover:border-indigo-500 hover:text-indigo-400 transition-colors cursor-pointer">
-                <svg class="w-8 h-8 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                <p class="text-sm">拖放包含 URL 的文本文件到此处</p>
+                 class="theme-inset rounded-2xl p-6 text-center text-gray-500 cursor-pointer transition-colors hover:border-indigo-500/40">
+                <p class="text-sm">拖放 URL 文本文件到此处</p>
             </div>
-            <button type="submit"
-                    class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 px-8 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
+            <button type="submit" class="btn-primary w-full sm:w-auto">
                 <span>批量评分</span>
                 <span id="loading-indicator-batch" class="htmx-indicator spinner"></span>
             </button>
         </form>
+        </div>
     </div>
+    </div>
+
+    <!-- Result Container (HTMX / SSE injects result here) -->
+    <div id="result-container"></div>
 </div>
 
 <script>
+function enterReadingMode() {
+    var page = document.querySelector('.score-page');
+    var container = document.getElementById('result-container');
+    if (!page || !container || !container.innerHTML.trim()) return;
+    page.classList.add('reading-mode');
+    requestAnimationFrame(function() {
+        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+}
+
+function exitReadingMode() {
+    var page = document.querySelector('.score-page');
+    var container = document.getElementById('result-container');
+    if (page) page.classList.remove('reading-mode');
+    if (container) container.innerHTML = '';
+    if (typeof window.focusActiveScoreInput === 'function') {
+        window.focusActiveScoreInput();
+    }
+}
+window.enterReadingMode = enterReadingMode;
+window.exitReadingMode = exitReadingMode;
+
+function focusActiveScoreInput() {
+    var panel = document.querySelector('.tab-content.active');
+    if (!panel) return;
+    var field = panel.querySelector('#url-input, #text-input, #batch-urls');
+    if (!field || typeof field.focus !== 'function') return;
+    try {
+        field.focus({ preventScroll: false });
+    } catch (err) {
+        field.focus();
+    }
+}
+window.focusActiveScoreInput = focusActiveScoreInput;
+
 function switchTab(tab) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.getElementById('tab-' + tab).classList.add('active');
     document.getElementById('content-' + tab).classList.add('active');
+    requestAnimationFrame(focusActiveScoreInput);
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    requestAnimationFrame(focusActiveScoreInput);
+});
 
 document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -177,8 +198,65 @@ function startStreamScoring(formData) {
         }
         read();
     }).catch(function(err) {
-        container.innerHTML = '<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">流式评分失败: ' + err.message + '</div>';
+        renderFetchError(container, {
+            title: '连接中断',
+            reason: '与服务器通信失败，评分未完成。',
+            hints: ['请检查网络后重试。', '若问题持续，可刷新页面后再提交。'],
+            detail: err.message
+        });
     });
+}
+
+function escapeHtml(text) {
+    if (window.ResultPage && window.ResultPage.escapeHtml) {
+        return window.ResultPage.escapeHtml(text);
+    }
+    var div = document.createElement('div');
+    div.textContent = text == null ? '' : String(text);
+    return div.innerHTML;
+}
+
+function renderFetchError(container, fetchError) {
+    var level = fetchError.level || 'error';
+    var isWarning = level === 'warning';
+    var borderCls = isWarning ? 'bg-amber-950/40 border-amber-700/60' : 'bg-red-950/40 border-red-700/60';
+    var titleCls = isWarning ? 'text-amber-200' : 'text-red-200';
+    var reasonCls = isWarning ? 'text-amber-100/90' : 'text-red-100/90';
+
+    var html = '<div class="score-fetch-error rounded-xl border p-5 space-y-4 ' + borderCls + '">';
+    html += '<h2 class="text-lg font-semibold ' + titleCls + '">' + escapeHtml(fetchError.title || '链接解析失败') + '</h2>';
+    html += '<p class="text-sm ' + reasonCls + '">' + escapeHtml(fetchError.reason || '无法获取页面内容') + '</p>';
+    if (fetchError.url) {
+        html += '<p class="text-xs text-gray-500 break-all">链接：<span class="text-gray-400">' + escapeHtml(fetchError.url) + '</span></p>';
+    }
+    if (fetchError.hints && fetchError.hints.length) {
+        html += '<div class="rounded-lg bg-navy-900/80 border border-navy-700 px-4 py-3">';
+        html += '<p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">你可以尝试</p><ul class="text-sm text-gray-300 space-y-1.5 list-disc list-inside">';
+        fetchError.hints.forEach(function(hint) {
+            html += '<li>' + escapeHtml(hint) + '</li>';
+        });
+        html += '</ul></div>';
+    }
+    if (fetchError.code === 'auth_required') {
+        html += '<p class="text-sm"><a href="/settings#cookies" class="text-amber-300 hover:text-amber-200 underline">前往 Cookie 设置</a></p>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderSimpleFinalResult(container, data) {
+    if (window.ResultPage && window.ResultPage.renderSimpleFinalResult) {
+        window.ResultPage.renderSimpleFinalResult(container, data, { showExpand: false });
+    }
+    enterReadingMode();
+}
+
+function renderRulesPreview(container, data) {
+    if (window.ResultPage && window.ResultPage.renderRulesPreview) {
+        window.ResultPage.renderRulesPreview(container, data);
+        return;
+    }
+    container.innerHTML = '<div class="scoring-progress"><div class="scoring-progress-stages"><span class="stage done">规则检测</span><span class="stage active">LLM 分析</span><span class="stage">生成结果</span></div></div>';
 }
 
 function handleSSEEvent(eventType, dataStr) {
@@ -188,47 +266,42 @@ function handleSSEEvent(eventType, dataStr) {
     } catch(e) { return; }
 
     if (eventType === 'rules_result') {
-        // Show partial rules-only result with indicator
-        var scoreColor = data.overall_score > 70 ? '#10b981' : (data.overall_score > 40 ? '#f59e0b' : '#ef4444');
-        var html = '<div class="bg-surface rounded-xl p-6 border border-navy-700">';
-        html += '<div class="flex items-center gap-2 mb-3"><span class="px-2 py-0.5 rounded-full text-xs bg-amber-900/50 text-amber-300 border border-amber-700/50">规则预览</span></div>';
-        html += '<div class="text-center"><span class="text-3xl font-bold" style="color:' + scoreColor + '">' + Math.round(data.overall_score) + '</span><span class="text-gray-400 text-sm ml-1">/ 100</span></div>';
-        if (data.matched_rules && data.matched_rules.length > 0) {
-            html += '<div class="mt-3 flex flex-wrap gap-1">';
-            data.matched_rules.forEach(function(rule) {
-                html += '<span class="px-2 py-0.5 rounded-full text-xs bg-navy-700 text-gray-300">' + rule + '</span>';
-            });
-            html += '</div>';
-        }
-        html += '<div class="scoring-progress mt-4"><div class="scoring-progress-stages"><span class="stage done">规则检测</span><span class="stage active">LLM 分析</span><span class="stage">生成结果</span></div></div>';
-        html += '</div>';
-        container.innerHTML = html;
+        renderRulesPreview(container, data);
     } else if (eventType === 'final_result') {
-        // Replace with full result
-        var scoreColor = data.overall_score > 70 ? '#10b981' : (data.overall_score > 40 ? '#f59e0b' : '#ef4444');
-        var colorClass = data.overall_score > 70 ? 'score-high' : (data.overall_score > 40 ? 'score-mid' : 'score-low');
-        var html = '<div class="bg-surface rounded-xl p-6 border border-navy-700 text-center">';
-        html += '<h2 class="text-lg font-medium text-gray-400 mb-4">综合评分</h2>';
-        html += '<div class="inline-flex items-center justify-center relative">';
-        html += '<svg width="140" height="140" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="#334155" stroke-width="6"/>';
-        var offset = 282.7 - (282.7 * data.overall_score / 100);
-        html += '<circle cx="50" cy="50" r="45" fill="none" stroke="' + scoreColor + '" stroke-width="6" stroke-linecap="round" stroke-dasharray="282.7" stroke-dashoffset="' + offset + '" class="score-ring-circle"/>';
-        html += '</svg>';
-        html += '<span class="absolute text-4xl font-bold score-value-animate ' + colorClass + '">' + Math.round(data.overall_score) + '</span></div>';
-        if (data.summary) {
-            html += '<div class="mt-4 max-w-2xl mx-auto bg-navy-900 rounded-lg p-4 border-l-4 border-indigo-500"><p class="text-gray-300 text-sm italic">' + data.summary + '</p></div>';
+        if (data.record_id) {
+            fetch('/result/' + data.record_id + '/fragment')
+                .then(function(resp) { return resp.text(); })
+                .then(function(html) {
+                    container.innerHTML = html;
+                    enterReadingMode();
+                    if (window.ResultPage && window.ResultPage.initDimHelpToggles) {
+                        window.ResultPage.initDimHelpToggles(container);
+                    }
+                    if (window.ResultPage && window.ResultPage.initDimensionLinks) {
+                        window.ResultPage.initDimensionLinks(container);
+                    }
+                    if (window.bootFocusGuideUI) {
+                        window.bootFocusGuideUI(container);
+                    } else if (window.bootReadingMapMagnify) {
+                        window.bootReadingMapMagnify(container);
+                    }
+                })
+                .catch(function() {
+                    renderSimpleFinalResult(container, data);
+                });
+            return;
         }
-        if (data.labels && data.labels.length > 0) {
-            html += '<div class="flex flex-wrap justify-center gap-2 mt-4">';
-            data.labels.forEach(function(label) {
-                html += '<span class="px-3 py-1 rounded-full text-xs font-medium bg-amber-900/50 text-amber-300 border border-amber-700/50">' + label + '</span>';
-            });
-            html += '</div>';
-        }
-        html += '</div>';
-        container.innerHTML = html;
+        renderSimpleFinalResult(container, data);
     } else if (eventType === 'error') {
-        container.innerHTML = '<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">评分失败: ' + (data.error || '未知错误') + '</div>';
+        if (data.fetch_error) {
+            renderFetchError(container, data.fetch_error);
+        } else {
+            renderFetchError(container, {
+                title: '评分失败',
+                reason: data.error || '未知错误',
+                hints: ['请检查输入后重试。']
+            });
+        }
     }
 }
 
@@ -270,6 +343,21 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'result-container' && event.detail.target.innerHTML.trim()) {
+            enterReadingMode();
+            if (window.ResultPage && window.ResultPage.initDimHelpToggles) {
+                window.ResultPage.initDimHelpToggles(event.detail.target);
+            }
+            if (window.ResultPage && window.ResultPage.initDimensionLinks) {
+                window.ResultPage.initDimensionLinks(event.detail.target);
+            }
+            if (window.bootFocusGuideUI) {
+                window.bootFocusGuideUI(event.detail.target);
+            }
+        }
+    });
 });
 </script>
 {% endblock %}

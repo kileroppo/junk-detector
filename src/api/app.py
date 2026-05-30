@@ -56,17 +56,17 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Startup validation: ensure LLM API keys are configured."""
     from src.core.config import get_model_config
+    from src.core.user_settings import apply_saved_llm_settings, has_llm_api_key
 
-    has_key = any(
-        os.environ.get(k) for k in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY")
-    )
-    if not has_key:
+    apply_saved_llm_settings()
+
+    if not has_llm_api_key():
         model_cfg = get_model_config()
         primary_model = model_cfg.get("primary", "")
         if not primary_model.startswith("ollama"):
             raise RuntimeError(
-                "No LLM API key configured. Set one of: "
-                "DEEPSEEK_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY"
+                "No LLM API key configured. Set one in Settings (/settings) "
+                "or export DEEPSEEK_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY"
             )
     app.state.startup_time = time.time()
     app.state.score_count = 0

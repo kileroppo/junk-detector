@@ -1,137 +1,213 @@
-<!-- Focus Guide (重点关注指南) - shown when AI-generated content is detected -->
-<div class="bg-surface rounded-xl p-6 border border-navy-700">
-    <!-- Header -->
-    <div class="flex items-center gap-2 mb-4">
-        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-        </svg>
-        <h2 class="text-lg font-semibold">重点关注指南</h2>
-        <!-- Recommendation badge -->
-        {% if result.focus_guide.recommendation == 'skip' %}
-        <span class="ml-auto px-3 py-1 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700/50">建议跳过</span>
-        {% elif result.focus_guide.recommendation == 'skim' %}
-        <span class="ml-auto px-3 py-1 rounded-full text-xs font-medium bg-amber-900/50 text-amber-300 border border-amber-700/50">建议略读</span>
-        {% else %}
-        <span class="ml-auto px-3 py-1 rounded-full text-xs font-medium bg-green-900/50 text-green-300 border border-green-700/50">建议细读</span>
-        {% endif %}
-    </div>
+<!-- Focus Guide — verdict + 3 must-read + 1 caution + optional side-by-side original -->
+{% set has_source = result.annotated_paragraphs | default([]) | length > 0 %}
+<div class="focus-guide-wrap {% if has_source %}focus-guide-wrap--split{% endif %}">
+    <div class="focus-split-grid">
+        <div class="bg-surface rounded-xl p-6 border border-navy-700 focus-guide focus-split-col focus-split-col--guide">
+            {% set must_read = result.focus_guide.top_nuggets if result.focus_guide.top_nuggets else result.focus_guide.information_nuggets[:3] %}
+            {% set headline = result.focus_guide.verdict_headline | default('') %}
+            {% set detail = result.focus_guide.verdict_detail | default('') %}
 
-    <!-- AI Patterns Detected -->
-    {% if result.focus_guide.ai_patterns %}
-    <div class="mb-4">
-        <h3 class="text-sm font-medium text-purple-400 mb-2 flex items-center gap-1.5">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-            AI生成特征
-        </h3>
-        <ul class="space-y-2">
-            {% for pattern in result.focus_guide.ai_patterns %}
-            <li class="bg-navy-900 rounded-lg p-3 border-l-3 border-purple-500">
-                <p class="text-sm text-gray-300">{{ pattern.description }}</p>
-                {% if pattern.examples %}
-                <div class="mt-1 flex flex-wrap gap-1">
-                    {% for example in pattern.examples %}
-                    <span class="text-xs text-purple-300 bg-purple-900/30 px-2 py-0.5 rounded">{{ example }}</span>
+            {% if not result.reading_action %}
+            <div class="focus-verdict focus-verdict--{{ result.focus_guide.recommendation }} mb-6">
+                <p class="focus-verdict-label">阅读结论</p>
+                <h2 class="focus-verdict-headline">
+                    {% if headline %}{{ headline }}
+                    {% elif result.focus_guide.recommendation == 'skip' %}建议跳过
+                    {% elif result.focus_guide.recommendation == 'skim' %}速查即可
+                    {% else %}值得细读{% endif %}
+                </h2>
+                <p class="focus-verdict-detail">
+                    {% if detail %}{{ detail }}
+                    {% elif result.focus_guide.tldr %}{{ result.focus_guide.tldr }}
+                    {% else %}下方列出必看段落与需警惕之处。{% endif %}
+                </p>
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-400 mb-4">按下方必看段落与可跳过区块阅读即可。</p>
+            {% endif %}
+
+            {% if must_read %}
+            <section class="focus-section focus-section--primary mb-5">
+                <h3 class="focus-section-title focus-section-title--gold">
+                    必看
+                    <span class="focus-section-count">{% if must_read|length < 3 %}{{ must_read|length }}{% else %}最多 3 处{% endif %}</span>
+                </h3>
+                <ol class="focus-nugget-list list-none m-0 p-0">
+                    {% for nugget in must_read %}
+                    <li class="focus-guide-card focus-guide-card--gold">
+                        <div class="focus-nugget-header">
+                            <div class="focus-nugget-meta-row">
+                                <span class="focus-guide-step">{{ loop.index }}</span>
+                                {% if nugget.position_label %}
+                                <span class="focus-nugget-meta">{{ nugget.position_label }} · {{ nugget.position_percent }}%</span>
+                                {% endif %}
+                            </div>
+                            <div class="focus-nugget-actions">
+                                {% if has_source and nugget.index is defined %}
+                                {% with index=nugget.index %}
+                                {% include "partials/btn_focus_goto.html" %}
+                                {% endwith %}
+                                {% endif %}
+                                {% if nugget.search_anchor %}
+                                {% with anchor=nugget.search_anchor, muted=false %}
+                                {% include "partials/btn_focus_copy.html" %}
+                                {% endwith %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if nugget.why_read %}
+                        <p class="focus-nugget-why">{{ nugget.why_read }}</p>
+                        {% endif %}
+                        {% if nugget.preview and not has_source %}
+                        <p class="focus-guide-preview focus-guide-preview--secondary">「{{ nugget.preview }}」</p>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ol>
+            </section>
+            {% endif %}
+
+            <!-- Single caution -->
+            {% if result.focus_guide.caution %}
+            {% set c = result.focus_guide.caution %}
+            <section class="focus-section focus-section--primary mb-5">
+                <h3 class="focus-section-title focus-section-title--caution">别信</h3>
+                <div class="focus-guide-card focus-guide-card--caution">
+                    <div class="focus-nugget-header">
+                        <p class="focus-caution-headline">{{ c.headline }}</p>
+                        <div class="focus-nugget-actions">
+                            {% if has_source and c.index is defined %}
+                            {% with index=c.index %}
+                            {% include "partials/btn_focus_goto.html" %}
+                            {% endwith %}
+                            {% endif %}
+                            {% if c.search_anchor %}
+                            {% with anchor=c.search_anchor, muted=true %}
+                            {% include "partials/btn_focus_copy.html" %}
+                            {% endwith %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <p class="focus-caution-message">{{ c.message }}</p>
+                    {% if c.preview and not has_source %}
+                    <p class="focus-guide-preview focus-guide-preview--secondary mt-2">「{{ c.preview }}」</p>
+                    {% endif %}
+                </div>
+            </section>
+            {% endif %}
+
+            <div class="focus-tier-secondary">
+                {% include "partials/reading_map_panel.html" %}
+            </div>
+
+            <!-- Inline excerpt panel (fallback when no stored full text) -->
+            {% if not has_source and result.focus_guide.snippets | default([]) %}
+            <section class="mb-4">
+                <h3 class="text-sm font-semibold text-gray-300 mb-2">原文摘录对照</h3>
+                <p class="text-xs text-gray-500 mb-3">无需数段落——直接对照下列原文，或复制定位词到微信/浏览器搜索</p>
+                <div class="focus-snippet-panel space-y-2">
+                    {% for snip in result.focus_guide.snippets %}
+                    <article class="focus-snippet focus-snippet--{{ snip.status }}">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                            <span class="focus-snippet-tag">{{ snip.label }}</span>
+                            {% if snip.search_anchor %}
+                            {% with anchor=snip.search_anchor, muted=false, sm=true %}
+                            {% include "partials/btn_focus_copy.html" %}
+                            {% endwith %}
+                            {% endif %}
+                        </div>
+                        <p class="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{{ snip.text }}</p>
+                    </article>
                     {% endfor %}
                 </div>
-                {% endif %}
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
+            </section>
+            {% endif %}
 
-    <!-- TL;DR -->
-    {% if result.focus_guide.tldr %}
-    <div class="mb-4">
-        <h3 class="text-sm font-medium text-blue-400 mb-2 flex items-center gap-1.5">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            TL;DR 实际内容
-        </h3>
-        <div class="bg-navy-900 rounded-lg p-3 border-l-3 border-blue-500">
-            <p class="text-sm text-gray-300">{{ result.focus_guide.tldr }}</p>
+            <!-- Advanced analysis (collapsed) -->
+            <details class="focus-guide-advanced mt-4 pt-4 border-t border-navy-700/80">
+                <summary class="focus-guide-advanced-summary cursor-pointer text-sm text-gray-500 hover:text-gray-400 py-1 select-none">
+                    更多分析
+                    {% if result.skippable_display %}
+                    <span class="focus-guide-advanced-hint"> · {{ result.skippable_display.summary }}</span>
+                    {% endif %}
+                    {% if result.focus_guide.ai_patterns %}
+                    <span class="focus-guide-advanced-hint"> · AI 特征 {{ result.focus_guide.ai_patterns|length }} 项</span>
+                    {% endif %}
+                </summary>
+                <div class="mt-3 space-y-4">
+                    {% include "partials/skippable_sections_panel.html" %}
+
+                    {% if result.focus_guide.ai_patterns %}
+                    <details class="focus-sub-disclosure">
+                        <summary class="focus-sub-disclosure-summary">AI 写作特征 ({{ result.focus_guide.ai_patterns|length }})</summary>
+                        <ul class="space-y-1 text-xs text-gray-500 list-none p-0 m-0 mt-2">
+                            {% for pattern in result.focus_guide.ai_patterns %}
+                            <li class="focus-sub-disclosure-item">{{ pattern.description }}</li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                    {% endif %}
+
+                    {% if result.focus_guide.rhythm_fingerprint | default(none) %}
+                    <p class="text-xs text-gray-500 m-0">
+                        节奏均匀度 {{ "%.0f"|format(result.focus_guide.rhythm_fingerprint.rhythm_uniformity) }} ·
+                        句式多样 {{ "%.0f"|format(result.focus_guide.rhythm_fingerprint.sentence_diversity) }}
+                    </p>
+                    {% endif %}
+                </div>
+            </details>
         </div>
-    </div>
-    {% endif %}
 
-    <!-- Information Nuggets -->
-    {% if result.focus_guide.information_nuggets %}
-    <div class="mb-4">
-        <h3 class="text-sm font-medium text-emerald-400 mb-2 flex items-center gap-1.5">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-            信息金块
-        </h3>
-        <ul class="space-y-1">
-            {% for nugget in result.focus_guide.information_nuggets %}
-            <li class="text-sm text-gray-300 bg-emerald-900/20 rounded px-3 py-2 border-l-3 border-emerald-600">
-                <span class="text-emerald-400 font-medium">段落{{ nugget.index + 1 }}</span>: {{ nugget.summary }}
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
-
-    <!-- Empty Calorie Sections -->
-    {% if result.focus_guide.empty_calorie_indices %}
-    <div class="mb-4">
-        <h3 class="text-sm font-medium text-gray-400 mb-2 flex items-center gap-1.5">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-            空洞段落
-        </h3>
-        <p class="text-sm text-gray-500">
-            以下段落可以跳过: 
-            {% for idx in result.focus_guide.empty_calorie_indices %}
-            <span class="inline-block px-2 py-0.5 rounded bg-navy-800 text-gray-400 text-xs mr-1">段落{{ idx + 1 }}</span>
-            {% endfor %}
-        </p>
-    </div>
-    {% endif %}
-
-    <!-- Time Saved Badge -->
-    {% if result.focus_guide.reading_time_saved_percent > 0 %}
-    <div class="flex items-center gap-2 pt-3 border-t border-navy-700">
-        <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <span class="text-sm text-gray-400">节省时间</span>
-        <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-900/50 text-amber-300 border border-amber-700/50">
-            ~{{ result.focus_guide.reading_time_saved_percent }}%
-        </span>
-        <span class="text-xs text-gray-500">的内容可以跳过</span>
-    </div>
-    {% endif %}
-
-    <!-- Rhythm Fingerprint -->
-    {% if result.focus_guide.rhythm_fingerprint %}
-    <div class="mt-4 pt-3 border-t border-navy-700">
-        <h3 class="text-sm font-medium text-cyan-400 mb-2 flex items-center gap-1.5">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
-            写作节奏指纹
-        </h3>
-        <div class="space-y-2">
-            <div class="flex items-center gap-2">
-                <span class="text-xs text-gray-400 w-16 shrink-0">均匀度</span>
-                <div class="flex-1 bg-navy-900 rounded-full h-3 overflow-hidden">
-                    <div class="h-full rounded-full {% if result.focus_guide.rhythm_fingerprint.rhythm_uniformity > 65 %}bg-red-500{% elif result.focus_guide.rhythm_fingerprint.rhythm_uniformity > 40 %}bg-amber-500{% else %}bg-green-500{% endif %}"
-                         style="width: {{ result.focus_guide.rhythm_fingerprint.rhythm_uniformity }}%"></div>
+        {% if has_source %}
+        <div class="focus-split-col focus-split-col--source">
+            <div id="focus-source-panel" class="focus-source-panel bg-surface rounded-xl border border-navy-700">
+                <div class="focus-source-header">
+                    <div class="focus-source-header-row">
+                        <div class="focus-source-header-text">
+                            <h3 class="focus-source-title">原文对照</h3>
+                            <p class="focus-source-hint" data-focus-source-hint>必看 / 警惕段落已高亮，其余可略读</p>
+                        </div>
+                        <label class="focus-junk-toggle" title="隐藏可略与低价值段落">
+                            <span class="focus-junk-toggle-label">折叠水分</span>
+                            <input type="checkbox" class="focus-junk-toggle-input" data-focus-junk-toggle aria-label="折叠水分段落">
+                            <span class="focus-junk-toggle-track" aria-hidden="true"></span>
+                        </label>
+                    </div>
+                    {% if result.content_truncated %}
+                    <p class="text-xs text-amber-400/90 mt-2">原文过长，仅保存前 {{ (120000 // 1000) }}k 字符</p>
+                    {% endif %}
+                    <p class="focus-source-fold-note" data-focus-fold-note hidden></p>
                 </div>
-                <span class="text-xs text-gray-400 w-8">{{ "%.0f"|format(result.focus_guide.rhythm_fingerprint.rhythm_uniformity) }}</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <span class="text-xs text-gray-400 w-16 shrink-0">句式多样</span>
-                <div class="flex-1 bg-navy-900 rounded-full h-3 overflow-hidden">
-                    <div class="h-full rounded-full {% if result.focus_guide.rhythm_fingerprint.sentence_diversity > 60 %}bg-green-500{% elif result.focus_guide.rhythm_fingerprint.sentence_diversity > 35 %}bg-amber-500{% else %}bg-red-500{% endif %}"
-                         style="width: {{ result.focus_guide.rhythm_fingerprint.sentence_diversity }}%"></div>
+                <div class="focus-source-body" data-focus-source-body>
+                    {% for para in result.annotated_paragraphs %}
+                    <article id="focus-para-{{ para.index }}"
+                             class="focus-para focus-para--{{ para.status }}{% if para.is_must_read %} focus-para--must-read{% endif %}{% if para.related_dimensions | default([]) | length > 0 %} focus-para--has-dim-link{% endif %}"
+                             {% if para.related_dimensions | default([]) | length > 0 %}
+                             data-para-index="{{ para.index }}"
+                             data-dim-keys='{{ para.related_dimensions | map(attribute="key") | list | tojson }}'
+                             tabindex="0"
+                             role="button"
+                             title="点击查看关联维度"
+                             aria-label="第 {{ para.index + 1 }} 段，关联维度：{{ para.related_dimensions | map(attribute='label') | join('、') }}"
+                             onclick="ResultPage.linkParagraphToDimensions(this)"
+                             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();ResultPage.linkParagraphToDimensions(this);}"
+                             {% endif %}>
+                        {% if para.label %}
+                        <span class="focus-para-badge focus-para-badge--{{ para.status }}">{{ para.label }}</span>
+                        {% endif %}
+                        <p class="focus-para-text">{{ para.text }}</p>
+                        {% if para.related_dimensions | default([]) | length > 0 %}
+                        <div class="focus-para-dim-tags" aria-hidden="true">
+                            {% for dim in para.related_dimensions %}
+                            <span class="focus-para-dim-tag">{{ dim.label }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </article>
+                    {% endfor %}
                 </div>
-                <span class="text-xs text-gray-400 w-8">{{ "%.0f"|format(result.focus_guide.rhythm_fingerprint.sentence_diversity) }}</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <span class="text-xs text-gray-400 w-16 shrink-0">话题漂移</span>
-                <div class="flex-1 bg-navy-900 rounded-full h-3 overflow-hidden">
-                    <div class="h-full rounded-full bg-cyan-500"
-                         style="width: {{ result.focus_guide.rhythm_fingerprint.topic_drift }}%"></div>
-                </div>
-                <span class="text-xs text-gray-400 w-8">{{ "%.0f"|format(result.focus_guide.rhythm_fingerprint.topic_drift) }}</span>
             </div>
         </div>
+        {% endif %}
     </div>
-    {% endif %}
 </div>

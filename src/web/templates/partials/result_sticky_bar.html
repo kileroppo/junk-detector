@@ -1,0 +1,31 @@
+{% set bar = result.sticky_bar %}
+{% if bar %}
+<aside class="result-sticky-bar simple-hidden" aria-label="评分摘要">
+    <div class="result-sticky-bar-inner">
+        <div class="result-sticky-bar-main">
+            {% if bar.title %}
+            <p class="result-sticky-bar-title" title="{{ bar.title }}">{{ bar.title }}</p>
+            {% endif %}
+            <div class="result-sticky-bar-metrics">
+                {% if bar.reading_action %}
+                <span class="result-sticky-bar-action {{ bar.reading_action.css }}" title="阅读裁决">
+                    <span aria-hidden="true">{{ bar.reading_action.emoji }}</span>
+                    {{ bar.reading_action.label }}
+                </span>
+                {% elif bar.verdict_label %}
+                <span class="result-sticky-bar-verdict {{ bar.verdict_css | default('') }}">{{ bar.verdict_label }}</span>
+                {% endif %}
+                {% if bar.score is not none %}
+                <span class="result-sticky-bar-score tabular-nums" aria-label="参考评分 {{ bar.score }} 分">{{ bar.score }}分</span>
+                {% endif %}
+                {% if bar.score_tier_label %}
+                <span class="score-tier-badge {{ bar.score_tier_css | default('') }}">{{ bar.score_tier_label }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="result-sticky-bar-actions" id="result-sticky-actions" aria-label="结果操作">
+            {% include "partials/result_actions.html" %}
+        </div>
+    </div>
+</aside>
+{% endif %}

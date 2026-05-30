@@ -118,16 +118,23 @@ async def preprocess_stage(ctx: PipelineContext) -> PipelineContext:
     text = ctx.content.text
     config = ctx.config
 
+    language = ctx.metadata.get("language", "zh")
+
     # Flag very short content
     if len(text) < 100:
         ctx.metadata["short_content"] = True
         ctx.processed_text = text
         return ctx
 
+    from src.core.content_genre import detect_content_genre
+
+    genre = detect_content_genre(text)
+    ctx.metadata["content_genre"] = genre
+
     # Summarize long articles if enabled
     if config.summarize_enabled and len(text) > config.summarize_max_chars:
         try:
-            summarized = await _summarize_text(text, config)
+            summarized = await _summarize_text(text, config, genre=genre, language=language)
             ctx.processed_text = summarized
             ctx.metadata["was_summarized"] = True
             ctx.metadata["original_length"] = len(text)
@@ -168,7 +175,12 @@ async def score_stage(ctx: PipelineContext) -> PipelineContext:
     # Determine language from context metadata (set by preferences during enrich stage)
     language = ctx.metadata.get("language", "zh")
 
-    ctx.result = await score(text_to_score, config=ctx.config, language=language)
+    ctx.result = await score(
+        text_to_score,
+        config=ctx.config,
+        language=language,
+        content_genre=ctx.metadata.get("content_genre"),
+    )
     return ctx
 
 
@@ -266,12 +278,16 @@ def _get_db_path(ctx: PipelineContext) -> str:
     return ctx.metadata.get("db_path", "junk_detector.db")
 
 
-async def _summarize_text(text: str, config) -> str:
+async def _summarize_text(
+    text: str, config, *, genre: str = "default", language: str = "zh"
+) -> str:
     """Summarize long text using LLM.
 
     Uses the configured summarize_model (or primary_model as fallback).
     """
     import litellm
+
+    from src.core.content_genre import GENRE_ROUNDUP, roundup_summarize_prompt
 
     model = config.summarize_model or config.primary_model
     max_chars = config.summarize_max_chars
@@ -282,11 +298,14 @@ async def _summarize_text(text: str, config) -> str:
     else:
         input_text = text[:max_chars]
 
-    prompt = (
-        "请用中文对以下文章进行摘要，保留关键信息、论点和结论。"
-        "摘要应保留原文的核心观点和重要细节，但控制在1500字以内。\n\n"
-        f"文章内容：\n{input_text}"
-    )
+    if genre == GENRE_ROUNDUP:
+        prompt = roundup_summarize_prompt(language) + f"文章内容：\n{input_text}"
+    else:
+        prompt = (
+            "请用中文对以下文章进行摘要，保留关键信息、论点和结论。"
+            "摘要应保留原文的核心观点和重要细节，但控制在1500字以内。\n\n"
+            f"文章内容：\n{input_text}"
+        )
 
     kwargs: dict = {
         "model": model,

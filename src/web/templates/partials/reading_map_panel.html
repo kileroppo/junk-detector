@@ -1,0 +1,68 @@
+<!-- Reading route — human-friendly map of where to read vs skip -->
+{% if result.reading_map_display %}
+<section class="reading-map-panel mb-0" aria-labelledby="reading-map-title">
+    <div class="reading-map-panel-head">
+        <h3 id="reading-map-title" class="reading-map-title">阅读路线</h3>
+        <p class="reading-map-summary">{{ result.reading_map_display.summary }}</p>
+        {% if result.reading_map_display.route_hint %}
+        <p class="reading-map-route">{{ result.reading_map_display.route_hint }}</p>
+        {% endif %}
+    </div>
+
+    <div class="reading-map-axis">
+        <span class="reading-map-axis-label" aria-hidden="true">开头</span>
+        <div class="reading-map-stage">
+            <div class="reading-map-track reading-map-track--magnify"
+                 role="img"
+                 aria-label="{{ result.reading_map_display.summary }}">
+                {% for seg in result.reading_map_display.segments %}
+                {% if result.annotated_paragraphs %}
+                <button type="button"
+                        class="reading-map-block reading-map-block--{{ seg.status }}"
+                        style="flex-grow: {{ seg.span }}; flex-basis: 0;"
+                        title="{{ seg.tooltip }}"
+                        aria-label="{{ seg.tooltip }}"
+                        onclick="scrollToFocusPara({{ seg.start_index }})"></button>
+                {% else %}
+                <span class="reading-map-block reading-map-block--{{ seg.status }}"
+                      style="flex-grow: {{ seg.span }}; flex-basis: 0;"
+                      title="{{ seg.tooltip }}"></span>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        <span class="reading-map-axis-label" aria-hidden="true">结尾</span>
+    </div>
+
+    <ul class="reading-map-legend-row list-none m-0 p-0">
+        {% if result.reading_map_display.gold_count %}
+        <li class="reading-map-legend-item">
+            <span class="reading-map-legend-dot reading-map-legend-dot--gold" aria-hidden="true"></span>
+            值得看
+        </li>
+        {% endif %}
+        {% if result.reading_map_display.neutral_count %}
+        <li class="reading-map-legend-item">
+            <span class="reading-map-legend-dot reading-map-legend-dot--neutral" aria-hidden="true"></span>
+            正常读
+        </li>
+        {% endif %}
+        {% if result.reading_map_display.skip_count %}
+        <li class="reading-map-legend-item">
+            <span class="reading-map-legend-dot reading-map-legend-dot--skip" aria-hidden="true"></span>
+            可略
+        </li>
+        {% endif %}
+        {% if result.reading_map_display.caution_count %}
+        <li class="reading-map-legend-item">
+            <span class="reading-map-legend-dot reading-map-legend-dot--caution" aria-hidden="true"></span>
+            需警惕
+        </li>
+        {% endif %}
+    </ul>
+
+    {% if result.annotated_paragraphs %}
+    <p class="reading-map-hint">移入色条放大 · 点击跳转原文</p>
+    {% endif %}
+</section>
+{% endif %}

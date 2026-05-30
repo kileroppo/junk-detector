@@ -1,0 +1,81 @@
+<!-- HTMX partial: platform cookie cards (compact accordion) -->
+{% for p in platforms %}
+<details id="cookie-card-{{ p.id }}" class="cookie-platform-card group bg-navy-900/30 rounded-lg border border-navy-700 open:border-indigo-800/50">
+    <summary class="cursor-pointer list-none px-4 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
+        <span class="text-gray-500 group-open:text-indigo-400 transition-transform group-open:rotate-90 text-xs select-none">▸</span>
+        <span class="font-medium text-gray-100">{{ p.label }}</span>
+        <span class="text-xs font-mono text-gray-500">{{ p.id }}</span>
+        {% if p.status == 'active' %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/40 text-emerald-400 border border-emerald-700">已配置</span>
+        {% elif p.status == 'expired' %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-900/40 text-yellow-400 border border-yellow-700">已过期</span>
+        {% else %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/40 text-red-400 border border-red-700">未配置</span>
+        {% endif %}
+        {% if p.cookie_count > 0 %}
+        <span class="text-xs text-gray-500 ml-auto">{{ p.cookie_count }} 项</span>
+        {% endif %}
+    </summary>
+
+    <div class="px-4 pb-4 pt-0 border-t border-navy-700/80 space-y-4">
+        <p class="text-sm text-gray-400 pt-3">{{ p.hint }}</p>
+        {% if p.domain %}
+        <p class="text-xs text-gray-500">
+            域名：<code class="theme-code">{{ p.domain }}</code>
+            {% if p.guide_url %}
+            · <a href="{{ p.guide_url }}" target="_blank" rel="noopener" class="text-indigo-400 hover:underline">打开参考页 ↗</a>
+            {% endif %}
+        </p>
+        {% endif %}
+        {% if p.key_cookies %}
+        <p class="text-xs text-gray-500">
+            常见字段：
+            {% for key in p.key_cookies %}
+            <code class="theme-code mr-1">{{ key }}</code>
+            {% endfor %}
+        </p>
+        {% endif %}
+        {% if p.cookie_count > 0 %}
+        <div class="text-xs text-gray-400 space-y-1 rounded-lg bg-navy-950/50 px-3 py-2">
+            <p>{% if p.saved_at_label %}更新于 {{ p.saved_at_label }}{% endif %}{% if p.expires_at_label %} · 过期 {{ p.expires_at_label }}{% endif %}</p>
+            <p class="font-mono break-all text-gray-500">{{ p.cookie_keys | join(', ') }}</p>
+        </div>
+        {% endif %}
+
+        <form hx-post="/api/cookies/{{ p.id }}/import"
+              hx-target="#cookie-card-{{ p.id }}"
+              hx-swap="outerHTML"
+              class="space-y-3">
+            <label class="block text-sm font-medium text-gray-300">
+                粘贴 Cookie
+                <span class="text-gray-500 font-normal text-xs">（分号分隔或 JSON，默认合并）</span>
+            </label>
+            <textarea name="cookie_raw" rows="3" required
+                      placeholder="z_c0=...; __zse_ck=..."
+                      class="theme-input font-mono text-sm resize-y"></textarea>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <label class="inline-flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                    <input type="checkbox" name="replace" value="true" class="rounded border-navy-600 bg-navy-900 text-indigo-500 focus:ring-indigo-500">
+                    完全替换
+                </label>
+                <div class="flex items-center gap-2">
+                    {% if p.status != 'missing' %}
+                    <button type="button"
+                            hx-post="/api/cookies/{{ p.id }}/clear"
+                            hx-target="#cookie-card-{{ p.id }}"
+                            hx-swap="outerHTML"
+                            hx-confirm="确定清除 {{ p.label }} 的 Cookie？"
+                            class="theme-btn-secondary px-3 py-1.5 text-sm rounded-lg transition-colors">
+                        清除
+                    </button>
+                    {% endif %}
+                    <button type="submit"
+                            class="px-4 py-1.5 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-colors">
+                        保存
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</details>
+{% endfor %}

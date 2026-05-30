@@ -1,0 +1,63 @@
+{# User-friendly URL fetch / parse failure. Expects `fetch_error` (FetchErrorInfo dict). #}
+{% set level = fetch_error.level | default('error') %}
+<div class="score-fetch-error rounded-xl border p-5 space-y-4
+    {% if level == 'warning' %}bg-amber-950/40 border-amber-700/60{% else %}bg-red-950/40 border-red-700/60{% endif %}">
+    <div class="flex items-start gap-3">
+        <div class="shrink-0 mt-0.5">
+            {% if level == 'warning' %}
+            <svg class="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            {% else %}
+            <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {% endif %}
+        </div>
+        <div class="min-w-0 flex-1 space-y-2">
+            <h2 class="text-lg font-semibold {% if level == 'warning' %}text-amber-200{% else %}text-red-200{% endif %}">
+                {{ fetch_error.title }}
+            </h2>
+            <p class="text-sm {% if level == 'warning' %}text-amber-100/90{% else %}text-red-100/90{% endif %}">
+                {{ fetch_error.reason }}
+            </p>
+            {% if fetch_error.url %}
+            <p class="text-xs text-gray-500 break-all">
+                链接：<span class="text-gray-400">{{ fetch_error.url }}</span>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if fetch_error.hints %}
+    <div class="rounded-lg bg-navy-900/80 border border-navy-700 px-4 py-3">
+        <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">你可以尝试</p>
+        <ul class="text-sm text-gray-300 space-y-1.5 list-disc list-inside">
+            {% for hint in fetch_error.hints %}
+            <li>{{ hint }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if fetch_error.detail and show_technical_detail %}
+    <details class="text-xs text-gray-500">
+        <summary class="cursor-pointer hover:text-gray-400">技术详情</summary>
+        <pre class="mt-2 p-2 rounded bg-navy-900 border border-navy-700 overflow-x-auto whitespace-pre-wrap break-all text-gray-400">{{ fetch_error.detail }}</pre>
+    </details>
+    {% endif %}
+
+    <div class="flex flex-wrap gap-3 pt-1">
+        <a href="/score-form"
+           class="inline-flex items-center gap-1.5 text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            返回重新评分
+        </a>
+        {% if fetch_error.code == 'auth_required' %}
+        <a href="/settings#cookies"
+           class="inline-flex items-center gap-1.5 text-sm font-medium text-amber-300 hover:text-amber-200 transition-colors">
+            前往 Cookie 设置
+        </a>
+        {% endif %}
+    </div>
+</div>

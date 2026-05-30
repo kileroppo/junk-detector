@@ -1,0 +1,44 @@
+{# Phase 1: single primary decision — action before score #}
+{% set action = result.reading_action | default(none) %}
+{% set rv = result.reading_verdict | default(none) %}
+{% if action or rv %}
+<section class="verdict-hero simple-hidden" aria-labelledby="verdict-hero-title">
+    <div class="verdict-hero-main">
+        <div class="verdict-hero-copy">
+            <p class="verdict-hero-eyebrow">阅读裁决</p>
+            {% if action %}
+            <h1 id="verdict-hero-title" class="verdict-hero-action {{ action.css }}">
+                <span class="verdict-hero-emoji" aria-hidden="true">{{ action.emoji }}</span>
+                <span class="verdict-hero-action-label">{{ action.label }}</span>
+            </h1>
+            {% elif rv.headline %}
+            <h1 id="verdict-hero-title" class="verdict-hero-action">{{ rv.headline }}</h1>
+            {% endif %}
+            {% if result.content_genre_display %}
+            <span class="genre-badge {{ result.content_genre_display.css }}">{{ result.content_genre_display.label }}</span>
+            {% endif %}
+            {% if rv and rv.detail %}
+            <p class="verdict-hero-detail">{{ rv.detail }}</p>
+            {% elif result.summary %}
+            <p class="verdict-hero-detail text-gray-400">{{ result.summary }}</p>
+            {% endif %}
+        </div>
+        <div class="verdict-hero-score" aria-label="参考分数 {{ result.primary_score | default(result.overall_score) | round | int }} 分">
+            {% with score=result.primary_score | default(result.overall_score), size='md', animate=true %}
+            {% include "partials/score_ring.html" %}
+            {% endwith %}
+            {% if result.score_tier %}
+            <span class="score-tier-badge verdict-hero-tier {{ result.score_tier.css }}">{{ result.score_tier.label }}</span>
+            {% endif %}
+            <p class="verdict-hero-score-hint text-xs text-gray-500 mt-1">参考分 · 展开可看九维</p>
+        </div>
+    </div>
+    {% if result.label_chips %}
+    <div class="verdict-hero-chips flex flex-wrap gap-2 mt-4">
+        {% for chip in result.label_chips %}
+        <span class="result-label-chip result-label-chip--{{ chip.type }}">{{ chip.text }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+</section>
+{% endif %}

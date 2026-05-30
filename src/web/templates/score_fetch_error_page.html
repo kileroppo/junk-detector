@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}无法解析链接 - Junk Detector{% endblock %}
+{% block nav_score %}text-indigo-400 bg-navy-700{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <h1 class="text-2xl font-bold">内容评分</h1>
+    {% include "partials/score_fetch_error.html" %}
+</div>
+{% endblock %}

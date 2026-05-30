@@ -44,18 +44,45 @@ class CookieStore:
         path.write_text(json.dumps(data, ensure_ascii=False))
         os.chmod(path, 0o600)
 
-    def load(self, platform: str) -> dict[str, str] | None:
-        """Load cookies for a platform, returning None if missing or expired."""
+    def _read_file(self, platform: str) -> dict | None:
         path = self._path_for(platform)
         if not path.exists():
             return None
         try:
-            data = json.loads(path.read_text())
+            return json.loads(path.read_text())
         except (json.JSONDecodeError, OSError):
+            return None
+
+    def load(self, platform: str) -> dict[str, str] | None:
+        """Load cookies for a platform, returning None if missing or expired."""
+        data = self._read_file(platform)
+        if data is None:
             return None
         if data.get("expires_at", 0) < time.time():
             return None
         return data.get("cookies")
+
+    def load_unchecked(self, platform: str) -> dict[str, str] | None:
+        """Load cookies ignoring expiry (useful when merging partial updates)."""
+        data = self._read_file(platform)
+        if data is None:
+            return None
+        return data.get("cookies")
+
+    def update(
+        self,
+        platform: str,
+        cookies: dict[str, str],
+        *,
+        merge: bool = True,
+        ttl_hours: int = 168,
+    ) -> dict[str, str]:
+        """Save cookies, optionally merging with existing stored cookies."""
+        if merge:
+            existing = self.load_unchecked(platform) or {}
+            cookies = {**existing, **cookies}
+        self.save(platform, cookies, ttl_hours=ttl_hours)
+        return cookies
 
     def is_expired(self, platform: str) -> bool:
         """Check if stored cookies for a platform have expired."""

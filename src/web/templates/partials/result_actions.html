@@ -1,0 +1,134 @@
+{% set bar = result.sticky_bar %}
+{% set action_record_id = record_id | default(bar.record_id if bar else none) %}
+{% set action_source_url = result.source_url | default(bar.source_url if bar else none) %}
+{% if bar and bar.copy_text %}
+{% set copy_text = bar.copy_text %}
+{% else %}
+{% set copy_text = (result.reading_verdict.headline if result.reading_verdict else result.score_tier.label) ~ ' · ' ~ (result.primary_score | default(result.overall_score) | round | int) ~ '分' ~ (' · ' ~ result.summary if result.summary else '') %}
+{% endif %}
+<div class="result-actions"
+     {% if action_record_id %}data-score-id="{{ action_record_id }}"{% endif %}
+     {% if content_hash %}data-content-hash="{{ content_hash }}"{% endif %}
+     data-overall-score="{{ result.primary_score | default(result.overall_score) }}"
+     data-dimensions='{{ result.dimensions | tojson }}'>
+    <button type="button"
+            class="btn-secondary result-actions__btn result-actions__copy"
+            data-copy-text="{{ copy_text | e }}"
+            onclick="copyResultConclusion(this)"
+            title="复制评分结论"
+            aria-label="复制评分结论">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+        <span>复制结论</span>
+    </button>
+
+    {% if action_source_url %}
+    <a href="{{ action_source_url }}"
+       target="_blank"
+       rel="noopener noreferrer"
+       class="btn-secondary result-actions__btn"
+       title="打开原文链接"
+       aria-label="打开原文链接">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+        </svg>
+        <span>打开原文</span>
+    </a>
+    {% endif %}
+
+    {% if action_record_id %}
+    <button type="button"
+            class="btn-secondary result-actions__btn result-actions__feedback result-actions__feedback--correct"
+            data-verdict="correct"
+            onclick="submitResultFeedback(this)"
+            aria-label="评分准确">
+        准确
+    </button>
+    <button type="button"
+            class="btn-secondary result-actions__btn result-actions__feedback result-actions__feedback--wrong"
+            data-verdict="wrong"
+            onclick="submitResultFeedback(this)"
+            aria-label="评分不准">
+        不准
+    </button>
+    <a href="/result/{{ action_record_id }}"
+       class="btn-secondary result-actions__btn"
+       title="在新页面查看完整结果"
+       aria-label="查看完整结果">
+        完整结果
+    </a>
+    {% endif %}
+
+    <span class="result-actions__toast hidden" role="status" aria-live="polite"></span>
+</div>
+
+<script>
+if (!window.__resultActionsInit) {
+    window.__resultActionsInit = true;
+
+    window.copyResultConclusion = function(btn) {
+        var text = btn.getAttribute('data-copy-text') || '';
+        var toast = btn.closest('.result-actions').querySelector('.result-actions__toast');
+        function showToast(msg) {
+            if (!toast) return;
+            toast.textContent = msg;
+            toast.classList.remove('hidden');
+            setTimeout(function() { toast.classList.add('hidden'); }, 2000);
+        }
+        if (!text) {
+            showToast('无可复制内容');
+            return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function() {
+                showToast('已复制结论');
+            }).catch(function() {
+                showToast('复制失败');
+            });
+        } else {
+            showToast('浏览器不支持复制');
+        }
+    };
+
+    window.submitResultFeedback = function(btn) {
+        var bar = btn.closest('.result-actions');
+        var scoreId = parseInt(bar.getAttribute('data-score-id'), 10);
+        if (!scoreId) return;
+
+        var verdict = btn.getAttribute('data-verdict');
+        var payload = {
+            score_id: scoreId,
+            verdict: verdict,
+            content_hash: bar.getAttribute('data-content-hash') || '',
+            overall_score: parseFloat(bar.getAttribute('data-overall-score')),
+            dimensions: JSON.parse(bar.getAttribute('data-dimensions') || '{}')
+        };
+
+        bar.querySelectorAll('.result-actions__feedback').forEach(function(b) {
+            b.disabled = true;
+        });
+
+        var toast = bar.querySelector('.result-actions__toast');
+        fetch('/api/feedback', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(function(resp) {
+            if (toast) {
+                toast.textContent = resp.ok ? '感谢反馈' : '反馈失败';
+                toast.classList.remove('hidden');
+                setTimeout(function() { toast.classList.add('hidden'); }, 2000);
+            }
+        }).catch(function() {
+            if (toast) {
+                toast.textContent = '反馈失败';
+                toast.classList.remove('hidden');
+            }
+            bar.querySelectorAll('.result-actions__feedback').forEach(function(b) {
+                b.disabled = false;
+            });
+        });
+    };
+}
+</script>

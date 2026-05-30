@@ -1,0 +1,52 @@
+<details class="dimension-panel bg-surface rounded-xl border border-navy-700 overflow-hidden detail-section">
+    <summary class="dimension-panel-summary px-6 py-4 cursor-pointer hover:bg-surface-raised transition-colors select-none">
+        <span class="text-base font-semibold text-gray-200">九维评分详情</span>
+        <span class="text-xs text-gray-500 block mt-1 font-normal">
+            {% if result.dimension_explanation %}{{ result.dimension_explanation }}{% else %}专家模式：查看全部维度{% endif %}
+        </span>
+    </summary>
+    <div class="px-6 pb-6 border-t border-navy-700">
+        {% if result.dimension_evidence %}
+        <p class="text-xs text-indigo-400/80 mt-4 mb-4">维度与原文可双向定位：点击维度或原文段落，或展开「判定依据」。</p>
+        {% endif %}
+
+        {% set highlights = result.dimension_highlights %}
+        {% if highlights.top_risks or highlights.top_positive %}
+        <div class="space-y-3 mb-4">
+            {% for dim in highlights.top_risks %}
+            {% with value=dim.value, variant='negative' %}
+            {% include "partials/dimension_row.html" %}
+            {% endwith %}
+            {% endfor %}
+            {% for dim in highlights.top_positive %}
+            {% with value=dim.value, variant='positive' %}
+            {% include "partials/dimension_row.html" %}
+            {% endwith %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="space-y-6">
+            <div>
+                <h3 class="text-sm font-medium text-emerald-400 mb-3">正面维度</h3>
+                <div class="space-y-3">
+                    {% for dim in positive_dimensions %}
+                    {% with value=result.dimensions[dim.key], variant='positive' %}
+                    {% include "partials/dimension_row.html" %}
+                    {% endwith %}
+                    {% endfor %}
+                </div>
+            </div>
+            <div>
+                <h3 class="text-sm font-medium text-red-400 mb-3">风险维度</h3>
+                <div class="space-y-3">
+                    {% for dim in negative_dimensions %}
+                    {% with value=result.dimensions[dim.key], variant='negative' %}
+                    {% include "partials/dimension_row.html" %}
+                    {% endwith %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</details>

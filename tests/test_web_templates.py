@@ -82,6 +82,16 @@ class TestScoreFormTemplateContent:
         assert "tab-url" in html
         assert 'name="url"' in html
 
+    def test_score_form_defaults_to_url_tab(self, web_client):
+        """Score form opens on the URL tab by default."""
+        response = web_client.get("/score-form")
+        html = response.text
+
+        assert 'id="content-url" class="tab-content active"' in html
+        assert 'id="content-text" class="tab-content active"' not in html
+        tab_idx = html.index('id="tab-url"')
+        assert "tab-btn active" in html[tab_idx : tab_idx + 120]
+
     def test_score_form_has_hx_post(self, web_client):
         """Score form uses hx-post for HTMX submission."""
         response = web_client.get("/score-form")
@@ -181,16 +191,93 @@ class TestResultTemplateContent:
         # Dimension labels in Chinese
         assert "原创性" in html
         assert "信息密度" in html
-        assert "论证质量" in html
-        assert "可读性" in html
-        assert "时效性" in html
-        assert "AI生成概率" in html
-        assert "情绪操纵" in html
-        assert "软文概率" in html
-        assert "骗局概率" in html
+        assert "九维评分详情" in html
+        assert "dimension-panel" in html
+        assert "主要亮点" in html
+        assert "dim-help" in html
+        assert "是否有独特观点或第一手信息" in html
 
         # Dimension bar elements
         assert "dimension-bar" in html
+
+    @patch("src.web.result_display.build_result_display_data_from_record")
+    @patch("src.web.router.query")
+    def test_result_has_sticky_bar_when_present(self, mock_query, mock_build_display, web_client):
+        """Result page renders sticky summary bar when display data includes sticky_bar."""
+        mock_query.return_value = [
+            {
+                "id": 1,
+                "overall_score": 72.5,
+                "dimensions": {
+                    "originality": 80,
+                    "info_density": 70,
+                    "reasoning_quality": 75,
+                    "readability": 85,
+                    "timeliness": 60,
+                    "ai_generated_prob": 15,
+                    "emotional_manipulation": 10,
+                    "advertorial_prob": 20,
+                    "scam_prob": 5,
+                },
+                "labels": [],
+                "summary": "Good content",
+                "model_used": "test-model",
+                "cost": 0.001,
+                "confidence": 0.9,
+                "scored_at": "2024-01-01T12:00:00",
+                "title": "Test Article With A Very Long Title That Should Truncate In Sticky Bar",
+                "source_url": "https://example.com",
+            }
+        ]
+        mock_build_display.return_value = {
+            "overall_score": 72.5,
+            "primary_score": 72.5,
+            "score_tier": {"key": "quality", "label": "质量良好", "css": "score-tier-quality"},
+            "dimensions": mock_query.return_value[0]["dimensions"],
+            "dimension_highlights": {"top_positive": [], "top_risks": []},
+            "rule_hit_display": [],
+            "labels": [],
+            "summary": "Good content",
+            "model_used": "test-model",
+            "cost": 0.001,
+            "confidence": 0.9,
+            "scored_at": "2024-01-01T12:00:00",
+            "title": mock_query.return_value[0]["title"],
+            "source_url": "https://example.com",
+            "focus_guide": None,
+            "rule_hits": [],
+            "dimension_sources": {},
+            "rules_fired": False,
+            "divergence_warning": False,
+            "sticky_bar": {
+                "title": "Test Article With A Very Long Title That Should Truncate In Sticky Bar",
+                "verdict_label": "跳读即可",
+                "verdict_css": "result-sticky-verdict--skim",
+                "score": 73,
+                "score_tier": {"label": "质量良好", "css": "score-tier-quality"},
+                "copy_text": "跳读即可 · 73 分 · 质量良好",
+                "source_url": "https://example.com",
+            },
+            "reading_verdict": {
+                "headline": "整体质量良好",
+                "detail": "未发现明显风险信号",
+                "recommendation": "read_carefully",
+            },
+            "dimension_explanation": "主要亮点：原创性 80",
+        }
+
+        response = web_client.get("/result/1")
+        html = response.text
+
+        assert "result-sticky-bar" in html
+        assert "result-sticky-bar-title" in html
+        assert "result-sticky-bar-score" in html
+        assert "73" in html
+        assert "质量良好" in html
+        assert "跳读即可" in html
+        assert "result-sticky-actions" in html
+        assert "整体质量良好" in html
+        assert "主要亮点：原创性 80" in html
 
 
 class TestHistoryTemplateContent:
@@ -255,19 +342,19 @@ class TestSettingsTemplateContent:
         assert "API Key" in html
 
     def test_settings_has_theme_toggle(self, web_client):
-        """Settings page contains theme toggle elements."""
-        response = web_client.get("/settings")
+        """Theme toggle lives in the global nav (sun/moon), not settings page."""
+        response = web_client.get("/dashboard")
         html = response.text
 
-        assert "外观" in html
-        assert "深色模式" in html
-        # Verify toggleTheme function is called on button click
         assert "toggleTheme()" in html
-        # Verify toggle knob and description have IDs for JS manipulation
-        assert 'id="theme-toggle-knob"' in html
-        assert 'id="theme-toggle-desc"' in html
-        # Verify localStorage script is present for theme persistence
+        assert 'data-theme-toggle' in html
+        assert 'data-theme-icon="sun"' in html
+        assert 'data-theme-icon="moon"' in html
         assert "localStorage" in html
+
+        settings = web_client.get("/settings")
+        assert "外观" not in settings.text
+        assert 'id="theme-toggle-knob"' not in settings.text
 
     def test_settings_has_scoring_preferences(self, web_client):
         """Settings page contains scoring weight preferences."""
@@ -277,6 +364,8 @@ class TestSettingsTemplateContent:
         assert "评分权重" in html
         assert "原创性" in html
         assert "信息密度" in html
+        assert 'name="weight_originality"' in html
+        assert "disabled" not in html.split("评分权重")[1].split("平台 Cookie")[0]
 
 
 class TestBaseTemplateElements:

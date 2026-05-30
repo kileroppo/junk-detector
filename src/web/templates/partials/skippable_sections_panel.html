@@ -1,0 +1,28 @@
+<!-- Skippable zones — compact disclosures, expand for detail -->
+{% if result.skippable_display %}
+<section class="skip-zones-panel" aria-labelledby="skip-zones-title">
+    <div class="skip-zones-head">
+        <h4 id="skip-zones-title" class="skip-zones-title">哪里可以略读</h4>
+        <p class="skip-zones-summary">{{ result.skippable_display.summary }}</p>
+    </div>
+
+    <ul class="skip-zones-compact-list list-none m-0 p-0">
+        {% for zone in result.skippable_display.preview_sections %}
+        <li>{% include "partials/skip_zone_disclosure.html" %}</li>
+        {% endfor %}
+    </ul>
+
+    {% if result.skippable_display.overflow_count > 0 %}
+    <details class="skip-zones-overflow mt-2">
+        <summary class="skip-zones-overflow-summary">
+            还有 {{ result.skippable_display.overflow_count }} 处可略
+        </summary>
+        <ul class="skip-zones-compact-list list-none m-0 p-0 mt-2">
+            {% for zone in result.skippable_display.overflow_sections %}
+            <li>{% include "partials/skip_zone_disclosure.html" %}</li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endif %}
+</section>
+{% endif %}

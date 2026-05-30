@@ -9,6 +9,8 @@ async def browser_login(
     cookie_domains: list[str],
     headless: bool = False,
     wait_for_login_indicator: str | None = None,
+    post_login_urls: list[str] | None = None,
+    user_agent: str | None = None,
     timeout: int = 120,
 ) -> dict[str, str]:
     """Open a browser for manual login and extract cookies after authentication.
@@ -18,6 +20,8 @@ async def browser_login(
         cookie_domains: Domains to capture cookies from.
         headless: Run browser in headless mode (mostly for testing).
         wait_for_login_indicator: CSS selector that indicates successful login.
+        post_login_urls: URLs to visit after login before extracting cookies.
+        user_agent: Optional browser user agent (uses mobile viewport when set).
         timeout: Max seconds to wait for login completion.
 
     Returns:
@@ -54,7 +58,11 @@ async def browser_login(
                 "  playwright install webkit"
             )
         try:
-            context = await browser.new_context()
+            context_kwargs: dict = {}
+            if user_agent:
+                context_kwargs["user_agent"] = user_agent
+                context_kwargs["viewport"] = {"width": 390, "height": 844}
+            context = await browser.new_context(**context_kwargs)
             page = await context.new_page()
 
             await page.goto(login_url, wait_until="domcontentloaded")
@@ -86,6 +94,13 @@ async def browser_login(
                     break
 
                 await asyncio.sleep(0.5)
+
+            for url in post_login_urls or []:
+                try:
+                    await page.goto(url, wait_until="domcontentloaded")
+                    await asyncio.sleep(1)
+                except Exception:
+                    pass
 
             # Extract cookies for the specified domains
             all_cookies = await context.cookies()

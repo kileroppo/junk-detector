@@ -119,7 +119,12 @@ def _default_score_result(model: str) -> ScoreResult:
     )
 
 
-async def judge(content: str, config: ScoringConfig, language: str = "zh") -> ScoreResult:
+async def judge(
+    content: str,
+    config: ScoringConfig,
+    language: str = "zh",
+    content_genre: str | None = None,
+) -> ScoreResult:
     """Score content using an LLM judge.
 
     Args:
@@ -130,8 +135,11 @@ async def judge(content: str, config: ScoringConfig, language: str = "zh") -> Sc
     Returns:
         ScoreResult with dimension scores, labels, and summary.
     """
+    from src.core.content_genre import detect_content_genre, genre_system_prompt_addon
+
     model = config.primary_model
-    system_prompt = get_system_prompt(language)
+    genre = content_genre or detect_content_genre(content)
+    system_prompt = get_system_prompt(language) + genre_system_prompt_addon(genre, language)
     user_content = f"<content_to_evaluate>\n{content}\n</content_to_evaluate>"
 
     messages = [

@@ -1,12 +1,80 @@
-<!-- Simple mode result: traffic-light circle + one sentence summary -->
-<div class="text-center py-8">
-    <div class="inline-flex items-center justify-center w-24 h-24 rounded-full
-                {% if result.overall_score > 70 %}bg-green-500
-                {% elif result.overall_score > 40 %}bg-amber-500
-                {% else %}bg-red-500{% endif %}">
-        <span class="text-3xl font-bold text-white">{{ "%.0f"|format(result.overall_score) }}</span>
-    </div>
-    {% if result.summary %}
-    <p class="mt-4 text-gray-300 text-lg">{{ result.summary }}</p>
+{# Simple mode: reading verdict + compact score ring (no traffic-light circle) #}
+{% set rv = result.reading_verdict | default(none) %}
+{% set verdict_css = 'focus-verdict--skim' %}
+{% set headline = '' %}
+{% set detail = '' %}
+{% if rv %}
+    {% set verdict_css = rv.css | default('focus-verdict--skim') %}
+    {% set headline = rv.headline | default('') %}
+    {% set detail = rv.detail | default('') %}
+{% endif %}
+{% if not headline and result.focus_guide %}
+    {% set headline = result.focus_guide.verdict_headline | default('') %}
+    {% if not detail %}
+        {% set detail = result.focus_guide.verdict_detail | default(result.focus_guide.tldr | default('')) %}
     {% endif %}
+    {% set verdict_css = 'focus-verdict--' ~ (result.focus_guide.recommendation | default('skim')) %}
+{% elif not headline and result.score_tier %}
+    {% set headline = result.score_tier.label %}
+    {% if not detail %}
+        {% set detail = result.summary | default('') %}
+    {% endif %}
+{% endif %}
+
+<div class="result-simple bg-surface rounded-xl p-6 border border-navy-700">
+    <div class="focus-verdict {{ verdict_css }} result-simple-verdict text-center sm:text-left">
+        <p class="focus-verdict-label">阅读结论</p>
+        <h2 class="focus-verdict-headline">
+            {% if headline %}{{ headline }}
+            {% elif result.focus_guide and result.focus_guide.recommendation == 'skip' %}建议别读完
+            {% elif result.focus_guide and result.focus_guide.recommendation == 'read_carefully' %}值得细读
+            {% else %}速查即可
+            {% endif %}
+        </h2>
+        {% if detail %}
+        <p class="focus-verdict-detail">{{ detail }}</p>
+        {% elif result.summary %}
+        <p class="focus-verdict-detail">{{ result.summary }}</p>
+        {% endif %}
+    </div>
+
+    <div class="result-simple-score mt-5 flex flex-col items-center gap-2">
+        {% if result.score_tier %}
+        <span class="score-tier-badge {{ result.score_tier.css }}">{{ result.score_tier.label }}</span>
+        {% endif %}
+        {% with score=result.primary_score | default(result.overall_score), size='md', animate=true %}
+        {% include "partials/score_ring.html" %}
+        {% endwith %}
+        {% if result.rules_fired and result.rule_score is not none %}
+        <p class="text-xs text-gray-500">
+            规则预检 <span class="text-amber-400 font-medium tabular-nums">{{ "%.0f"|format(result.rule_score) }}</span> 分
+        </p>
+        {% endif %}
+    </div>
+
+    {% if result.label_chips %}
+    <div class="flex flex-wrap justify-center gap-2 mt-4">
+        {% for chip in result.label_chips %}
+        <span class="result-label-chip result-label-chip--{{ chip.type }}">{{ chip.text }}</span>
+        {% endfor %}
+    </div>
+    {% elif result.labels %}
+    <div class="flex flex-wrap justify-center gap-2 mt-4">
+        {% for label in result.labels %}
+        <span class="result-label-chip
+                     {% if '高质量' in label or '原创' in label %}result-label-chip--good
+                     {% elif '骗' in label or '韭菜' in label %}result-label-chip--bad
+                     {% elif 'AI' in label %}result-label-chip--ai
+                     {% else %}result-label-chip--warn{% endif %}">{{ label }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="mt-6 text-center">
+        <button type="button"
+                class="btn-secondary"
+                onclick="typeof ResultPage !== 'undefined' ? ResultPage.expandFromSimpleMode() : (typeof toggleSimpleMode === 'function' ? toggleSimpleMode() : document.body.classList.remove('simple-mode'))">
+            展开详细分析
+        </button>
+    </div>
 </div>

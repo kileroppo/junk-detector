@@ -67,7 +67,9 @@ class TestScoreSubmitErrors:
 
         assert response.status_code == 500
         assert "text/html" in response.headers["content-type"]
-        assert "API rate limit exceeded" in response.text
+        assert "<!DOCTYPE html>" in response.text
+        assert "评分失败" in response.text
+        assert "score-fetch-error" in response.text
 
     @patch("src.core.scorer.score", new_callable=AsyncMock)
     @patch("src.extractors.text.extract_from_text")
@@ -93,7 +95,8 @@ class TestScoreSubmitErrors:
 
         assert response.status_code == 500
         assert "text/html" in response.headers["content-type"]
-        assert "Connection timeout" in response.text
+        assert "评分失败" in response.text
+        assert "score-fetch-error" in response.text
         # Should be a fragment (div), not a full HTML page
         assert "<!DOCTYPE html>" not in response.text
 
@@ -102,17 +105,41 @@ class TestScoreSubmitErrors:
     def test_submit_url_extraction_fails(
         self, mock_extract_url, mock_score, web_client
     ):
-        """POST /score-submit with URL extraction failure returns 500."""
-        mock_extract_url.side_effect = RuntimeError("Failed to fetch URL")
+        """POST /score-submit with URL extraction failure shows a full friendly page."""
+        mock_extract_url.side_effect = ValueError(
+            "Failed to fetch URL: https://invalid.example.com/page — connection refused"
+        )
 
         response = web_client.post(
             "/score-submit",
             data={"input_type": "url", "url": "https://invalid.example.com/page"},
         )
 
-        assert response.status_code == 500
+        assert response.status_code == 422
         assert "text/html" in response.headers["content-type"]
-        assert "Failed to fetch URL" in response.text
+        assert "<!DOCTYPE html>" in response.text
+        assert "无法连接该网站" in response.text
+        assert "你可以尝试" in response.text
+        assert "invalid.example.com" in response.text
+
+    @patch("src.extractors.web.extract_from_url", new_callable=AsyncMock)
+    def test_score_stream_url_extraction_emits_fetch_error(
+        self, mock_extract_url, web_client
+    ):
+        """POST /score-stream emits structured fetch_error on URL failure."""
+        mock_extract_url.side_effect = ValueError(
+            "URL returned 404 Not Found: https://missing.example/x"
+        )
+
+        response = web_client.post(
+            "/score-stream",
+            data={"input_type": "url", "url": "https://missing.example/x"},
+        )
+
+        assert response.status_code == 200
+        assert "event: error" in response.text
+        assert "fetch_error" in response.text
+        assert "页面不存在" in response.text
 
 
 class TestResultDetailErrors:

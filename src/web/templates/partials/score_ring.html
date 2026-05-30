@@ -1,0 +1,19 @@
+{# score, size ('lg'|'md'), animate (bool) #}
+{% set ring_px = 128 if (size | default('lg')) == 'lg' else 96 %}
+{% set text_class = 'text-4xl' if (size | default('lg')) == 'lg' else 'text-2xl' %}
+{% set tier = score_tier(score) if score_tier is defined else none %}
+{% set stroke = '#10b981' if score > 70 else ('#f59e0b' if score > 40 else '#ef4444') %}
+<div class="score-ring-wrap inline-flex items-center justify-center relative" style="width: {{ ring_px }}px; height: {{ ring_px }}px;">
+    <svg width="{{ ring_px }}" height="{{ ring_px }}" viewBox="0 0 100 100" aria-hidden="true">
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#334155" stroke-width="6"/>
+        <circle cx="50" cy="50" r="45" fill="none"
+                stroke="{{ stroke }}"
+                stroke-width="6" stroke-linecap="round"
+                stroke-dasharray="282.7"
+                stroke-dashoffset="{{ 282.7 - (282.7 * score / 100) }}"
+                {% if animate | default(true) %}class="score-ring-circle"{% endif %}/>
+    </svg>
+    <span class="absolute font-bold score-value-animate {{ text_class }}
+                 {% if score > 70 %}score-high{% elif score > 40 %}score-mid{% else %}score-low{% endif %}"
+          aria-label="综合评分 {{ '%.0f'|format(score) }} 分">{{ "%.0f"|format(score) }}</span>
+</div>

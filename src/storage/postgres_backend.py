@@ -53,9 +53,31 @@ class PostgresBackend:
                     confidence REAL DEFAULT 1.0,
                     embedding_json TEXT,
                     user_id INTEGER,
-                    cached_at TEXT
+                    cached_at TEXT,
+                    rule_score REAL,
+                    rules_fired INTEGER DEFAULT 0,
+                    dimension_sources_json TEXT,
+                    focus_guide_json TEXT
                 )
             """)
+            await conn.execute(
+                "ALTER TABLE scores ADD COLUMN IF NOT EXISTS rule_score REAL"
+            )
+            await conn.execute(
+                "ALTER TABLE scores ADD COLUMN IF NOT EXISTS rules_fired INTEGER DEFAULT 0"
+            )
+            await conn.execute(
+                "ALTER TABLE scores ADD COLUMN IF NOT EXISTS dimension_sources_json TEXT"
+            )
+            await conn.execute(
+                "ALTER TABLE scores ADD COLUMN IF NOT EXISTS focus_guide_json TEXT"
+            )
+            await conn.execute(
+                "ALTER TABLE scores ADD COLUMN IF NOT EXISTS content_text TEXT"
+            )
+            await conn.execute(
+                "ALTER TABLE scores ADD COLUMN IF NOT EXISTS content_truncated INTEGER DEFAULT 0"
+            )
 
     async def close(self) -> None:
         """Close connection pool."""
@@ -70,6 +92,16 @@ class PostgresBackend:
         dimensions_json = json.dumps(result.dimensions.model_dump(), ensure_ascii=False)
         labels_json = json.dumps(result.labels, ensure_ascii=False)
         rule_hits_json = json.dumps(result.rule_hits, ensure_ascii=False)
+        dimension_sources_json = json.dumps(result.dimension_sources, ensure_ascii=False)
+        focus_guide_json = (
+            json.dumps(result.focus_guide, ensure_ascii=False) if result.focus_guide else None
+        )
+        rules_fired = 1 if result.rules_fired else 0
+
+        from src.storage.db import prepare_content_for_storage
+
+        stored_content, content_truncated = prepare_content_for_storage(content.text)
+        content_truncated_flag = 1 if content_truncated else 0
 
         async with self._pool.acquire() as conn:
             await conn.execute(
@@ -77,8 +109,10 @@ class PostgresBackend:
                 INSERT INTO scores (
                     input_type, source_url, title, content_hash, scored_at,
                     overall_score, dimensions_json, labels_json, summary,
-                    model_used, cost, rule_hits_json, confidence, user_id
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                    model_used, cost, rule_hits_json, confidence, user_id,
+                    rule_score, rules_fired, dimension_sources_json, focus_guide_json,
+                    content_text, content_truncated
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
                 ON CONFLICT (content_hash) DO UPDATE SET
                     scored_at = EXCLUDED.scored_at,
                     overall_score = EXCLUDED.overall_score,
@@ -88,7 +122,13 @@ class PostgresBackend:
                     model_used = EXCLUDED.model_used,
                     cost = EXCLUDED.cost,
                     rule_hits_json = EXCLUDED.rule_hits_json,
-                    confidence = EXCLUDED.confidence
+                    confidence = EXCLUDED.confidence,
+                    rule_score = EXCLUDED.rule_score,
+                    rules_fired = EXCLUDED.rules_fired,
+                    dimension_sources_json = EXCLUDED.dimension_sources_json,
+                    focus_guide_json = EXCLUDED.focus_guide_json,
+                    content_text = EXCLUDED.content_text,
+                    content_truncated = EXCLUDED.content_truncated
                 WHERE scores.user_id IS NULL OR scores.user_id = $14
                 """,
                 content.input_type.value,
@@ -105,6 +145,12 @@ class PostgresBackend:
                 rule_hits_json,
                 result.confidence,
                 user_id,
+                result.rule_score,
+                rules_fired,
+                dimension_sources_json,
+                focus_guide_json,
+                stored_content,
+                content_truncated_flag,
             )
 
     async def query(

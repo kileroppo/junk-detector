@@ -1,0 +1,9 @@
+<button type="button"
+        class="focus-icon-btn focus-icon-btn--goto{% if muted | default(true) %} focus-icon-btn--muted{% endif %}{% if sm | default(false) %} focus-icon-btn--sm{% endif %}"
+        onclick="scrollToFocusPara({{ index }})"
+        title="定位原文"
+        aria-label="定位原文">
+    <svg class="focus-icon-btn__svg" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+    </svg>
+</button>

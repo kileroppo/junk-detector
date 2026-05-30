@@ -1,0 +1,64 @@
+{% if result.rule_hits or result.dimension_sources or result.confidence is defined %}
+<details class="bg-surface rounded-xl border border-navy-700 overflow-hidden detail-section">
+    <summary class="px-6 py-4 cursor-pointer text-base font-semibold hover:bg-surface-raised transition-colors flex items-center gap-2 text-gray-300">
+        <svg class="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        判定依据
+        <span class="text-xs font-normal text-gray-500 ml-1">技术细节</span>
+    </summary>
+    <div class="px-6 pb-6 space-y-5">
+        {% if result.rule_hit_display %}
+        <div>
+            <h3 class="text-sm font-medium text-amber-400 mb-2">命中信号</h3>
+            <div class="flex flex-wrap gap-2">
+                {% for item in result.rule_hit_display %}
+                {% if item.linkable %}
+                <button type="button"
+                        class="judgment-rule-chip judgment-rule-chip--linkable"
+                        data-dim-keys='{{ item.dim_keys | tojson }}'
+                        data-paragraph-indices="{{ item.paragraph_indices | join(',') }}"
+                        title="{{ item.rules | join(' · ') }} · 点击定位原文"
+                        aria-label="{{ item.label }}，点击定位原文"
+                        onclick="ResultPage.linkRuleSignalToSource(this)">{{ item.label }}</button>
+                {% else %}
+                <span class="judgment-rule-chip"
+                      title="{{ item.rules | join(' · ') }}">{{ item.label }}</span>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if result.dimension_sources %}
+        <div>
+            <h3 class="text-sm font-medium text-blue-400 mb-2">维度来源</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {% for dim_key, source in result.dimension_sources.items() %}
+                <div class="flex items-center gap-2 bg-navy-900/50 rounded px-3 py-1.5">
+                    <span class="text-xs text-gray-400 flex-1">{{ dimension_labels.get(dim_key, dim_key) }}</span>
+                    <span class="px-2 py-0.5 rounded text-xs font-medium
+                                 {% if source == 'rule' %}bg-amber-900/30 text-amber-300{% else %}bg-purple-900/30 text-purple-300{% endif %}">
+                        {% if source == 'rule' %}规则{% else %}AI{% endif %}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if result.confidence is defined %}
+        <div>
+            <h3 class="text-sm font-medium text-emerald-400 mb-2">总体置信度</h3>
+            <div class="flex items-center gap-3">
+                <div class="flex-1 bg-navy-900 rounded-full h-4 overflow-hidden">
+                    <div class="h-full rounded-full bg-emerald-500"
+                         style="width: {{ (result.confidence or 1) * 100 }}%"></div>
+                </div>
+                <span class="text-sm font-medium text-emerald-300 tabular-nums">{{ "%.0f"|format((result.confidence or 1) * 100) }}%</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</details>
+{% endif %}

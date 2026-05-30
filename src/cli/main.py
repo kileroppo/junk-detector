@@ -1828,5 +1828,72 @@ def auth_logout(
         console.print(f"✅ Cleared cookies for {platform_lower}.", style="bold green")
 
 
+@auth_app.command("import")
+def auth_import(
+    platform: str = typer.Option(..., "--platform", "-p", help="Platform name (zhihu, weibo, xiaohongshu, wechat, bilibili)"),
+    cookie: Optional[str] = typer.Option(None, "--cookie", "-c", help="Cookie string (semicolon-separated or JSON)"),
+    file: Optional[Path] = typer.Option(None, "--file", "-f", help="Read cookies from a file"),
+    clipboard: bool = typer.Option(False, "--clipboard", help="Read cookies from system clipboard"),
+    replace: bool = typer.Option(False, "--replace", help="Replace all cookies instead of merging with existing"),
+) -> None:
+    """Import cookies from browser (clipboard, string, or file)."""
+    try:
+        from src.crawler_auth import CookieStore, parse_cookie_string, read_clipboard
+        from src.crawler_auth.platforms import PLATFORMS
+    except ImportError:
+        console.print("❌ crawler_auth module not available.", style="bold red")
+        raise typer.Exit(code=1)
+
+    platform_lower = platform.lower()
+    if platform_lower not in PLATFORMS:
+        console.print(f"❌ Unknown platform: {platform}. Available: {', '.join(PLATFORMS.keys())}", style="bold red")
+        raise typer.Exit(code=1)
+
+    sources = sum(bool(x) for x in (cookie, file, clipboard))
+    if sources > 1:
+        console.print("❌ Use only one of --cookie, --file, or --clipboard", style="bold red")
+        raise typer.Exit(code=1)
+
+    raw: str
+    if cookie:
+        raw = cookie
+    elif file:
+        if not file.exists():
+            console.print(f"❌ File not found: {file}", style="bold red")
+            raise typer.Exit(code=1)
+        raw = file.read_text(encoding="utf-8")
+    elif clipboard:
+        try:
+            raw = read_clipboard()
+        except RuntimeError as exc:
+            console.print(f"❌ {exc}", style="bold red")
+            raise typer.Exit(code=1)
+    else:
+        console.print("📋 Reading cookies from clipboard...", style="cyan")
+        try:
+            raw = read_clipboard()
+        except RuntimeError:
+            console.print(
+                "❌ No cookie source given and clipboard unavailable.\n"
+                "   Copy cookies in browser, then run again — or use --cookie / --file.",
+                style="bold red",
+            )
+            raise typer.Exit(code=1)
+
+    try:
+        parsed = parse_cookie_string(raw)
+    except ValueError as exc:
+        console.print(f"❌ {exc}", style="bold red")
+        raise typer.Exit(code=1)
+
+    store = CookieStore()
+    merged = store.update(platform_lower, parsed, merge=not replace)
+    console.print(
+        f"✅ Imported {len(parsed)} cookie(s) for {platform_lower} "
+        f"({len(merged)} total). Keys: {', '.join(sorted(parsed.keys()))}",
+        style="bold green",
+    )
+
+
 if __name__ == "__main__":
     app()

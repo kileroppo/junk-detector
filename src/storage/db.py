@@ -8,6 +8,9 @@ from datetime import date, datetime, timedelta
 
 from src.models.score import Content, ScoreResult
 
+# Cap stored original text (~120k chars) to keep SQLite rows reasonable.
+MAX_STORED_CONTENT_CHARS = 120_000
+
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS scores (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,6 +36,15 @@ ALTER TABLE scores ADD COLUMN embedding_json TEXT;
 """
 
 _initialized_dbs: set[str] = set()
+
+
+def prepare_content_for_storage(text: str) -> tuple[str, bool]:
+    """Truncate very long content for persistence; returns (text, was_truncated)."""
+    if len(text) <= MAX_STORED_CONTENT_CHARS:
+        return text, False
+    note = "\n\n[原文过长，已截断存储；完整内容请以来源为准]"
+    keep = MAX_STORED_CONTENT_CHARS - len(note)
+    return text[:keep] + note, True
 
 
 def _get_connection(db_path: str) -> sqlite3.Connection:
@@ -82,6 +94,28 @@ def init_db(db_path: str = "junk_detector.db") -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_scores_source_url ON scores(source_url)")
         conn.commit()
 
+        # Migration: dual-score display fields
+        cursor = conn.execute("PRAGMA table_info(scores)")
+        columns = [row["name"] for row in cursor.fetchall()]
+        if "rule_score" not in columns:
+            conn.execute("ALTER TABLE scores ADD COLUMN rule_score REAL;")
+            conn.commit()
+        if "rules_fired" not in columns:
+            conn.execute("ALTER TABLE scores ADD COLUMN rules_fired INTEGER DEFAULT 0;")
+            conn.commit()
+        if "dimension_sources_json" not in columns:
+            conn.execute("ALTER TABLE scores ADD COLUMN dimension_sources_json TEXT;")
+            conn.commit()
+        if "focus_guide_json" not in columns:
+            conn.execute("ALTER TABLE scores ADD COLUMN focus_guide_json TEXT;")
+            conn.commit()
+        if "content_text" not in columns:
+            conn.execute("ALTER TABLE scores ADD COLUMN content_text TEXT;")
+            conn.commit()
+        if "content_truncated" not in columns:
+            conn.execute("ALTER TABLE scores ADD COLUMN content_truncated INTEGER DEFAULT 0;")
+            conn.commit()
+
         _initialized_dbs.add(db_path)
     finally:
         conn.close()
@@ -110,8 +144,15 @@ def save(
     dimensions_json = json.dumps(result.dimensions.model_dump(), ensure_ascii=False)
     labels_json = json.dumps(result.labels, ensure_ascii=False)
     rule_hits_json = json.dumps(result.rule_hits, ensure_ascii=False)
+    dimension_sources_json = json.dumps(result.dimension_sources, ensure_ascii=False)
+    focus_guide_json = (
+        json.dumps(result.focus_guide, ensure_ascii=False) if result.focus_guide else None
+    )
     scored_at = result.scored_at.isoformat()
     embedding_json = json.dumps(embedding) if embedding else None
+    rules_fired = 1 if result.rules_fired else 0
+    stored_content, content_truncated = prepare_content_for_storage(content.text)
+    content_truncated_flag = 1 if content_truncated else 0
 
     conn = _get_connection(db_path)
     try:
@@ -121,8 +162,9 @@ def save(
                 input_type, source_url, title, content_hash, scored_at,
                 overall_score, dimensions_json, labels_json, summary,
                 model_used, cost, rule_hits_json, confidence, embedding_json,
-                user_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                user_id, rule_score, rules_fired, dimension_sources_json,
+                focus_guide_json, content_text, content_truncated
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(content_hash) DO UPDATE SET
                 input_type = excluded.input_type,
                 source_url = excluded.source_url,
@@ -136,7 +178,13 @@ def save(
                 cost = excluded.cost,
                 rule_hits_json = excluded.rule_hits_json,
                 confidence = excluded.confidence,
-                embedding_json = excluded.embedding_json
+                embedding_json = excluded.embedding_json,
+                rule_score = excluded.rule_score,
+                rules_fired = excluded.rules_fired,
+                dimension_sources_json = excluded.dimension_sources_json,
+                focus_guide_json = excluded.focus_guide_json,
+                content_text = excluded.content_text,
+                content_truncated = excluded.content_truncated
             WHERE scores.user_id IS NULL OR scores.user_id = ?
             """,
             (
@@ -155,6 +203,12 @@ def save(
                 result.confidence,
                 embedding_json,
                 user_id,
+                result.rule_score,
+                rules_fired,
+                dimension_sources_json,
+                focus_guide_json,
+                stored_content,
+                content_truncated_flag,
                 user_id,
             ),
         )
@@ -311,6 +365,14 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
         d["labels"] = json.loads(d["labels_json"])
     if d.get("rule_hits_json"):
         d["rule_hits"] = json.loads(d["rule_hits_json"])
+    if d.get("dimension_sources_json"):
+        d["dimension_sources"] = json.loads(d["dimension_sources_json"])
+    if d.get("focus_guide_json"):
+        d["focus_guide"] = json.loads(d["focus_guide_json"])
+    if "rules_fired" in d:
+        d["rules_fired"] = bool(d["rules_fired"])
+    if "content_truncated" in d:
+        d["content_truncated"] = bool(d["content_truncated"])
     return d
 
 

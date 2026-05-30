@@ -1,0 +1,10 @@
+<div>
+    <div class="flex justify-between mb-1">
+        <label for="weight-{{ dim.key }}" class="text-sm text-gray-300">{{ dim.label }}</label>
+        <span id="weight-display-{{ dim.key }}" class="text-xs text-indigo-400 font-mono">{{ dim.display }}</span>
+    </div>
+    <input type="range" id="weight-{{ dim.key }}" name="weight_{{ dim.key }}"
+           min="20" max="200" step="5" value="{{ dim.slider_value }}"
+           class="w-full accent-indigo-500"
+           oninput="updateWeightDisplay('{{ dim.key }}', {{ 'true' if dim.negative else 'false' }}, this.value)">
+</div>

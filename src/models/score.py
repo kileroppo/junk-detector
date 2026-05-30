@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -60,8 +60,15 @@ class ScoreResult(BaseModel):
     cost: float = Field(default=0.0, ge=0, description="本次调用成本")
     scored_at: datetime = Field(default_factory=datetime.now)
     rule_hits: list[str] = Field(default_factory=list, description="命中的规则列表")
+    rule_score: float | None = Field(
+        default=None, description="纯规则引擎加权分（不含 LLM 维度）"
+    )
+    rules_fired: bool = Field(default=False, description="规则引擎是否命中至少一条规则")
     dimension_sources: dict[str, str] = Field(
         default_factory=dict, description="每个维度的来源: 'rule' or 'llm'"
+    )
+    focus_guide: dict[str, Any] | None = Field(
+        default=None, description="重点关注指南（信息金块、空洞段落等）"
     )
     status: str = Field(default="", description="Content quality status: junk/suspicious/normal/quality")
     explanation: str = Field(default="", description="自然语言解释")
@@ -69,9 +76,20 @@ class ScoreResult(BaseModel):
     duration_ms: int = Field(default=0, description="Scoring duration in milliseconds")
     cost_usd: float = Field(default=0.0, description="Estimated LLM API cost in USD")
     scoring_version: str = Field(default="0.3.0", description="评分规则版本号")
+    content_genre: Optional[str] = Field(
+        default=None, description="内容体裁: default | roundup（工具清单汇编）"
+    )
 
     @model_validator(mode='after')
     def _compute_status(self) -> 'ScoreResult':
+        if (
+            self.content_genre == "roundup"
+            and self.dimensions.scam_prob < 40
+            and self.dimensions.emotional_manipulation < 40
+            and self.overall_score < 40
+        ):
+            self.status = "suspicious"
+            return self
         if self.overall_score < 40:
             self.status = "junk"
         elif self.overall_score <= 60:
