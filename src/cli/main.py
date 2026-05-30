@@ -1138,7 +1138,7 @@ def _resolve_port(host: str, port: int, max_attempts: int = 100) -> int:
 
 @app.command()
 def serve(
-    host: str = typer.Option("0.0.0.0", "--host", help="Host to bind"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind"),
     port: int = typer.Option(8000, "--port", "-p", help="Preferred port to bind"),
     strict_port: bool = typer.Option(
         False,
