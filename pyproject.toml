@@ -39,6 +39,9 @@ dependencies = [
 browser = [
     "playwright>=1.40.0",
 ]
+crawler-auth = [
+    "playwright>=1.40.0",
+]
 ml = [
     "scikit-learn>=1.3.0",
     "numpy>=1.24.0",

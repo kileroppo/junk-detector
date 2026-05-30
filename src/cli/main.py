@@ -1715,5 +1715,118 @@ def explain(
     console.print()
 
 
+# ---------------------------------------------------------------------------
+# Auth subcommand group (cookie-based platform authentication)
+# ---------------------------------------------------------------------------
+
+auth_app = typer.Typer()
+app.add_typer(auth_app, name="auth", help="Platform cookie authentication management")
+
+
+@auth_app.command("login")
+def auth_login(
+    platform: str = typer.Option(..., "--platform", "-p", help="Platform name (zhihu, weibo, xiaohongshu, wechat, bilibili)"),
+    headless: bool = typer.Option(False, "--headless", help="Run browser in headless mode"),
+) -> None:
+    """Login to a platform via browser and save cookies."""
+    try:
+        from src.crawler_auth import CookieStore
+        from src.crawler_auth.platforms import PLATFORMS
+    except ImportError:
+        console.print("❌ crawler_auth module not available. Install with: pip install -e '.[browser]'", style="bold red")
+        raise typer.Exit(code=1)
+
+    platform_lower = platform.lower()
+    if platform_lower not in PLATFORMS:
+        console.print(f"❌ Unknown platform: {platform}. Available: {', '.join(PLATFORMS.keys())}", style="bold red")
+        raise typer.Exit(code=1)
+
+    platform_cls = PLATFORMS[platform_lower]
+    platform_instance = platform_cls()
+    store = CookieStore()
+
+    console.print(f"🌐 Opening browser for {platform_lower} login...", style="bold cyan")
+
+    cookies = asyncio.run(platform_instance.login(headless=headless))
+
+    if cookies:
+        store.save(platform_lower, cookies)
+        console.print(f"✅ Login successful! Saved {len(cookies)} cookies for {platform_lower}.", style="bold green")
+    else:
+        console.print(f"⚠️  Login returned no cookies for {platform_lower}.", style="yellow")
+
+
+@auth_app.command("status")
+def auth_status() -> None:
+    """Show authentication status for all platforms."""
+    try:
+        from src.crawler_auth import CookieStore
+        from src.crawler_auth.platforms import PLATFORMS
+    except ImportError:
+        console.print("❌ crawler_auth module not available.", style="bold red")
+        raise typer.Exit(code=1)
+
+    store = CookieStore()
+
+    table = Table(title="Platform Authentication Status")
+    table.add_column("Platform", style="cyan")
+    table.add_column("Status", style="bold")
+    table.add_column("Cookies", justify="right")
+
+    for name in sorted(PLATFORMS.keys()):
+        cookies = store.load(name)
+        if cookies is not None:
+            status_text = Text("stored", style="green")
+            cookie_count = str(len(cookies))
+        elif store.is_expired(name):
+            # Check if there was ever a file (expired vs never saved)
+            stored_platforms = store.list_platforms()
+            if name in stored_platforms:
+                status_text = Text("expired", style="yellow")
+                cookie_count = "-"
+            else:
+                status_text = Text("missing", style="red")
+                cookie_count = "-"
+        else:
+            status_text = Text("missing", style="red")
+            cookie_count = "-"
+
+        table.add_row(name, status_text, cookie_count)
+
+    console.print(table)
+
+
+@auth_app.command("logout")
+def auth_logout(
+    platform: Optional[str] = typer.Option(None, "--platform", "-p", help="Platform to clear cookies for"),
+    all_platforms: bool = typer.Option(False, "--all", help="Clear cookies for all platforms"),
+) -> None:
+    """Clear stored cookies for a platform or all platforms."""
+    try:
+        from src.crawler_auth import CookieStore
+        from src.crawler_auth.platforms import PLATFORMS
+    except ImportError:
+        console.print("❌ crawler_auth module not available.", style="bold red")
+        raise typer.Exit(code=1)
+
+    if not platform and not all_platforms:
+        console.print("❌ Specify --platform or --all", style="bold red")
+        raise typer.Exit(code=1)
+
+    store = CookieStore()
+
+    if all_platforms:
+        for name in list(PLATFORMS.keys()):
+            store.clear(name)
+        console.print("✅ Cleared cookies for all platforms.", style="bold green")
+    else:
+        platform_lower = platform.lower()
+        if platform_lower not in PLATFORMS:
+            console.print(f"❌ Unknown platform: {platform}. Available: {', '.join(PLATFORMS.keys())}", style="bold red")
+            raise typer.Exit(code=1)
+        store.clear(platform_lower)
+        console.print(f"✅ Cleared cookies for {platform_lower}.", style="bold green")
+
+
 if __name__ == "__main__":
     app()
