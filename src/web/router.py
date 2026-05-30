@@ -269,7 +269,14 @@ async def score_submit(
             )
 
     except Exception as e:
-        error_html = f'<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">评分失败: {str(e)}</div>'
+        error_msg = str(e)
+        if "403" in error_msg or "auth login" in error_msg:
+            if "auth login" in error_msg:
+                error_html = f'<div class="bg-yellow-900 border border-yellow-700 rounded-lg p-4 text-yellow-300"><strong>需要登录</strong><br>{error_msg}<br><br>在终端运行上述命令登录后，刷新页面重试。</div>'
+            else:
+                error_html = '<div class="bg-yellow-900 border border-yellow-700 rounded-lg p-4 text-yellow-300"><strong>需要登录</strong><br>该网站拒绝了访问请求。请在终端登录对应平台后重试：<br><code>junk-detector auth login --platform zhihu</code></div>'
+        else:
+            error_html = f'<div class="bg-red-900 border border-red-700 rounded-lg p-4 text-red-300">评分失败: {error_msg}</div>'
         return HTMLResponse(content=error_html, status_code=500)
 
 
@@ -342,7 +349,10 @@ async def score_stream(
                 except (ValueError, TimeoutError) as e:
                     error_msg = str(e)
                     if "403" in error_msg:
-                        error_msg = f"该网站拒绝了访问请求（HTTP 403）。可能需要登录或该网站有反爬虫保护。URL: {url}"
+                        if "auth login" in error_msg:
+                            error_msg = str(e)
+                        else:
+                            error_msg = f"该网站拒绝了访问请求（HTTP 403）。请在终端运行登录命令后重试。URL: {url}"
                     elif "404" in error_msg:
                         error_msg = f"页面不存在（HTTP 404）。请检查链接是否正确。URL: {url}"
                     elif "timed out" in error_msg.lower():
@@ -359,7 +369,10 @@ async def score_stream(
                     except (ValueError, TimeoutError) as e:
                         error_msg = str(e)
                         if "403" in error_msg:
-                            error_msg = f"该网站拒绝了访问请求（HTTP 403）。可能需要登录或该网站有反爬虫保护。URL: {text}"
+                            if "auth login" in error_msg:
+                                error_msg = str(e)
+                            else:
+                                error_msg = f"该网站拒绝了访问请求（HTTP 403）。请在终端运行登录命令后重试。URL: {text}"
                         elif "404" in error_msg:
                             error_msg = f"页面不存在（HTTP 404）。请检查链接是否正确。URL: {text}"
                         elif "timed out" in error_msg.lower():

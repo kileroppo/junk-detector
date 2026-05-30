@@ -283,6 +283,9 @@ async def extract_from_url(url: str) -> Content:
 
     # Check for auth-required responses (403) - attempt authenticated fallback
     if response.status_code == 403:
+        fallback_success = False
+
+        # Try 1: Use saved cookies via crawler_auth
         try:
             from src.crawler_auth import AuthenticatedClient, CookieStore
 
@@ -294,12 +297,61 @@ async def extract_from_url(url: str) -> Content:
                 auth_response = await client_auth.fetch(url)
                 if auth_response.status_code < 400:
                     response = auth_response
+                    fallback_success = True
+        except (ImportError, Exception):
+            pass
+
+        # Try 2: Use Playwright headless browser
+        if not fallback_success:
+            try:
+                from playwright.async_api import async_playwright
+
+                async with async_playwright() as p:
+                    browser = await p.chromium.launch(headless=True)
+                    page = await browser.new_page()
+                    await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                    html_content = await page.content()
+                    await browser.close()
+
+                # Parse with BeautifulSoup and return
+                soup = BeautifulSoup(html_content, "html.parser")
+                title = _extract_title(soup)
+                _strip_noise(soup)
+                main_content = _find_main_content(soup)
+                if main_content:
+                    text = _extract_text(main_content)
                 else:
-                    raise ValueError(f"URL returned HTTP {auth_response.status_code}: {url}")
+                    from bs4 import Tag
+                    body = soup.find("body")
+                    text = _extract_text(body) if body and isinstance(body, Tag) else soup.get_text(separator="\n", strip=True)
+
+                if text and len(text.strip()) > 0:
+                    content = Content(
+                        input_type=InputType.URL,
+                        text=text.strip(),
+                        source_url=url,
+                        title=title,
+                    )
+                    content.compute_hash()
+                    return content
+            except (ImportError, Exception):
+                pass
+
+        # All fallbacks failed - give helpful error message
+        if not fallback_success:
+            platform_name = ""
+            try:
+                from src.crawler_auth import AuthenticatedClient
+                platform_name = AuthenticatedClient().detect_platform(url) or ""
+            except ImportError:
+                pass
+
+            if platform_name:
+                raise ValueError(
+                    f"该网站拒绝了访问（HTTP 403）。请先登录：junk-detector auth login --platform {platform_name}"
+                )
             else:
-                raise ValueError(f"URL returned HTTP {response.status_code}: {url}")
-        except ImportError:
-            raise ValueError(f"URL returned HTTP {response.status_code}: {url}")
+                raise ValueError(f"URL returned HTTP 403: {url}")
 
     # Check for other HTTP errors
     if response.status_code >= 400:
