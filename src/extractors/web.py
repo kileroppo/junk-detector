@@ -295,7 +295,7 @@ async def extract_from_url(url: str) -> Content:
                 if auth_response.status_code < 400:
                     response = auth_response
                 else:
-                    raise ValueError(f"URL returned HTTP {response.status_code}: {url}")
+                    raise ValueError(f"URL returned HTTP {auth_response.status_code}: {url}")
             else:
                 raise ValueError(f"URL returned HTTP {response.status_code}: {url}")
         except ImportError:

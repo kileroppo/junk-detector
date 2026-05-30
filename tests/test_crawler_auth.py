@@ -87,6 +87,31 @@ class TestCookieStore:
         assert store.load("broken") is None
         assert store.is_expired("broken") is True
 
+    def test_path_traversal_rejected(self, tmp_path: Path):
+        """Platform names with path traversal characters should raise ValueError."""
+        store = CookieStore(store_dir=tmp_path)
+        with pytest.raises(ValueError, match="Invalid platform name"):
+            store.save("../../etc/shadow", {"key": "val"})
+        with pytest.raises(ValueError, match="Invalid platform name"):
+            store.load("../secret")
+        with pytest.raises(ValueError, match="Invalid platform name"):
+            store.save("foo/bar", {"key": "val"})
+        with pytest.raises(ValueError, match="Invalid platform name"):
+            store.save("foo\\bar", {"key": "val"})
+        with pytest.raises(ValueError, match="Invalid platform name"):
+            store.save("", {"key": "val"})
+
+    def test_file_permissions(self, tmp_path: Path):
+        """Cookie files should be written with restrictive permissions (0o600)."""
+        import os
+        import stat
+
+        store = CookieStore(store_dir=tmp_path)
+        store.save("zhihu", {"session": "abc"})
+        path = tmp_path / "zhihu.json"
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+        assert mode == 0o600
+
 
 # =============================================================================
 # TestPlatformDetection
@@ -282,6 +307,64 @@ class TestBrowserLogin:
             # Restore modules
             sys.modules.update(orig_modules)
 
+    async def test_browser_login_domain_suffix_matching(self):
+        """Test that cookie domain matching uses suffix match, not substring.
+
+        Cookies from 'not-zhihu.com' should NOT be included when
+        cookie_domains is ['zhihu.com'].
+        """
+        mock_cookie = [
+            {"name": "session", "value": "abc123", "domain": ".zhihu.com"},
+            {"name": "sub_session", "value": "sub", "domain": ".sub.zhihu.com"},
+            {"name": "bad", "value": "evil", "domain": ".not-zhihu.com"},
+            {"name": "other", "value": "val", "domain": ".google.com"},
+        ]
+
+        mock_page = AsyncMock()
+        mock_page.url = "https://www.zhihu.com/hot"  # Already navigated away
+        mock_page.goto = AsyncMock()
+        mock_page.query_selector = AsyncMock(return_value=MagicMock())
+
+        mock_context = AsyncMock()
+        mock_context.new_page = AsyncMock(return_value=mock_page)
+        mock_context.cookies = AsyncMock(return_value=mock_cookie)
+
+        mock_browser = AsyncMock()
+        mock_browser.new_context = AsyncMock(return_value=mock_context)
+        mock_browser.close = AsyncMock()
+
+        mock_playwright = AsyncMock()
+        mock_playwright.chromium.launch = AsyncMock(return_value=mock_browser)
+
+        mock_pw_context = AsyncMock()
+        mock_pw_context.__aenter__ = AsyncMock(return_value=mock_playwright)
+        mock_pw_context.__aexit__ = AsyncMock(return_value=False)
+
+        mock_async_pw = MagicMock(return_value=mock_pw_context)
+
+        with patch(
+            "playwright.async_api.async_playwright",
+            mock_async_pw,
+        ):
+            from src.crawler_auth.browser_login import browser_login
+
+            result = await browser_login(
+                login_url="https://www.zhihu.com/signin",
+                cookie_domains=["zhihu.com"],
+                headless=True,
+                wait_for_login_indicator=".AppHeader-profileAvatar",
+            )
+
+        # zhihu.com and sub.zhihu.com should be included
+        assert "session" in result
+        assert result["session"] == "abc123"
+        assert "sub_session" in result
+        assert result["sub_session"] == "sub"
+        # not-zhihu.com should be EXCLUDED (suffix match, not substring)
+        assert "bad" not in result
+        # google.com should be excluded
+        assert "other" not in result
+
 
 # =============================================================================
 # TestAuthenticatedClient
@@ -293,11 +376,12 @@ class TestAuthenticatedClient:
 
     def test_auto_discovers_platforms(self):
         client = AuthenticatedClient()
-        assert "zhihu" in client._platforms
-        assert "weibo" in client._platforms
-        assert "xiaohongshu" in client._platforms
-        assert "wechat" in client._platforms
-        assert "bilibili" in client._platforms
+        # With lazy instantiation, platforms are created on demand
+        assert client._get_platform("zhihu") is not None
+        assert client._get_platform("weibo") is not None
+        assert client._get_platform("xiaohongshu") is not None
+        assert client._get_platform("wechat") is not None
+        assert client._get_platform("bilibili") is not None
 
     def test_custom_platforms(self):
         mock_platform = MagicMock()
@@ -737,3 +821,31 @@ class TestWebExtractorFallback:
             content = await extract_from_url("https://www.zhihu.com/question/123")
             assert content.text is not None
             assert "Normal content" in content.text
+
+    async def test_fallback_reports_actual_auth_status_code(self):
+        """When auth fallback returns non-success, report auth status code, not original 403."""
+        from src.extractors.web import extract_from_url
+
+        mock_403_response = MagicMock()
+        mock_403_response.status_code = 403
+        mock_403_response.headers = {}
+
+        # Auth response returns 429 (rate limited)
+        mock_auth_response = MagicMock()
+        mock_auth_response.status_code = 429
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_403_response), \
+             patch("src.crawler_auth.CookieStore") as MockStore, \
+             patch("src.crawler_auth.AuthenticatedClient") as MockClient:
+
+            mock_store_inst = MagicMock()
+            mock_store_inst.load.return_value = {"z_c0": "test_token"}
+            MockStore.return_value = mock_store_inst
+
+            mock_client_inst = MagicMock()
+            mock_client_inst.detect_platform.return_value = "zhihu"
+            mock_client_inst.fetch = AsyncMock(return_value=mock_auth_response)
+            MockClient.return_value = mock_client_inst
+
+            with pytest.raises(ValueError, match="HTTP 429"):
+                await extract_from_url("https://www.zhihu.com/question/123")

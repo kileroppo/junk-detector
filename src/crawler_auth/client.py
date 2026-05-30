@@ -34,11 +34,20 @@ class AuthenticatedClient:
         self._cookie_store = cookie_store or CookieStore()
         if platforms is not None:
             self._platforms = platforms
+            self._platform_registry = None
         else:
-            # Auto-instantiate all known platforms
-            self._platforms: dict[str, PlatformAuth] = {
-                name: cls() for name, cls in PLATFORMS.items()
-            }
+            # Store the registry for lazy instantiation
+            self._platforms: dict[str, PlatformAuth] = {}
+            self._platform_registry = PLATFORMS
+
+    def _get_platform(self, name: str) -> PlatformAuth | None:
+        """Get a platform instance, lazily instantiating if needed."""
+        if name in self._platforms:
+            return self._platforms[name]
+        if self._platform_registry and name in self._platform_registry:
+            self._platforms[name] = self._platform_registry[name]()
+            return self._platforms[name]
+        return None
 
     @property
     def cookie_store(self) -> CookieStore:
@@ -77,7 +86,7 @@ class AuthenticatedClient:
             Configured httpx.AsyncClient with cookies/headers applied.
         """
         cookies = self._cookie_store.load(platform) or {}
-        auth_impl = self._platforms.get(platform)
+        auth_impl = self._get_platform(platform)
         headers = {}
         if auth_impl:
             headers = auth_impl.get_headers(cookies, url)
@@ -100,7 +109,7 @@ class AuthenticatedClient:
         if platform is None:
             platform = self.detect_platform(url)
 
-        if platform and platform in self._platforms:
+        if platform and self._get_platform(platform):
             async with self.get_client(platform, url) as client:
                 return await client.get(url)
         else:
@@ -121,14 +130,14 @@ class AuthenticatedClient:
         if not self._cookie_store.is_expired(platform):
             cookies = self._cookie_store.load(platform)
             if cookies:
-                auth_impl = self._platforms.get(platform)
+                auth_impl = self._get_platform(platform)
                 if auth_impl:
                     is_valid = await auth_impl.validate_cookies(cookies)
                     if is_valid:
                         return
 
         # Need to login
-        auth_impl = self._platforms.get(platform)
+        auth_impl = self._get_platform(platform)
         if auth_impl is None:
             raise ValueError(f"Unknown platform: {platform}")
         cookies = await auth_impl.login(headless=headless)

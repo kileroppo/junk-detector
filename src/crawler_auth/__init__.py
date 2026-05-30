@@ -15,12 +15,8 @@ from .cookie_store import CookieStore
 
 __all__ = [
     "AuthenticatedClient",
-    "BrowserLogin",
     "CookieStore",
     "PlatformAuth",
     "SignerHook",
     "browser_login",
 ]
-
-# Alias for backward compat with the BrowserLogin name in exports
-BrowserLogin = browser_login

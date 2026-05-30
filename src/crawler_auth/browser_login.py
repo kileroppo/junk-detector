@@ -39,46 +39,47 @@ async def browser_login(
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=headless)
-        context = await browser.new_context()
-        page = await context.new_page()
+        try:
+            context = await browser.new_context()
+            page = await context.new_page()
 
-        await page.goto(login_url, wait_until="domcontentloaded")
+            await page.goto(login_url, wait_until="domcontentloaded")
 
-        initial_url = page.url
+            initial_url = page.url
 
-        # Wait for login completion
-        start_time = asyncio.get_event_loop().time()
-        while True:
-            elapsed = asyncio.get_event_loop().time() - start_time
-            if elapsed > timeout:
-                await browser.close()
-                raise TimeoutError(
-                    f"Login timed out after {timeout}s. "
-                    "Please complete login within the timeout period."
-                )
+            # Wait for login completion
+            loop = asyncio.get_running_loop()
+            start_time = loop.time()
+            while True:
+                elapsed = loop.time() - start_time
+                if elapsed > timeout:
+                    raise TimeoutError(
+                        f"Login timed out after {timeout}s. "
+                        "Please complete login within the timeout period."
+                    )
 
-            # Check if login indicator appeared
-            if wait_for_login_indicator:
-                try:
-                    element = await page.query_selector(wait_for_login_indicator)
-                    if element:
-                        break
-                except Exception:
-                    pass
+                # Check if login indicator appeared
+                if wait_for_login_indicator:
+                    try:
+                        element = await page.query_selector(wait_for_login_indicator)
+                        if element:
+                            break
+                    except Exception:
+                        pass
 
-            # Check if URL changed (navigated away from login)
-            if page.url != initial_url and "login" not in page.url.lower():
-                break
+                # Check if URL changed (navigated away from login)
+                if page.url != initial_url and "login" not in page.url.lower():
+                    break
 
-            await asyncio.sleep(0.5)
+                await asyncio.sleep(0.5)
 
-        # Extract cookies for the specified domains
-        all_cookies = await context.cookies()
-        for cookie in all_cookies:
-            domain = cookie.get("domain", "").lstrip(".")
-            if any(d in domain or domain in d for d in cookie_domains):
-                cookies_result[cookie["name"]] = cookie["value"]
-
-        await browser.close()
+            # Extract cookies for the specified domains
+            all_cookies = await context.cookies()
+            for cookie in all_cookies:
+                domain = cookie.get("domain", "").lstrip(".")
+                if any(domain == d or domain.endswith("." + d) for d in cookie_domains):
+                    cookies_result[cookie["name"]] = cookie["value"]
+        finally:
+            await browser.close()
 
     return cookies_result

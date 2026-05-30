@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import time
 from pathlib import Path
+
+_VALID_PLATFORM_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 class CookieStore:
@@ -15,7 +19,16 @@ class CookieStore:
         self._store_dir = store_dir
         self._store_dir.mkdir(parents=True, exist_ok=True)
 
+    def _validate_platform(self, platform: str) -> None:
+        """Validate platform name to prevent path traversal."""
+        if not platform or not _VALID_PLATFORM_RE.match(platform):
+            raise ValueError(
+                f"Invalid platform name: {platform!r}. "
+                "Only alphanumeric characters, dashes, and underscores are allowed."
+            )
+
     def _path_for(self, platform: str) -> Path:
+        self._validate_platform(platform)
         return self._store_dir / f"{platform}.json"
 
     def save(
@@ -27,7 +40,9 @@ class CookieStore:
             "expires_at": time.time() + ttl_hours * 3600,
             "saved_at": time.time(),
         }
-        self._path_for(platform).write_text(json.dumps(data, ensure_ascii=False))
+        path = self._path_for(platform)
+        path.write_text(json.dumps(data, ensure_ascii=False))
+        os.chmod(path, 0o600)
 
     def load(self, platform: str) -> dict[str, str] | None:
         """Load cookies for a platform, returning None if missing or expired."""
