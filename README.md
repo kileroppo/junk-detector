@@ -33,6 +33,7 @@ echo "月入百万 暴利项目" | junk-detector quick --rules-only
 - [完整使用指南](docs/usage.md)
 - [API 快速开始](docs/api-quickstart.md)
 - [Python SDK](sdk/python/README.md)
+- [平台登录认证](docs/usage.md#平台登录认证)
 - [定价方案](docs/pricing.md)
 - [品牌标识](docs/brand.md)
 - [更新日志](CHANGELOG.md)

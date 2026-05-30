@@ -67,6 +67,87 @@ junk-detector monitor add-source --type wechat
 | 知乎热榜 | JSON API | 热门话题和回答 |
 | 微信文章 | HTML 抓取 | 通过搜狗搜索公众号文章 |
 
+## 平台登录认证
+
+部分平台（知乎、微博、小红书等）需要登录才能正常抓取内容。鉴真提供了通用的 Cookie 认证模块。
+
+### 登录平台
+
+```bash
+# 登录知乎（会打开浏览器，扫码或手动登录）
+junk-detector auth login --platform zhihu
+
+# 登录其他平台
+junk-detector auth login --platform weibo
+junk-detector auth login --platform xiaohongshu
+junk-detector auth login --platform bilibili
+junk-detector auth login --platform wechat
+```
+
+登录完成后，Cookie 自动保存（默认有效期 7 天），后续检测该平台内容无需重复登录。
+
+### 查看登录状态
+
+```bash
+junk-detector auth status
+```
+
+### 登出
+
+```bash
+# 登出单个平台
+junk-detector auth logout --platform zhihu
+
+# 登出所有平台
+junk-detector auth logout --all
+```
+
+### 工作原理
+
+检测 URL 时，系统自动识别平台并按以下顺序尝试：
+
+1. 直接请求（浏览器 UA + headers）
+2. 使用已保存的 Cookie 认证请求
+3. Playwright 无头浏览器渲染（需安装 `[browser]` 依赖）
+4. 若全部失败，提示用户登录
+
+### 安装要求
+
+```bash
+# 基础安装（httpx 即可，支持 cookie 认证）
+pip install -e .
+
+# 完整安装（支持浏览器登录 + Playwright 渲染）
+pip install -e ".[browser]"
+playwright install chromium
+```
+
+### 作为独立模块使用
+
+`crawler_auth` 模块零依赖于鉴真其它模块，可直接在其他项目中复用：
+
+```python
+from src.crawler_auth import AuthenticatedClient, CookieStore
+
+client = AuthenticatedClient()
+
+# 自动识别平台 + 带 cookie 请求
+response = await client.fetch("https://www.zhihu.com/question/123/answer/456")
+
+# 检测平台
+platform = client.detect_platform("https://weibo.com/...")  # -> "weibo"
+```
+
+支持的平台：
+
+| 平台 | 域名 | 登录方式 |
+|------|------|----------|
+| 知乎 | zhihu.com | 扫码/密码 |
+| 微博 | weibo.com | 扫码/密码 |
+| 小红书 | xiaohongshu.com | 扫码 |
+| B站 | bilibili.com | 扫码/密码 |
+| 微信/搜狗 | weixin.sogou.com | 减少验证码频率 |
+
 ## API 服务
 
 ```bash
