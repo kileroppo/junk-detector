@@ -750,4 +750,29 @@ def apply_rules(content: str) -> RuleResult:
     except (ImportError, OSError, ValueError) as e:
         logger.warning("Failed to load/apply custom rules: %s", e)
 
+    _apply_educational_scam_cap(content, result)
+
     return result
+
+
+def _apply_educational_scam_cap(content: str, result: RuleResult) -> None:
+    """Cap scam_prob when scam keywords appear in cited / educational framing."""
+    if "scam_prob" not in result.dimension_overrides:
+        return
+    markers = (
+        "据悉",
+        "专家提醒",
+        "骗局话术",
+        "诈骗案例",
+        "以下为",
+        "反诈",
+        "警惕以下",
+        "常见骗局",
+    )
+    if any(marker in content for marker in markers):
+        result.dimension_overrides["scam_prob"] = min(
+            result.dimension_overrides["scam_prob"],
+            35.0,
+        )
+        result.confidence["scam_prob"] = min(result.confidence.get("scam_prob", 0.8), 0.75)
+        result.matched_rules.append("scam_educational_context_cap")

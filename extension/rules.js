@@ -199,7 +199,11 @@ function scoreContent(text, options) {
     severity = "safe";
   }
 
-  return { score, verdict, matchedKeywords: allMatched, explanation, severity };
+  var payload = { score, verdict, matchedKeywords: allMatched, explanation, severity };
+  if (typeof enrichScoringResult === "function") {
+    enrichScoringResult(payload, text);
+  }
+  return payload;
 }
 
 /**

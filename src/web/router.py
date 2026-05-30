@@ -695,7 +695,13 @@ async def settings_page(request: Request):
     import json
 
     from src.core.model_presets import list_providers
-    from src.core.user_settings import get_llm_settings_display
+    from src.core.scoring_modes import MODE_LABELS
+    from src.core.user_settings import (
+        READING_PROFILE_LABELS,
+        get_llm_settings_display,
+        get_reading_profile,
+        get_scoring_mode,
+    )
     from src.crawler_auth import list_all_platform_statuses
     from src.web.scoring_prefs import get_scoring_weight_dims
 
@@ -712,6 +718,10 @@ async def settings_page(request: Request):
             "platforms": list_all_platform_statuses(),
             "scoring_weight_dims": scoring_weight_dims,
             "weights_message": None,
+            "reading_profile": get_reading_profile(),
+            "reading_profile_labels": READING_PROFILE_LABELS,
+            "scoring_mode": get_scoring_mode(),
+            "scoring_mode_labels": MODE_LABELS,
         },
     )
 
@@ -771,6 +781,23 @@ def _render_scoring_weights_panel(request: Request, *, message: str | None = Non
             "scoring_weight_dims": get_scoring_weight_dims(),
             "weights_message": message,
         },
+    )
+
+
+@router.post("/api/settings/reading", response_class=HTMLResponse)
+async def api_settings_reading(
+    request: Request,
+    reading_profile: str = Form(default="general"),
+    scoring_mode: str = Form(default="consumer"),
+):
+    """Save reading profile and scoring mode presets."""
+    from src.core.user_settings import save_reading_profile, save_scoring_mode
+
+    save_reading_profile(reading_profile.strip())
+    save_scoring_mode(scoring_mode.strip())
+    return HTMLResponse(
+        '<p class="text-sm text-emerald-400">阅读偏好已保存。</p>',
+        status_code=200,
     )
 
 
@@ -1098,28 +1125,42 @@ async def api_feedback(request: Request):
     score_id = body.get("score_id")
     verdict = body.get("verdict")
 
-    if score_id is None or verdict not in ("wrong", "correct"):
+    if verdict not in ("wrong", "correct"):
         return JSONResponse(
-            content={"error": "score_id and verdict (wrong/correct) required"},
+            content={"error": "verdict (wrong/correct) required"},
             status_code=422,
         )
 
-    # Validate that score_id references an existing record
-    score_id_int = int(score_id)
-    from src.storage.db import query as _query_records
+    score_id_int: int | None = None
+    if score_id is not None:
+        try:
+            parsed = int(score_id)
+            if parsed > 0:
+                score_id_int = parsed
+        except (TypeError, ValueError):
+            return JSONResponse(content={"error": "invalid score_id"}, status_code=422)
 
-    existing = _query_records(filters=None, limit=1000)
-    record = next((r for r in existing if r.get("id") == score_id_int), None)
-    if record is None:
-        return JSONResponse(
-            content={"error": "score_id not found"},
-            status_code=404,
-        )
+    if score_id_int is not None:
+        from src.storage.db import query as _query_records
 
+        existing = _query_records(filters=None, limit=1000)
+        record = next((r for r in existing if r.get("id") == score_id_int), None)
+        if record is None:
+            return JSONResponse(
+                content={"error": "score_id not found"},
+                status_code=404,
+            )
+
+    import json as _json
+
+    dims = body.get("dimensions")
     save_feedback(
         score_id=score_id_int,
         content_hash=body.get("content_hash", ""),
         verdict=verdict,
+        content_genre=body.get("content_genre"),
+        reading_action_key=body.get("reading_action_key"),
+        dimensions_json=_json.dumps(dims, ensure_ascii=False) if dims else None,
     )
 
     # Compute and store adaptive weight adjustments

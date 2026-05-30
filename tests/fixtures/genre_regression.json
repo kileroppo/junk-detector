@@ -1,0 +1,18 @@
+{
+  "roundup_sample": {
+    "genre": "roundup",
+    "text_snippet": "Claude Code 18 款 Skill\n1. Anthropic Frontend Design\n仓库: github.com/anthropics/claude-code\n安装: claude plugin add\n2. UI/UX Pro Max\n仓库: github.com/nextlevelbuilder/ui-ux-pro-max-skill\n3. Design\ngithub.com/design\n完整指南 选型 对比表"
+  },
+  "news_sample": {
+    "genre": "news",
+    "text": "本报讯 3月1日 据悉，记者在北京采访获悉，新华社报道称当地今日发布新规，专家表示需关注后续进展。"
+  },
+  "opinion_sample": {
+    "genre": "opinion",
+    "text": "我认为当前 AI 工具链仍存在明显短板。在我看来，深度分析各家的差异，对开发者选型更有帮助。笔者认为应优先关注可维护性而非噱头功能。我认为当前 AI 工具链仍存在明显短板。在我看来，深度分析各家的差异，对开发者选型更有帮助。笔者认为应优先关注可维护性而非噱头功能。"
+  },
+  "advertorial_sample": {
+    "genre": "advertorial",
+    "text": "亲测有效 好物推荐 种草 返利 佣金 分销 带货 安利 良心推荐 粉丝专属 推荐码 优惠券 折扣码"
+  }
+}

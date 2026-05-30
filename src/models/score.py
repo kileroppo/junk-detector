@@ -77,7 +77,16 @@ class ScoreResult(BaseModel):
     cost_usd: float = Field(default=0.0, description="Estimated LLM API cost in USD")
     scoring_version: str = Field(default="0.3.0", description="评分规则版本号")
     content_genre: Optional[str] = Field(
-        default=None, description="内容体裁: default | roundup（工具清单汇编）"
+        default=None,
+        description="内容体裁: default | roundup | opinion | news | advertorial",
+    )
+    reading_action: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="阅读裁决: skip/skim/read/verify + label/emoji",
+    )
+    reference_value: Optional[float] = Field(
+        default=None,
+        description="参考价值分 0-100（清单/汇编体裁）",
     )
 
     @model_validator(mode='after')

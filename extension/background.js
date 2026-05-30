@@ -6,7 +6,7 @@
  */
 
 // Import rules.js scoring logic into the service worker
-importScripts("rules.js");
+importScripts("rules.js", "reading_action.js");
 
 // Session cache for URL results to avoid re-scoring on back navigation
 const resultCache = new Map();
@@ -33,7 +33,12 @@ function updateBadge(tabId, result) {
     junk: "#FF3B30"
   };
 
-  const badgeText = BADGE_SYMBOLS[result.verdict] || "";
+  var badgeText = "";
+  if (result.reading_action && result.reading_action.emoji) {
+    badgeText = result.reading_action.emoji;
+  } else {
+    badgeText = BADGE_SYMBOLS[result.verdict] || "";
+  }
   const badgeColor = colors[result.verdict] || "#999999";
 
   chrome.action.setBadgeText({ text: badgeText, tabId: tabId });

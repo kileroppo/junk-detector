@@ -11,6 +11,9 @@ if TYPE_CHECKING:
 
 GENRE_DEFAULT = "default"
 GENRE_ROUNDUP = "roundup"
+GENRE_OPINION = "opinion"
+GENRE_NEWS = "news"
+GENRE_ADVERTORIAL = "advertorial"
 
 _ROUNDUP_NUMBERED = re.compile(r"(?m)^\s*\d+[\.\)、]")
 _ROUNDUP_GITHUB = re.compile(r"github\.com", re.I)
@@ -59,10 +62,29 @@ _BANNED_ROUNDUP_SUMMARY_FRAGMENTS = (
 )
 
 
-def detect_content_genre(text: str) -> str:
-    """Detect reference roundup / tool list articles (heuristic, no LLM)."""
+def detect_content_genre(text: str, *, roundup_threshold: int = 2) -> str:
+    """Detect content genre (heuristic, no LLM)."""
     if not text or len(text.strip()) < 200:
         return GENRE_DEFAULT
+
+    lower = text.lower()
+    from src.core.rules import _SCAM_KEYWORDS, _ADVERTORIAL_KEYWORDS, _build_keyword_pattern
+
+    scam_hits = sum(1 for kw in _SCAM_KEYWORDS if _build_keyword_pattern(kw).search(text))
+    if scam_hits >= 2:
+        return GENRE_ADVERTORIAL
+
+    ad_hits = sum(1 for kw in _ADVERTORIAL_KEYWORDS if _build_keyword_pattern(kw).search(text))
+    if ad_hits >= 3:
+        return GENRE_ADVERTORIAL
+
+    if re.search(r"(据悉|记者|本报讯|新华社|报道称)", text) and re.search(
+        r"(\d{1,2}月\d{1,2}日|今天|昨日|当地时间)", text
+    ):
+        return GENRE_NEWS
+
+    if re.search(r"(我认为|在我看来|笔者认为|个人观点|深度分析)", text):
+        return GENRE_OPINION
 
     signals = 0
     numbered = len(_ROUNDUP_NUMBERED.findall(text))
@@ -71,14 +93,23 @@ def detect_content_genre(text: str) -> str:
     github_hits = len(_ROUNDUP_GITHUB.findall(text))
     if github_hits >= 2:
         signals += 1
-    if sum(1 for m in _INSTALL_MARKERS if m in text.lower()) >= 1:
+    if sum(1 for m in _INSTALL_MARKERS if m in lower) >= 1:
         signals += 1
     if "对比表" in text or re.search(r"\|\s*Skill\s*\|", text, re.I):
         signals += 1
     if re.search(r"(完整指南|选型|哪款|清单|盘点|合集|最佳\s*\d+)", text):
         signals += 1
 
-    return GENRE_ROUNDUP if signals >= 2 else GENRE_DEFAULT
+    return GENRE_ROUNDUP if signals >= roundup_threshold else GENRE_DEFAULT
+
+
+def detect_content_genre_for_user(text: str) -> str:
+    """Apply reading profile from user settings (e.g. tech roundup bias)."""
+    from src.core.user_settings import get_reading_profile
+
+    profile = get_reading_profile()
+    threshold = 1 if profile == "tech_roundup" else 2
+    return detect_content_genre(text, roundup_threshold=threshold)
 
 
 def compute_reference_value_score(text: str) -> float:

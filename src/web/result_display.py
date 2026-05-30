@@ -587,6 +587,9 @@ READING_ACTIONS: dict[str, dict[str, str]] = {
 
 _GENRE_DISPLAY: dict[str, dict[str, str]] = {
     "roundup": {"label": "工具清单", "css": "genre-badge--roundup"},
+    "opinion": {"label": "观点评论", "css": "genre-badge--opinion"},
+    "news": {"label": "资讯报道", "css": "genre-badge--news"},
+    "advertorial": {"label": "商业推广", "css": "genre-badge--advertorial"},
 }
 
 _RISK_EXPLANATION_THRESHOLD = 50
@@ -817,6 +820,14 @@ def build_sticky_bar_data(
     return data
 
 
+def _reference_value_for_genre(content_genre: str | None, content_text: str | None) -> float | None:
+    if content_genre != "roundup" or not content_text:
+        return None
+    from src.core.content_genre import compute_reference_value_score
+
+    return compute_reference_value_score(content_text)
+
+
 def build_result_display_data(
     *,
     overall_score: float,
@@ -854,9 +865,9 @@ def build_result_display_data(
     reading_map_display = build_reading_map_display(focus_guide)
     skippable_display = build_skippable_display(focus_guide)
     if content_genre is None and content_text:
-        from src.core.content_genre import detect_content_genre
+        from src.core.content_genre import detect_content_genre_for_user
 
-        content_genre = detect_content_genre(content_text)
+        content_genre = detect_content_genre_for_user(content_text)
 
     primary_score = llm_score if rules_fired else overall_score
     score_tier_dict = score_tier(
@@ -947,6 +958,7 @@ def build_result_display_data(
         "rules_fired": rules_fired,
         "source_warning": source_warning,
         "content_genre": content_genre,
+        "reference_value": _reference_value_for_genre(content_genre, content_text),
     }
 
 
@@ -970,4 +982,5 @@ def build_result_display_data_from_record(record: dict) -> dict[str, Any]:
         focus_guide=record.get("focus_guide"),
         content_text=record.get("content_text"),
         content_truncated=record.get("content_truncated", False),
+        content_genre=record.get("content_genre"),
     )

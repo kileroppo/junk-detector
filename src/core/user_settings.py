@@ -133,6 +133,49 @@ def apply_saved_llm_settings() -> None:
     apply_llm_settings(get_llm_settings())
 
 
+READING_PROFILE_GENERAL = "general"
+READING_PROFILE_TECH_ROUNDUP = "tech_roundup"
+
+READING_PROFILE_LABELS: dict[str, str] = {
+    READING_PROFILE_GENERAL: "通用阅读",
+    READING_PROFILE_TECH_ROUNDUP: "常读技术目录 / 工具清单",
+}
+
+
+def get_reading_profile() -> str:
+    profile = load_user_settings().get("reading_profile", READING_PROFILE_GENERAL)
+    if profile not in READING_PROFILE_LABELS:
+        return READING_PROFILE_GENERAL
+    return profile
+
+
+def save_reading_profile(profile: str) -> str:
+    if profile not in READING_PROFILE_LABELS:
+        profile = READING_PROFILE_GENERAL
+    settings = load_user_settings()
+    settings["reading_profile"] = profile
+    save_user_settings(settings)
+    return profile
+
+
+def get_scoring_mode() -> str:
+    from src.core.scoring_modes import MODE_CONSUMER, MODE_LABELS
+
+    mode = load_user_settings().get("scoring_mode", MODE_CONSUMER)
+    return mode if mode in MODE_LABELS else MODE_CONSUMER
+
+
+def save_scoring_mode(mode: str) -> str:
+    from src.core.scoring_modes import MODE_CONSUMER, MODE_LABELS
+
+    if mode not in MODE_LABELS:
+        mode = MODE_CONSUMER
+    settings = load_user_settings()
+    settings["scoring_mode"] = mode
+    save_user_settings(settings)
+    return mode
+
+
 def has_llm_api_key() -> bool:
     """Check if any LLM API key is available."""
     llm = get_llm_settings()

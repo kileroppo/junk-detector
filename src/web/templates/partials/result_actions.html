@@ -10,7 +10,9 @@
      {% if action_record_id %}data-score-id="{{ action_record_id }}"{% endif %}
      {% if content_hash %}data-content-hash="{{ content_hash }}"{% endif %}
      data-overall-score="{{ result.primary_score | default(result.overall_score) }}"
-     data-dimensions='{{ result.dimensions | tojson }}'>
+     data-dimensions='{{ result.dimensions | tojson }}'
+     {% if result.content_genre %}data-content-genre="{{ result.content_genre }}"{% endif %}
+     {% if result.reading_action and result.reading_action.key %}data-reading-action-key="{{ result.reading_action.key }}"{% endif %}>
     <button type="button"
             class="btn-secondary result-actions__btn result-actions__copy"
             data-copy-text="{{ copy_text | e }}"
@@ -102,7 +104,9 @@ if (!window.__resultActionsInit) {
             verdict: verdict,
             content_hash: bar.getAttribute('data-content-hash') || '',
             overall_score: parseFloat(bar.getAttribute('data-overall-score')),
-            dimensions: JSON.parse(bar.getAttribute('data-dimensions') || '{}')
+            dimensions: JSON.parse(bar.getAttribute('data-dimensions') || '{}'),
+            content_genre: bar.getAttribute('data-content-genre') || null,
+            reading_action_key: bar.getAttribute('data-reading-action-key') || null
         };
 
         bar.querySelectorAll('.result-actions__feedback').forEach(function(b) {

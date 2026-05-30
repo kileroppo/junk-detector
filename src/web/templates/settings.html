@@ -25,6 +25,11 @@
                     <span class="settings-nav-label">平台 Cookie</span>
                     <span class="settings-nav-desc hidden lg:block">登录态导入</span>
                 </button>
+                <button type="button" data-settings-nav="reading" data-settings-hash="#reading"
+                        class="settings-nav-item">
+                    <span class="settings-nav-label">阅读偏好</span>
+                    <span class="settings-nav-desc hidden lg:block">体裁与模式</span>
+                </button>
                 <button type="button" data-settings-nav="weights" data-settings-hash="#weights"
                         class="settings-nav-item">
                     <span class="settings-nav-label">评分权重</span>
@@ -130,6 +135,40 @@
                 </div>
             </section>
 
+            <!-- Reading preferences -->
+            <section id="settings-panel-reading" data-settings-panel class="settings-panel hidden">
+                <div class="bg-surface rounded-xl p-6 border border-navy-700">
+                    <header class="mb-4">
+                        <h2 class="text-lg font-semibold text-gray-100">阅读偏好</h2>
+                        <p class="text-xs text-gray-500 mt-1">告诉系统你常读什么，减少工具清单类误杀。</p>
+                    </header>
+                    <form hx-post="/api/settings/reading"
+                          hx-target="#reading-prefs-status"
+                          hx-swap="innerHTML"
+                          class="space-y-5">
+                        <div>
+                            <label for="reading_profile" class="block text-sm font-medium text-gray-300 mb-1">主要阅读类型</label>
+                            <select id="reading_profile" name="reading_profile" class="theme-input">
+                                {% for key, label in reading_profile_labels.items() %}
+                                <option value="{{ key }}" {% if reading_profile == key %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="scoring_mode" class="block text-sm font-medium text-gray-300 mb-1">评分模式</label>
+                            <select id="scoring_mode" name="scoring_mode" class="theme-input">
+                                {% for key, label in scoring_mode_labels.items() %}
+                                <option value="{{ key }}" {% if scoring_mode == key %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <p class="text-xs text-gray-500 mt-2">防骗模式提高骗局/情绪权重；审核模式侧重论证与软文。</p>
+                        </div>
+                        <button type="submit" class="btn-primary">保存偏好</button>
+                        <div id="reading-prefs-status"></div>
+                    </form>
+                </div>
+            </section>
+
             <!-- Scoring Weights -->
             <section id="settings-panel-weights" data-settings-panel class="settings-panel hidden">
                 <div class="bg-surface rounded-xl p-6 border border-navy-700">
@@ -168,7 +207,7 @@
 <script id="llm-providers-data" type="application/json">{{ llm_providers_json | safe }}</script>
 <script>
 (function() {
-    var VALID_PANELS = ['model', 'cookies', 'weights', 'about'];
+    var VALID_PANELS = ['model', 'cookies', 'reading', 'weights', 'about'];
 
     function panelFromHash() {
         var hash = (location.hash || '#model').replace('#', '');

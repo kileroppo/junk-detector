@@ -213,21 +213,27 @@
       junk: "#FF3B30"
     };
 
-    // Severity-based display (preferred when severity is available)
-    var severityInfo = null;
-    if (result.severity && typeof SEVERITY_MAP !== "undefined") {
-      severityInfo = SEVERITY_MAP[result.severity] || null;
-    }
-
+    var action = result.reading_action || null;
+    var genreDisplay = result.genre_display || null;
     var displayEmoji;
     var displayLabel;
     var displayColor;
 
-    if (severityInfo) {
-      displayEmoji = severityInfo.emoji;
-      displayLabel = severityInfo.label;
-      displayColor = severityInfo.color;
-    } else {
+    if (action && action.emoji) {
+      displayEmoji = action.emoji;
+      displayLabel = action.label || "";
+      displayColor = result.verdict === "junk" ? colors.junk
+        : result.verdict === "suspicious" ? colors.suspicious
+        : colors.quality;
+    } else if (result.severity && typeof SEVERITY_MAP !== "undefined") {
+      var severityInfo = SEVERITY_MAP[result.severity] || null;
+      if (severityInfo) {
+        displayEmoji = severityInfo.emoji;
+        displayLabel = severityInfo.label;
+        displayColor = severityInfo.color;
+      }
+    }
+    if (!displayEmoji) {
       var icons = {
         quality: "\u2705",
         suspicious: "\u26a0\ufe0f",
@@ -238,11 +244,19 @@
       displayColor = colors[result.verdict] || "#ccc";
     }
 
+    var genreIcon = "";
+    if (genreDisplay && genreDisplay.icon) {
+      genreIcon = '<span class="jd-genre-icon" title="' + (genreDisplay.label || "") + '" style="font-size:14px;margin-right:2px;">' +
+        genreDisplay.icon + "</span>";
+    }
+
     const indicator = document.createElement("div");
     indicator.id = "junk-detector-indicator";
-    indicator.title = result.explanation || "";
-    indicator.innerHTML = '<span style="font-size: 16px;">' + displayEmoji + '</span>' +
-      '<span style="font-size: 12px; margin-left: 4px; font-weight: 500;">' + displayLabel + '</span>';
+    var tierHint = action && action.tier_label ? " · " + action.tier_label : "";
+    indicator.title = (result.explanation || "") + tierHint;
+    indicator.innerHTML = genreIcon +
+      '<span style="font-size: 16px;">' + displayEmoji + "</span>" +
+      '<span style="font-size: 12px; margin-left: 4px; font-weight: 600;">' + displayLabel + "</span>";
 
     Object.assign(indicator.style, {
       position: "fixed",

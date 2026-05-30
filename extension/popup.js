@@ -139,23 +139,38 @@
     // Hide daily stats when there is an active result
     dailyStatsEl.classList.add("hidden");
 
-    iconEl.textContent = VERDICT_ICONS[result.verdict] || "\u2753";
-    explanationEl.textContent = result.explanation || "";
-
-    // Show severity badge if available
     var severityBadge = document.getElementById("severity-badge");
-    if (severityBadge && result.severity && typeof SEVERITY_MAP !== "undefined") {
-      var sevInfo = SEVERITY_MAP[result.severity];
-      if (sevInfo) {
-        severityBadge.textContent = sevInfo.emoji + " " + sevInfo.label;
-        severityBadge.className = "severity-badge severity-" + result.severity;
+    if (result.reading_action && result.reading_action.emoji) {
+      iconEl.textContent = result.reading_action.emoji;
+      iconEl.className = "verdict-icon verdict-icon--action";
+      if (severityBadge) {
+        var genrePart = result.genre_display && result.genre_display.icon
+          ? result.genre_display.icon + " " + (result.genre_display.label || "")
+          : "";
+        var tierPart = result.reading_action.tier_label || "";
+        severityBadge.textContent = (genrePart + (genrePart && tierPart ? " · " : "") + tierPart).trim();
+        severityBadge.className = "severity-badge severity-action";
         severityBadge.classList.remove("hidden");
-      } else {
+      }
+    } else {
+      iconEl.textContent = VERDICT_ICONS[result.verdict] || "\u2753";
+      if (severityBadge && result.severity && typeof SEVERITY_MAP !== "undefined") {
+        var sevInfo = SEVERITY_MAP[result.severity];
+        if (sevInfo) {
+          severityBadge.textContent = sevInfo.emoji + " " + sevInfo.label;
+          severityBadge.className = "severity-badge severity-" + result.severity;
+          severityBadge.classList.remove("hidden");
+        } else {
+          severityBadge.classList.add("hidden");
+        }
+      } else if (severityBadge) {
         severityBadge.classList.add("hidden");
       }
-    } else if (severityBadge) {
-      severityBadge.classList.add("hidden");
     }
+    var actionLabel = result.reading_action && result.reading_action.label;
+    explanationEl.textContent = actionLabel
+      ? actionLabel + (result.explanation ? " — " + result.explanation : "")
+      : (result.explanation || "");
 
     // Show dismiss button for suspicious/junk verdicts
     if (result.verdict === "suspicious" || result.verdict === "junk") {
@@ -401,7 +416,29 @@
             url: url,
             verdict: result ? result.verdict : "unknown",
             timestamp: Date.now(),
-            user_disagrees: true
+            user_disagrees: true,
+            content_genre: result ? result.content_genre : null,
+            reading_action_key: result && result.reading_action
+              ? result.reading_action.key
+              : null
+          });
+          chrome.storage.sync.get("api_base_url", function (syncData) {
+            var base = (syncData && syncData.api_base_url) || "";
+            if (base && result) {
+              fetch(base.replace(/\/$/, "") + "/api/feedback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  score_id: 0,
+                  verdict: "wrong",
+                  content_hash: "",
+                  content_genre: result.content_genre || null,
+                  reading_action_key: result.reading_action
+                    ? result.reading_action.key
+                    : null
+                })
+              }).catch(function () { /* offline or no server */ });
+            }
           });
           chrome.storage.local.set({ feedback: feedback }, function () {
             var toast = document.getElementById("feedback-toast");

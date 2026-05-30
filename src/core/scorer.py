@@ -161,6 +161,11 @@ async def score(
 
         config = load_config()
 
+    from src.core.scoring_modes import apply_scoring_mode
+    from src.core.user_settings import get_scoring_mode
+
+    config = apply_scoring_mode(config, get_scoring_mode())
+
     from src.core.content_genre import (
         GENRE_ROUNDUP,
         calculate_roundup_overall,
@@ -170,7 +175,9 @@ async def score(
         sanitize_roundup_summary,
     )
 
-    genre = content_genre or detect_content_genre(content_text)
+    from src.core.content_genre import detect_content_genre_for_user
+
+    genre = content_genre or detect_content_genre_for_user(content_text)
 
     # Pre-filter: reject obviously violating content before spending tokens
     from src.core.content_filter import check_content
@@ -347,6 +354,9 @@ async def score(
         attach_rule_dual_score(result, rule_result, config)
         attach_focus_guide(result, content_text)
 
+        from src.core.reading_enrichment import enrich_score_result_fields
+
+        enrich_score_result_fields(result, content_text=content_text)
         return result
 
     # 2. Check if rules alone can produce a full score (all 9 dimensions covered with high confidence)
@@ -477,6 +487,9 @@ async def score(
             )
             attach_rule_dual_score(result, rule_result, config)
             attach_focus_guide(result, content_text)
+            from src.core.reading_enrichment import enrich_score_result_fields
+
+            enrich_score_result_fields(result, content_text=content_text)
             return result
 
         # 4.6. Detect injection indicators in response text
@@ -531,6 +544,9 @@ async def score(
             )
             attach_rule_dual_score(result, rule_result, config)
             attach_focus_guide(result, content_text)
+            from src.core.reading_enrichment import enrich_score_result_fields
+
+            enrich_score_result_fields(result, content_text=content_text)
             return result
 
         # 5. Apply rule overrides (high confidence rules override LLM dimensions)
@@ -584,6 +600,10 @@ async def score(
     result.scored_by = config.primary_model if config else "rules"
     attach_rule_dual_score(result, rule_result, config)
     attach_focus_guide(result, content_text)
+
+    from src.core.reading_enrichment import enrich_score_result_fields
+
+    enrich_score_result_fields(result, content_text=content_text)
 
     return result
 

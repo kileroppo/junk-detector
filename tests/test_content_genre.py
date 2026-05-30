@@ -47,6 +47,11 @@ class TestDetectContentGenre:
     def test_short_text_default(self):
         assert detect_content_genre("hello") == "default"
 
+    def test_detect_news_genre(self):
+        text = ("本报讯 3月1日 据悉，记者在北京采访获悉，新华社报道称当地今日发布新规。" * 8)
+        assert len(text) >= 200
+        assert detect_content_genre(text) == "news"
+
 
 class TestApplyGenreCalibration:
     def test_roundup_raises_info_density_floor(self):

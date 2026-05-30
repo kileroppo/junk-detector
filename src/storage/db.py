@@ -683,7 +683,10 @@ CREATE TABLE IF NOT EXISTS feedback (
     score_id INTEGER,
     content_hash TEXT,
     user_verdict TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    content_genre TEXT,
+    reading_action_key TEXT,
+    dimensions_json TEXT
 );
 """
 
@@ -702,6 +705,16 @@ def init_feedback_table(db_path: str = "junk_detector.db") -> None:
     try:
         conn.execute(_CREATE_FEEDBACK_TABLE_SQL)
         conn.commit()
+        cursor = conn.execute("PRAGMA table_info(feedback)")
+        fb_cols = [row["name"] for row in cursor.fetchall()]
+        for col, ddl in (
+            ("content_genre", "ALTER TABLE feedback ADD COLUMN content_genre TEXT;"),
+            ("reading_action_key", "ALTER TABLE feedback ADD COLUMN reading_action_key TEXT;"),
+            ("dimensions_json", "ALTER TABLE feedback ADD COLUMN dimensions_json TEXT;"),
+        ):
+            if col not in fb_cols:
+                conn.execute(ddl)
+                conn.commit()
         _initialized_feedback_dbs.add(db_path)
     finally:
         conn.close()
@@ -714,10 +727,14 @@ def _ensure_feedback_initialized(db_path: str) -> None:
 
 
 def save_feedback(
-    score_id: int,
+    score_id: int | None,
     content_hash: str,
     verdict: str,
     db_path: str = "junk_detector.db",
+    *,
+    content_genre: str | None = None,
+    reading_action_key: str | None = None,
+    dimensions_json: str | None = None,
 ) -> None:
     """Save user feedback (wrong/correct) for a scoring result.
 
@@ -734,10 +751,21 @@ def save_feedback(
     try:
         conn.execute(
             """
-            INSERT INTO feedback (score_id, content_hash, user_verdict, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO feedback (
+                score_id, content_hash, user_verdict, created_at,
+                content_genre, reading_action_key, dimensions_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (score_id, content_hash, verdict, created_at),
+            (
+                score_id,
+                content_hash,
+                verdict,
+                created_at,
+                content_genre,
+                reading_action_key,
+                dimensions_json,
+            ),
         )
         conn.commit()
     finally:

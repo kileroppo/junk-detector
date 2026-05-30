@@ -18,7 +18,7 @@
   },
   "content_scripts": [{
     "matches": ["*://mp.weixin.qq.com/*", "*://*.xiaohongshu.com/*", "*://*.zhihu.com/*", "*://*.juejin.cn/*", "*://*.weibo.com/*"],
-    "js": ["rules.js", "content.js"]
+    "js": ["rules.js", "reading_action.js", "content.js"]
   }],
   "icons": {
     "16": "icons/icon-gray-16.png",
