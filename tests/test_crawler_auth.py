@@ -493,3 +493,247 @@ class TestProtocolCompliance:
         assert set(PLATFORMS.keys()) == {
             "zhihu", "weibo", "xiaohongshu", "wechat", "bilibili"
         }
+
+
+# =============================================================================
+# TestCLIAuth
+# =============================================================================
+
+
+class TestCLIAuth:
+    """Tests for CLI auth subcommand integration."""
+
+    def test_auth_commands_registered(self):
+        """Verify auth subcommand group is registered with login/status/logout."""
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["auth", "--help"])
+        assert result.exit_code == 0
+        assert "login" in result.output
+        assert "status" in result.output
+        assert "logout" in result.output
+
+    def test_auth_login_unknown_platform(self):
+        """Login with an unknown platform should fail."""
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["auth", "login", "--platform", "fakebook"])
+        assert result.exit_code == 1
+        assert "Unknown platform" in result.output
+
+    def test_auth_login_success_mocked(self, tmp_path: Path):
+        """Test auth login with mocked browser login."""
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        mock_cookies = {"z_c0": "token_123", "_xsrf": "csrf_val"}
+
+        with patch(
+            "src.crawler_auth.platforms.zhihu.ZhihuAuth.login",
+            new_callable=AsyncMock,
+            return_value=mock_cookies,
+        ), patch(
+            "src.crawler_auth.cookie_store.CookieStore.__init__",
+            return_value=None,
+        ), patch(
+            "src.crawler_auth.cookie_store.CookieStore.save",
+        ) as mock_save:
+            runner = CliRunner()
+            result = runner.invoke(app, ["auth", "login", "--platform", "zhihu", "--headless"])
+            assert result.exit_code == 0
+            assert "Login successful" in result.output
+            mock_save.assert_called_once()
+
+    def test_auth_status(self, tmp_path: Path):
+        """Test auth status shows platform info."""
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        with patch(
+            "src.crawler_auth.cookie_store.CookieStore.__init__",
+            return_value=None,
+        ), patch(
+            "src.crawler_auth.cookie_store.CookieStore.load",
+            return_value={"z_c0": "token"},
+        ), patch(
+            "src.crawler_auth.cookie_store.CookieStore.is_expired",
+            return_value=False,
+        ), patch(
+            "src.crawler_auth.cookie_store.CookieStore.list_platforms",
+            return_value=["zhihu"],
+        ):
+            runner = CliRunner()
+            result = runner.invoke(app, ["auth", "status"])
+            assert result.exit_code == 0
+            assert "zhihu" in result.output
+
+    def test_auth_logout_specific_platform(self, tmp_path: Path):
+        """Test logout clears specific platform cookies."""
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        with patch(
+            "src.crawler_auth.cookie_store.CookieStore.__init__",
+            return_value=None,
+        ), patch(
+            "src.crawler_auth.cookie_store.CookieStore.clear",
+        ) as mock_clear:
+            runner = CliRunner()
+            result = runner.invoke(app, ["auth", "logout", "--platform", "zhihu"])
+            assert result.exit_code == 0
+            assert "Cleared cookies" in result.output
+            mock_clear.assert_called_once_with("zhihu")
+
+    def test_auth_logout_all(self, tmp_path: Path):
+        """Test logout --all clears all platforms."""
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        with patch(
+            "src.crawler_auth.cookie_store.CookieStore.__init__",
+            return_value=None,
+        ), patch(
+            "src.crawler_auth.cookie_store.CookieStore.clear",
+        ) as mock_clear:
+            runner = CliRunner()
+            result = runner.invoke(app, ["auth", "logout", "--all"])
+            assert result.exit_code == 0
+            assert "all platforms" in result.output
+            # Should be called once per platform (5 platforms)
+            assert mock_clear.call_count == 5
+
+    def test_auth_logout_requires_option(self):
+        """Test logout without --platform or --all fails."""
+        from typer.testing import CliRunner
+
+        from src.cli.main import app
+
+        runner = CliRunner()
+        result = runner.invoke(app, ["auth", "logout"])
+        assert result.exit_code == 1
+        assert "Specify --platform or --all" in result.output
+
+
+# =============================================================================
+# TestWebExtractorFallback
+# =============================================================================
+
+
+class TestWebExtractorFallback:
+    """Tests for authenticated fallback in web extractor."""
+
+    async def test_fallback_on_403_with_cookies(self, tmp_path: Path):
+        """When httpx returns 403 and cookies exist, attempt authenticated fetch."""
+        from src.extractors.web import extract_from_url
+
+        # Mock the initial httpx request to return 403
+        mock_403_response = MagicMock()
+        mock_403_response.status_code = 403
+        mock_403_response.headers = {}
+
+        # Mock the authenticated response
+        mock_auth_response = MagicMock()
+        mock_auth_response.status_code = 200
+        mock_auth_response.text = "<html><head><title>Test Page</title></head><body><article><p>Authenticated content here with enough text to extract properly.</p></article></body></html>"
+        mock_auth_response.headers = {"content-type": "text/html"}
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_403_response), \
+             patch("src.crawler_auth.CookieStore") as MockStore, \
+             patch("src.crawler_auth.AuthenticatedClient") as MockClient:
+
+            mock_store_inst = MagicMock()
+            mock_store_inst.load.return_value = {"z_c0": "test_token"}
+            MockStore.return_value = mock_store_inst
+
+            mock_client_inst = MagicMock()
+            mock_client_inst.detect_platform.return_value = "zhihu"
+            mock_client_inst.fetch = AsyncMock(return_value=mock_auth_response)
+            MockClient.return_value = mock_client_inst
+
+            content = await extract_from_url("https://www.zhihu.com/question/123")
+            assert content.text is not None
+            assert len(content.text) > 0
+            mock_client_inst.fetch.assert_called_once_with("https://www.zhihu.com/question/123")
+
+    async def test_fallback_on_403_without_cookies(self):
+        """When httpx returns 403 but no cookies exist, raise original error."""
+        from src.extractors.web import extract_from_url
+
+        mock_403_response = MagicMock()
+        mock_403_response.status_code = 403
+        mock_403_response.headers = {}
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_403_response), \
+             patch("src.crawler_auth.CookieStore") as MockStore, \
+             patch("src.crawler_auth.AuthenticatedClient") as MockClient:
+
+            mock_store_inst = MagicMock()
+            mock_store_inst.load.return_value = None  # No cookies
+            MockStore.return_value = mock_store_inst
+
+            mock_client_inst = MagicMock()
+            mock_client_inst.detect_platform.return_value = "zhihu"
+            MockClient.return_value = mock_client_inst
+
+            with pytest.raises(ValueError, match="HTTP 403"):
+                await extract_from_url("https://www.zhihu.com/question/123")
+
+    async def test_fallback_on_403_unknown_platform(self):
+        """When httpx returns 403 for unknown platform, raise original error."""
+        from src.extractors.web import extract_from_url
+
+        mock_403_response = MagicMock()
+        mock_403_response.status_code = 403
+        mock_403_response.headers = {}
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_403_response), \
+             patch("src.crawler_auth.CookieStore") as MockStore, \
+             patch("src.crawler_auth.AuthenticatedClient") as MockClient:
+
+            mock_store_inst = MagicMock()
+            MockStore.return_value = mock_store_inst
+
+            mock_client_inst = MagicMock()
+            mock_client_inst.detect_platform.return_value = None  # Unknown platform
+            MockClient.return_value = mock_client_inst
+
+            with pytest.raises(ValueError, match="HTTP 403"):
+                await extract_from_url("https://www.example.com/page")
+
+    async def test_fallback_import_error(self):
+        """When crawler_auth not installed, 403 raises normally."""
+        from src.extractors.web import extract_from_url
+
+        mock_403_response = MagicMock()
+        mock_403_response.status_code = 403
+        mock_403_response.headers = {}
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_403_response), \
+             patch.dict("sys.modules", {"src.crawler_auth": None}):
+
+            with pytest.raises(ValueError, match="HTTP 403"):
+                await extract_from_url("https://www.zhihu.com/question/123")
+
+    async def test_no_fallback_on_200(self):
+        """Normal 200 responses should not trigger fallback."""
+        from src.extractors.web import extract_from_url
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "<html><head><title>Normal Page</title></head><body><article><p>Normal content that is long enough to extract.</p></article></body></html>"
+        mock_response.headers = {"content-type": "text/html"}
+
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_response):
+            content = await extract_from_url("https://www.zhihu.com/question/123")
+            assert content.text is not None
+            assert "Normal content" in content.text

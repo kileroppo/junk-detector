@@ -281,6 +281,26 @@ async def extract_from_url(url: str) -> Content:
     if response.status_code == 404:
         raise ValueError(f"URL returned 404 Not Found: {url}")
 
+    # Check for auth-required responses (403) - attempt authenticated fallback
+    if response.status_code == 403:
+        try:
+            from src.crawler_auth import AuthenticatedClient, CookieStore
+
+            store = CookieStore()
+            client_auth = AuthenticatedClient(cookie_store=store)
+            platform = client_auth.detect_platform(url)
+
+            if platform and store.load(platform) is not None:
+                auth_response = await client_auth.fetch(url)
+                if auth_response.status_code < 400:
+                    response = auth_response
+                else:
+                    raise ValueError(f"URL returned HTTP {response.status_code}: {url}")
+            else:
+                raise ValueError(f"URL returned HTTP {response.status_code}: {url}")
+        except ImportError:
+            raise ValueError(f"URL returned HTTP {response.status_code}: {url}")
+
     # Check for other HTTP errors
     if response.status_code >= 400:
         raise ValueError(f"URL returned HTTP {response.status_code}: {url}")
