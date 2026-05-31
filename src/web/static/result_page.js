@@ -417,10 +417,11 @@
         }
 
         highlightDimensionRows(dimKeys);
+        // Always scroll to source panel when any dimension is clicked
+        if (dimKeys.length && typeof global.scrollToFocusSource === 'function') {
+            global.scrollToFocusSource();
+        }
         if (indices.length) {
-            if (typeof global.scrollToFocusSource === 'function') {
-                global.scrollToFocusSource();
-            }
             highlightParagraphs(indices, sourceIndex);
             if (sourceIndex == null && typeof global.scrollToFocusPara === 'function') {
                 global.scrollToFocusPara(indices[0]);
@@ -441,6 +442,7 @@
 
     function linkDimensionToSource(rowEl) {
         if (!rowEl) return;
+        console.log('[stagger] linkDimensionToSource', rowEl.dataset.dimKey);
         applyDimensionLink({
             dimKeys: [rowEl.getAttribute('data-dim-key')].filter(Boolean),
             paragraphIndices: parseParagraphIndices(rowEl.getAttribute('data-paragraph-indices')),

@@ -969,7 +969,6 @@ body {
     background: color-mix(in srgb, var(--color-surface) 88%, transparent);
     backdrop-filter: saturate(180%) blur(16px);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
-    border-bottom: 0.5px solid var(--color-border);
 }
 
 .result-sticky-bar-inner {
@@ -1053,11 +1052,6 @@ body {
 html:not(.dark) .result-section-hero > .result-hero,
 html:not(.dark) .result-section-hero > :first-child {
     background: transparent;
-}
-
-.result-section-primary > :first-child {
-    border-color: var(--color-border);
-    background-color: var(--color-surface);
 }
 
 .result-section-secondary > :first-child,
@@ -2290,10 +2284,22 @@ button.reading-map-block:focus-visible {
     box-shadow: 0 1px 8px rgba(239, 68, 68, 0.05);
 }
 
+.focus-guide-card--linkable {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.focus-guide-card--linkable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.focus-guide-card--linkable:focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.8);
+    outline-offset: 2px;
+}
+
 .focus-verdict {
     border-radius: 0.75rem;
     padding: 1rem 1.25rem;
-    border: 1px solid rgba(51, 65, 85, 0.6);
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
 }
 
@@ -2350,7 +2356,6 @@ button.reading-map-block:focus-visible {
 /* Phase 1: verdict-first result layout */
 .verdict-hero {
     background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
-    border: 1px solid rgba(51, 65, 85, 0.7);
     border-radius: 1rem;
     padding: 1.25rem 1.5rem;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
@@ -3498,11 +3503,10 @@ html:not(.dark) .judgment-rule-chip {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem 1rem;
-    padding: 0.75rem 1rem;
+    gap: 0.75rem 1.25rem;
+    padding: 0.875rem 1.25rem;
     border-radius: var(--radius-xl, 0.75rem);
     background: var(--color-surface);
-    border: 0.5px solid var(--color-border);
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
 }
 

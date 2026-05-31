@@ -2,7 +2,7 @@
 {% set has_source = result.annotated_paragraphs | default([]) | length > 0 %}
 <div class="focus-guide-wrap {% if has_source %}focus-guide-wrap--split{% endif %}">
     <div class="focus-split-grid">
-        <div class="bg-surface rounded-xl p-6 border border-navy-700 focus-guide focus-split-col focus-split-col--guide">
+        <div class="bg-surface rounded-xl p-6 focus-guide focus-split-col focus-split-col--guide">
             {% set must_read = result.focus_guide.top_nuggets if result.focus_guide.top_nuggets else result.focus_guide.information_nuggets[:3] %}
             {% set headline = result.focus_guide.verdict_headline | default('') %}
             {% set detail = result.focus_guide.verdict_detail | default('') %}
@@ -34,7 +34,13 @@
                 </h3>
                 <ol class="focus-nugget-list list-none m-0 p-0">
                     {% for nugget in must_read %}
-                    <li class="focus-guide-card focus-guide-card--gold">
+                    <li class="focus-guide-card focus-guide-card--gold{% if has_source and nugget.index is defined %} focus-guide-card--linkable{% endif %}"
+                        {% if has_source and nugget.index is defined %}
+                        role="button"
+                        tabindex="0"
+                        onclick="scrollToFocusPara({{ nugget.index }})"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();scrollToFocusPara({{ nugget.index }});}"
+                        {% endif %}>
                         <div class="focus-nugget-header">
                             <div class="focus-nugget-meta-row">
                                 <span class="focus-guide-step">{{ loop.index }}</span>
@@ -43,11 +49,6 @@
                                 {% endif %}
                             </div>
                             <div class="focus-nugget-actions">
-                                {% if has_source and nugget.index is defined %}
-                                {% with index=nugget.index %}
-                                {% include "partials/btn_focus_goto.html" %}
-                                {% endwith %}
-                                {% endif %}
                                 {% if nugget.search_anchor %}
                                 {% with anchor=nugget.search_anchor, muted=false %}
                                 {% include "partials/btn_focus_copy.html" %}
@@ -72,15 +73,16 @@
             {% set c = result.focus_guide.caution %}
             <section class="focus-section focus-section--primary mb-5">
                 <h3 class="focus-section-title focus-section-title--caution">别信</h3>
-                <div class="focus-guide-card focus-guide-card--caution">
+                <div class="focus-guide-card focus-guide-card--caution{% if has_source and c.index is defined %} focus-guide-card--linkable{% endif %}"
+                     {% if has_source and c.index is defined %}
+                     role="button"
+                     tabindex="0"
+                     onclick="scrollToFocusPara({{ c.index }})"
+                     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();scrollToFocusPara({{ c.index }});}"
+                     {% endif %}>
                     <div class="focus-nugget-header">
                         <p class="focus-caution-headline">{{ c.headline }}</p>
                         <div class="focus-nugget-actions">
-                            {% if has_source and c.index is defined %}
-                            {% with index=c.index %}
-                            {% include "partials/btn_focus_goto.html" %}
-                            {% endwith %}
-                            {% endif %}
                             {% if c.search_anchor %}
                             {% with anchor=c.search_anchor, muted=true %}
                             {% include "partials/btn_focus_copy.html" %}
@@ -160,7 +162,7 @@
 
         {% if has_source %}
         <div class="focus-split-col focus-split-col--source">
-            <div id="focus-source-panel" class="focus-source-panel bg-surface rounded-xl border border-navy-700">
+            <div id="focus-source-panel" class="focus-source-panel bg-surface rounded-xl">
                 <div class="focus-source-header">
                     <div class="focus-source-header-row">
                         <div class="focus-source-header-text">

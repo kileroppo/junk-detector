@@ -26,7 +26,7 @@
 
     <!-- 2. Title (when no title in hero context) + optional focus guide details -->
     <div class="result-section-primary simple-hidden">
-        {% if result.title and not result.focus_guide %}
+        {% if result.title %}
         <div class="result-hero-title-block mb-4 text-center">
             <h1 class="text-xl font-semibold text-gray-200">{{ result.title }}</h1>
         </div>

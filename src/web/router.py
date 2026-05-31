@@ -372,8 +372,10 @@ async def result_detail(request: Request, record_id: int):
             status_code=404,
         )
 
+    from src.web.focus_guide_backfill import ensure_record_focus_guide
     from src.web.result_display import build_result_display_data_from_record
 
+    record = ensure_record_focus_guide(record)
     result_data = build_result_display_data_from_record(record)
 
     return templates.TemplateResponse(
@@ -395,8 +397,10 @@ async def result_fragment(request: Request, record_id: int):
     if not record:
         return HTMLResponse(content="<div class=\"text-red-300\">记录未找到</div>", status_code=404)
 
+    from src.web.focus_guide_backfill import ensure_record_focus_guide
     from src.web.result_display import build_result_display_data_from_record
 
+    record = ensure_record_focus_guide(record)
     result_data = build_result_display_data_from_record(record)
 
     return templates.TemplateResponse(

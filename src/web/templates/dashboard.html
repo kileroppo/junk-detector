@@ -122,11 +122,11 @@
     <div class="bg-surface rounded-xl border border-navy-700 overflow-hidden">
         <div class="px-5 py-4 border-b border-navy-700 flex items-center justify-between">
             <h2 class="text-lg font-semibold">最近评分</h2>
-            <span class="text-xs text-gray-500">每10秒自动刷新</span>
+            <span class="text-xs text-gray-500">最近 20 条</span>
         </div>
         <div id="recent-scores-container"
              hx-get="/partials/recent-scores"
-             hx-trigger="load, every 10s"
+             hx-trigger="load"
              hx-swap="innerHTML">
             <!-- Loaded via HTMX -->
             <div class="p-8 text-center text-gray-500">

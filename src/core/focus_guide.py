@@ -720,6 +720,21 @@ def _generate_tldr(paragraphs: list[str]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _should_skip_focus_guide(score_result: ScoreResult, text: str) -> bool:
+    """Skip focus guide only for short, very high-confidence quality content."""
+    stripped = (text or "").strip()
+    if len(stripped) < 10:
+        return True
+    dims = score_result.dimensions
+    return (
+        score_result.overall_score >= 88
+        and dims.ai_generated_prob < 20
+        and dims.scam_prob < 25
+        and dims.emotional_manipulation < 30
+        and len(stripped) < 1500
+    )
+
+
 def generate_focus_guide(text: str, score_result: ScoreResult) -> Optional[FocusGuide]:
     """Generate a Focus Guide for content analysis.
 
@@ -733,8 +748,8 @@ def generate_focus_guide(text: str, score_result: ScoreResult) -> Optional[Focus
     Returns:
         FocusGuide or None if content doesn't need a guide.
     """
-    # Don't generate guide for high-quality content
-    if score_result.overall_score > 70 and score_result.dimensions.ai_generated_prob < 30:
+    # Only skip guide for clearly high-quality *short* pieces (long essays still get a route map)
+    if _should_skip_focus_guide(score_result, text):
         return None
 
     # Handle empty/very short text

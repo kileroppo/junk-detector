@@ -1,5 +1,5 @@
-<details class="dimension-panel bg-surface rounded-xl border border-navy-700 overflow-hidden detail-section">
-    <summary class="dimension-panel-summary px-6 py-4 cursor-pointer hover:bg-surface-raised transition-colors select-none">
+<details open class="dimension-panel bg-surface rounded-xl border border-navy-700 detail-section">
+    <summary class="dimension-panel-summary px-6 py-4 cursor-pointer hover:bg-surface-raised transition-colors select-none overflow-hidden">
         <span class="text-base font-semibold text-gray-200">九维评分详情</span>
         <span class="text-xs text-gray-500 block mt-1 font-normal">
             {% if result.dimension_explanation %}{{ result.dimension_explanation }}{% else %}专家模式：查看全部维度{% endif %}

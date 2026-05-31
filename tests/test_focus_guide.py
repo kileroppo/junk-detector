@@ -111,11 +111,20 @@ SINGLE_PARAGRAPH = "在当今社会，人工智能技术已经成为了一个不
 class TestGenerateFocusGuide:
     """Tests for the main generate_focus_guide function."""
 
-    def test_returns_none_for_high_quality_content(self):
-        """High quality content (score > 70 AND ai_prob < 30) should return None."""
+    def test_returns_none_for_high_quality_short_content(self):
+        """Very high quality short content should skip focus guide."""
         score = _make_high_quality_score()
+        score.overall_score = 92.0
+        short = "这是一篇简短的高质量说明，没有需要跳读的结构。"
+        assert generate_focus_guide(short, score) is None
+
+    def test_returns_guide_for_moderate_high_score_long_text(self):
+        """Score ~80 long essays still get reading route (regression for Phase 1 UI)."""
+        score = _make_high_quality_score()
+        score.overall_score = 80.0
         result = generate_focus_guide(GENUINE_HUMAN_TEXT, score)
-        assert result is None
+        assert result is not None
+        assert result.recommendation in ("skim", "read_carefully")
 
     def test_generates_guide_for_ai_content(self):
         """AI-generated content with high ai_prob should produce a guide."""
