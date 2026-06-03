@@ -6,14 +6,22 @@ from datetime import datetime
 
 from .cookie_store import CookieStore
 from .cookie_utils import parse_cookie_string
+from .custom_store import CustomPlatformStore
 from .platform_meta import get_platform_meta, list_platform_ids
-from .platforms import PLATFORMS
+from .platforms import PLATFORMS, is_builtin_platform
 
 
 def _format_ts(ts: float | None) -> str | None:
     if not ts:
         return None
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+
+
+def _is_known_platform(platform_id: str) -> bool:
+    """Check if platform_id is a builtin or custom platform."""
+    if is_builtin_platform(platform_id):
+        return True
+    return CustomPlatformStore().get(platform_id) is not None
 
 
 def describe_platform(store: CookieStore, platform_id: str) -> dict:
@@ -41,7 +49,11 @@ def describe_platform(store: CookieStore, platform_id: str) -> dict:
     if expired:
         status = "expired"
     elif cookies:
-        status = "active"
+        # Custom platforms without validate_url get "unverified" status
+        if meta.get("is_custom") and not meta.get("validate_url"):
+            status = "unverified"
+        else:
+            status = "active"
     else:
         status = "missing"
 
@@ -57,7 +69,7 @@ def describe_platform(store: CookieStore, platform_id: str) -> dict:
 
 
 def list_all_platform_statuses(store: CookieStore | None = None) -> list[dict]:
-    """List status for every registered platform."""
+    """List status for every registered platform (builtin + custom)."""
     store = store or CookieStore()
     return [describe_platform(store, pid) for pid in list_platform_ids()]
 
@@ -70,7 +82,7 @@ def import_cookies(
     store: CookieStore | None = None,
 ) -> dict:
     """Parse and save cookies for a platform."""
-    if platform_id not in PLATFORMS:
+    if not _is_known_platform(platform_id):
         raise ValueError(f"Unknown platform: {platform_id}")
     parsed = parse_cookie_string(raw)
     store = store or CookieStore()
@@ -86,7 +98,7 @@ def clear_platform_cookies(
     platform_id: str, store: CookieStore | None = None
 ) -> dict:
     """Remove stored cookies for a platform."""
-    if platform_id not in PLATFORMS:
+    if not _is_known_platform(platform_id):
         raise ValueError(f"Unknown platform: {platform_id}")
     store = store or CookieStore()
     store.clear(platform_id)

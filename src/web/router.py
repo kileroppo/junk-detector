@@ -927,6 +927,105 @@ async def api_cookies_clear(request: Request, platform_id: str):
 
 
 # ---------------------------------------------------------------------------
+# Custom platform CRUD
+# ---------------------------------------------------------------------------
+
+
+@router.post("/api/cookies/custom", response_class=HTMLResponse)
+async def api_custom_platform_create(request: Request):
+    """Create a new custom platform."""
+    from src.crawler_auth.custom_store import CustomPlatformStore
+    from src.crawler_auth.platforms import get_custom_platform_auth
+
+    form = await request.form()
+    raw_headers = form.get("extra_headers", "")
+    extra_headers = {}
+    if raw_headers and raw_headers.strip():
+        try:
+            extra_headers = json.loads(raw_headers)
+        except json.JSONDecodeError:
+            return HTMLResponse(
+                content=(
+                    '<div class="bg-red-900/50 border border-red-700 rounded-lg p-3 text-red-300 text-sm">'
+                    "extra_headers 必须是合法 JSON</div>"
+                ),
+                status_code=400,
+            )
+
+    config = {
+        "id": form.get("id", "").strip(),
+        "label": form.get("label", "").strip(),
+        "domains": [d.strip() for d in str(form.get("domains", "")).split(",") if d.strip()],
+        "login_url": form.get("login_url", "").strip(),
+        "cookie_domains": [d.strip() for d in str(form.get("cookie_domains", "")).split(",") if d.strip()],
+        "key_cookies": [k.strip() for k in str(form.get("key_cookies", "")).split(",") if k.strip()],
+        "validate_url": form.get("validate_url", "").strip(),
+        "extra_headers": extra_headers,
+        "user_agent": form.get("user_agent", "").strip(),
+    }
+
+    try:
+        store = CustomPlatformStore()
+        store.save(config)
+        # Validate it can be instantiated
+        get_custom_platform_auth(config)
+    except (ValueError, KeyError) as exc:
+        return HTMLResponse(
+            content=(
+                f'<div class="bg-red-900/50 border border-red-700 rounded-lg p-3 text-red-300 text-sm">'
+                f"{exc}</div>"
+            ),
+            status_code=400,
+        )
+
+    response = templates.TemplateResponse(
+        request,
+        "partials/cookie_platforms.html",
+        _cookie_platforms_context(),
+    )
+    response.headers["HX-Trigger"] = json.dumps(
+        {
+            "showToast": {
+                "message": f"自定义平台「{config['label']}」已创建",
+                "type": "success",
+            }
+        }
+    )
+    return response
+
+
+@router.delete("/api/cookies/custom/{platform_id}", response_class=HTMLResponse)
+async def api_custom_platform_delete(request: Request, platform_id: str):
+    """Delete a custom platform and its cookies."""
+    from src.crawler_auth.cookie_store import CookieStore
+    from src.crawler_auth.custom_store import CustomPlatformStore
+
+    store = CustomPlatformStore()
+    deleted = store.delete(platform_id)
+    if not deleted:
+        return HTMLResponse(
+            content=(
+                f'<div class="bg-red-900/50 border border-red-700 rounded-lg p-3 text-red-300 text-sm">'
+                f"自定义平台 {platform_id!r} 不存在</div>"
+            ),
+            status_code=404,
+        )
+
+    # Also clear stored cookies for this platform
+    CookieStore().clear(platform_id)
+
+    response = templates.TemplateResponse(
+        request,
+        "partials/cookie_platforms.html",
+        _cookie_platforms_context(),
+    )
+    response.headers["HX-Trigger"] = json.dumps(
+        {"showToast": {"message": f"平台 {platform_id} 已删除", "type": "info"}}
+    )
+    return response
+
+
+# ---------------------------------------------------------------------------
 # HTMX partial endpoints (return HTML fragments)
 # ---------------------------------------------------------------------------
 

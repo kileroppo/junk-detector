@@ -44,12 +44,36 @@ PLATFORM_META: dict[str, dict[str, str | list[str]]] = {
 
 
 def list_platform_ids() -> list[str]:
-    """All registered platform IDs, sorted."""
-    return sorted(PLATFORMS.keys())
+    """All registered platform IDs (builtin + custom), sorted."""
+    from .custom_store import CustomPlatformStore
+
+    ids = set(PLATFORMS.keys())
+    for p in CustomPlatformStore().list_all():
+        pid = p.get("id")
+        if pid:
+            ids.add(pid)
+    return sorted(ids)
 
 
 def get_platform_meta(platform_id: str) -> dict:
     """Return display metadata for a platform (with sensible defaults)."""
+    # Check if this is a custom platform
+    from .custom_store import CustomPlatformStore
+
+    custom = CustomPlatformStore().get(platform_id)
+    if custom:
+        domains = custom.get("domains") or []
+        return {
+            "id": platform_id,
+            "label": str(custom.get("label", platform_id.title())),
+            "domain": domains[0] if domains else "",
+            "hint": str(custom.get("hint", "从浏览器 DevTools 复制 Cookie")),
+            "guide_url": str(custom.get("login_url", "")),
+            "key_cookies": list(custom.get("key_cookies") or []),
+            "is_custom": True,
+            "validate_url": custom.get("validate_url") or "",
+        }
+
     meta = PLATFORM_META.get(platform_id, {})
     return {
         "id": platform_id,
@@ -58,4 +82,6 @@ def get_platform_meta(platform_id: str) -> dict:
         "hint": str(meta.get("hint", "从浏览器 DevTools 复制 Cookie")),
         "guide_url": str(meta.get("guide_url", "")),
         "key_cookies": list(meta.get("key_cookies", [])),
+        "is_custom": False,
+        "validate_url": "",
     }

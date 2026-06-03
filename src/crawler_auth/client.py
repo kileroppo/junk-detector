@@ -9,7 +9,7 @@ from .base import PlatformAuth
 from .cookie_store import CookieStore
 from .platforms import PLATFORMS
 
-# Domain to platform mapping for auto-detection
+# Domain to platform mapping for auto-detection (builtin platforms)
 _DOMAIN_MAP: dict[str, str] = {
     "zhihu.com": "zhihu",
     "weibo.com": "weibo",
@@ -22,6 +22,13 @@ _DOMAIN_MAP: dict[str, str] = {
     "bilibili.com": "bilibili",
     "b23.tv": "bilibili",
 }
+
+
+def _load_custom_domain_map() -> dict[str, str]:
+    """Load domain -> platform_id mapping from custom platforms."""
+    from .custom_store import CustomPlatformStore
+
+    return CustomPlatformStore().get_all_domains()
 
 
 class AuthenticatedClient:
@@ -48,6 +55,14 @@ class AuthenticatedClient:
         if self._platform_registry and name in self._platform_registry:
             self._platforms[name] = self._platform_registry[name]()
             return self._platforms[name]
+        # Check custom platforms
+        from .custom_store import CustomPlatformStore
+        from .platforms.custom import CustomPlatformAuth
+
+        custom = CustomPlatformStore().get(name)
+        if custom:
+            self._platforms[name] = CustomPlatformAuth(custom)
+            return self._platforms[name]
         return None
 
     @property
@@ -65,11 +80,18 @@ class AuthenticatedClient:
         # Strip www. prefix
         if host.startswith("www."):
             host = host[4:]
-        # Check exact domain match first
+        # Check exact domain match first (builtin)
         if host in _DOMAIN_MAP:
             return _DOMAIN_MAP[host]
-        # Check if host ends with any known domain
+        # Check if host ends with any known builtin domain
         for domain, platform in _DOMAIN_MAP.items():
+            if host.endswith("." + domain) or host == domain:
+                return platform
+        # Check custom platform domains
+        custom_map = _load_custom_domain_map()
+        if host in custom_map:
+            return custom_map[host]
+        for domain, platform in custom_map.items():
             if host.endswith("." + domain) or host == domain:
                 return platform
         return None

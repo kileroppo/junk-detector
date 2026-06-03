@@ -1,0 +1,84 @@
+<!-- HTMX partial: add custom platform form -->
+<details id="add-custom-platform" class="group bg-navy-900/20 rounded-lg border border-dashed border-navy-600 open:border-purple-700/50">
+    <summary class="cursor-pointer list-none px-4 py-3 flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors">
+        <span class="text-gray-500 group-open:text-purple-400 transition-transform group-open:rotate-90 text-xs select-none">▸</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        <span class="text-sm font-medium">添加自定义平台</span>
+    </summary>
+    <div class="px-4 pb-4 border-t border-navy-700/50">
+        <form hx-post="/api/cookies/custom"
+              hx-target="#cookie-platform-list"
+              hx-swap="innerHTML"
+              class="space-y-4 pt-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">平台 ID <span class="text-red-400">*</span></label>
+                    <input type="text" name="id" required pattern="[a-zA-Z0-9_-]+"
+                           placeholder="douban"
+                           class="theme-input font-mono text-sm">
+                    <p class="text-xs text-gray-500 mt-1">仅字母、数字、下划线、连字符</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-1">显示名称 <span class="text-red-400">*</span></label>
+                    <input type="text" name="label" required
+                           placeholder="豆瓣"
+                           class="theme-input text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">域名列表 <span class="text-red-400">*</span></label>
+                <input type="text" name="domains" required
+                       placeholder="douban.com, doubanio.com"
+                       class="theme-input font-mono text-sm">
+                <p class="text-xs text-gray-500 mt-1">逗号分隔，用于 URL 自动匹配</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">登录页 URL <span class="text-red-400">*</span></label>
+                <input type="url" name="login_url" required
+                       placeholder="https://www.douban.com/accounts/login"
+                       class="theme-input font-mono text-sm">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">Cookie 域名 <span class="text-red-400">*</span></label>
+                <input type="text" name="cookie_domains" required
+                       placeholder="douban.com"
+                       class="theme-input font-mono text-sm">
+                <p class="text-xs text-gray-500 mt-1">逗号分隔，浏览器登录时抓取 Cookie 的域名</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">关键 Cookie 字段</label>
+                <input type="text" name="key_cookies"
+                       placeholder="bid, dbcl2"
+                       class="theme-input font-mono text-sm">
+                <p class="text-xs text-gray-500 mt-1">逗号分隔，可选，UI 提示用</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">验证 URL</label>
+                <input type="url" name="validate_url"
+                       placeholder="https://www.douban.com/mine/"
+                       class="theme-input font-mono text-sm">
+                <p class="text-xs text-gray-500 mt-1">可选，留空则不验证 Cookie 有效性</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">额外 Headers</label>
+                <textarea name="extra_headers" rows="2"
+                          placeholder='{"x-csrf-token": "{bili_jct}"}'
+                          class="theme-input font-mono text-sm resize-y"></textarea>
+                <p class="text-xs text-gray-500 mt-1">JSON 格式，可选。支持 <code class="theme-code">{cookie_name}</code> 引用 Cookie 值</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-1">自定义 User-Agent</label>
+                <input type="text" name="user_agent"
+                       placeholder="留空使用默认 UA"
+                       class="theme-input font-mono text-sm">
+            </div>
+            <div id="custom-platform-error"></div>
+            <div class="flex justify-end">
+                <button type="submit"
+                        class="px-4 py-1.5 text-sm rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors">
+                    创建平台
+                </button>
+            </div>
+        </form>
+    </div>
+</details>

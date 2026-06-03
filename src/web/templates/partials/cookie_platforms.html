@@ -7,10 +7,15 @@
         <span class="text-xs font-mono text-gray-500">{{ p.id }}</span>
         {% if p.status == 'active' %}
         <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-900/40 text-emerald-400 border border-emerald-700">已配置</span>
+        {% elif p.status == 'unverified' %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-900/40 text-blue-400 border border-blue-700">已配置(未验证)</span>
         {% elif p.status == 'expired' %}
         <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-900/40 text-yellow-400 border border-yellow-700">已过期</span>
         {% else %}
         <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-900/40 text-red-400 border border-red-700">未配置</span>
+        {% endif %}
+        {% if p.is_custom %}
+        <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-900/40 text-purple-400 border border-purple-700">自定义</span>
         {% endif %}
         {% if p.cookie_count > 0 %}
         <span class="text-xs text-gray-500 ml-auto">{{ p.cookie_count }} 项</span>
@@ -59,6 +64,16 @@
                     完全替换
                 </label>
                 <div class="flex items-center gap-2">
+                    {% if p.is_custom %}
+                    <button type="button"
+                            hx-delete="/api/cookies/custom/{{ p.id }}"
+                            hx-target="#cookie-platform-list"
+                            hx-swap="innerHTML"
+                            hx-confirm="确定删除自定义平台「{{ p.label }}」？Cookie 数据也会被清除。"
+                            class="theme-btn-secondary px-3 py-1.5 text-sm rounded-lg transition-colors text-red-400 hover:text-red-300">
+                        删除平台
+                    </button>
+                    {% endif %}
                     {% if p.status != 'missing' %}
                     <button type="button"
                             hx-post="/api/cookies/{{ p.id }}/clear"

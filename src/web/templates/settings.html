@@ -111,9 +111,7 @@
                     <header class="p-6 pb-4 border-b border-navy-700/80">
                         <h2 class="text-lg font-semibold text-gray-100">平台 Cookie</h2>
                         <p class="text-xs text-gray-500 mt-1">
-                            浏览器登录后复制 Cookie 粘贴保存。新平台在
-                            <code class="theme-code">platform_meta.py</code>
-                            注册即可。
+                            浏览器登录后复制 Cookie 粘贴保存。内置平台固定注册，自定义平台可在此页面添加。
                         </p>
                     </header>
 
@@ -131,6 +129,10 @@
 
                     <div id="cookie-platform-list" class="p-4 sm:p-6 space-y-3">
                         {% include "partials/cookie_platforms.html" %}
+                    </div>
+
+                    <div class="px-4 sm:px-6 pb-6">
+                        {% include "partials/custom_platform_form.html" %}
                     </div>
                 </div>
             </section>

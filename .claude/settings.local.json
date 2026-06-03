@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__agentmemory__memory_smart_search",
+      "Bash(npx --version)",
+      "Bash(npm --version)",
+      "Bash(python:*)"
+    ]
+  }
+}

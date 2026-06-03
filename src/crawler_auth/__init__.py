@@ -13,6 +13,7 @@ from .browser_login import browser_login
 from .client import AuthenticatedClient
 from .cookie_store import CookieStore
 from .cookie_utils import parse_cookie_string, read_clipboard
+from .custom_store import CustomPlatformStore
 from .manager import (
     clear_platform_cookies,
     describe_platform,
@@ -24,6 +25,7 @@ from .platform_meta import PLATFORM_META, get_platform_meta, list_platform_ids
 __all__ = [
     "AuthenticatedClient",
     "CookieStore",
+    "CustomPlatformStore",
     "PLATFORM_META",
     "PlatformAuth",
     "SignerHook",
